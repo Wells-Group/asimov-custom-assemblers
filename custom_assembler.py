@@ -23,60 +23,13 @@ def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: i
     return Aref[:, :]
 
 
-def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
+def create_csr_sparsity_pattern(num_cells: int, num_dofs_per_cell: int, dofmap: np.ndarray):
     """
-    Assemble a mass matrix using custom assembler
+    Create a csr matrix given a flattened dofmap and the number of cells and dofs per cell
     """
-    # NOTE: Assumes same cell geometry in whole mesh
-    mesh = V.mesh
-    num_dofs_x = mesh.geometry.dofmap.links(0).size
-    gdim = mesh.geometry.dim
-    tdim = mesh.topology.dim
-    t_imap = mesh.topology.index_map(tdim)
-    num_cells = t_imap.size_local + t_imap.num_ghosts
-    x = mesh.geometry.x
-    x_dofs = mesh.geometry.dofmap.array.reshape(num_cells, num_dofs_x)
-
-    num_dofs_per_cell = V.dofmap.cell_dofs(0).size
-    dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
-    geometry = np.zeros((num_dofs_x, gdim))
-
-    family = V.ufl_element().family() if not quad else "Lagrange"
-    element = basix.create_element(family, str(
-        V.ufl_cell()), V.ufl_element().degree())
-
-    # NOTE: NEED to add base permutation support
-    base_transformations = element.base_transformations()
-    needs_dof_permutations = False
-    for transformation in base_transformations:
-        if not np.allclose(transformation, np.eye(transformation.shape[0])):
-            needs_dof_permutations = True
-            break
-    if needs_dof_permutations:
-        raise RuntimeError("Dof permutations not supported")
-
-    q_p, q_w = basix.make_quadrature("default", element.cell_type, quadrature_degree)
-    q_w = q_w.reshape(q_w.size, 1)
-    # Shape (Derivative, points, num_basis_functions, value_shape)
-    # NOTE: For some cases we could get num derivatives from UFL
-    num_derivatives = 0
-    tabulated_data = element.tabulate_x(num_derivatives, q_p)
-    phi = tabulated_data[0, :, :, 0]
-
-    # Data from coordinate element
-    ufl_c_el = mesh.ufl_domain().ufl_coordinate_element()
-    ufc_family = ufl_c_el.family() if not quad else "Lagrange"
-    c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
-    c_tab = c_element.tabulate_x(1, q_p)
-
-    J_q = np.zeros((q_w.size, gdim, tdim))
-    detJ_q = np.zeros((q_w.size, 1))
-
-    # Create sparsity pattern
     entries_per_cell = num_dofs_per_cell**2
     num_data = num_cells * entries_per_cell
-    rows, cols, data = np.zeros(num_data, dtype=np.int32), np.zeros(
-        num_data, dtype=np.int32), np.zeros(num_data, dtype=float_type)
+    rows, cols = np.zeros(num_data, dtype=np.int32), np.zeros(num_data, dtype=np.int32)
     offset = 0
     for cell in range(num_cells):
         cell_dofs = dofmap[cell]
@@ -84,26 +37,83 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
             rows[offset:offset + num_dofs_per_cell] = cell_dofs
             cols[offset:offset + num_dofs_per_cell] = np.full(num_dofs_per_cell, cell_dofs[i])
             offset += num_dofs_per_cell
+    return (rows, cols)
+
+
+def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
+    """
+    Assemble a mass matrix using custom assembler
+    """
+
+    # Extract mesh data
+    mesh = V.mesh
+    num_dofs_x = mesh.geometry.dofmap.links(0).size  # NOTE: Assumes same cell geometry in whole mesh
+
+    gdim = mesh.geometry.dim
+    tdim = mesh.topology.dim
+    t_imap = mesh.topology.index_map(tdim)
+    num_cells = t_imap.size_local + t_imap.num_ghosts
+    del t_imap
+    x = mesh.geometry.x
+    x_dofs = mesh.geometry.dofmap.array.reshape(num_cells, num_dofs_x)
+
+    # Extract function space data
+    num_dofs_per_cell = V.dofmap.cell_dofs(0).size
+    dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
+
+    # Create basix element based on function space
+    family = V.ufl_element().family() if not quad else "Lagrange"
+    element = basix.create_element(family, str(
+        V.ufl_cell()), V.ufl_element().degree())
+
+    # NOTE: NEED to add base permutation support
+    if not element.dof_transformations_are_identity:
+        raise RuntimeError("Dof permutations not supported")
+
+    # Get quadrature points and weights
+    q_p, q_w = basix.make_quadrature("default", element.cell_type, quadrature_degree)
+    q_w = q_w.reshape(q_w.size, 1)
+
+    # Data from coordinate element
+    ufl_c_el = mesh.ufl_domain().ufl_coordinate_element()
+    ufc_family = ufl_c_el.family() if not quad else "Lagrange"
+    c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
+    c_tab = c_element.tabulate_x(1, q_p)
+
+    # NOTE: Tabulate basis functions at quadrature points
+    num_derivatives = 0
+    tabulated_data = element.tabulate_x(num_derivatives, q_p)
+    phi = tabulated_data[0, :, :, 0]
+
+    # Create sparsity pattern
+    rows, cols = create_csr_sparsity_pattern(num_cells, num_dofs_per_cell, dofmap)
+    data = np.zeros(len(rows), dtype=float_type)
+    entries_per_cell = num_dofs_per_cell**2
+
+    # Declaration of local structures
+    geometry = np.zeros((num_dofs_x, gdim))
+    J_q = np.zeros((q_w.size, gdim, tdim))
+    detJ_q = np.zeros((q_w.size, 1))
 
     # Assemble matrix
-    num_dofs_glob = V.dofmap.index_map.size_global * V.dofmap.index_map_bs
     for cell in range(num_cells):
-        # FIXME: This assumes a particular geometry dof layout
         for j in range(num_dofs_x):
             geometry[j] = x[x_dofs[cell, j], : gdim]
-        # Compute Jacobian at each quadrature point
 
+        # Compute Jacobian at each quadrature point
         for i, q in enumerate(q_p):
             dphi_c = c_tab[1: 3, i, :, 0]
             J_q[i] = geometry.T @ dphi_c.T
             detJ_q[i] = np.abs(linalg.det(J_q[i]))
-        phi_w = phi * q_w * detJ_q
-        mass_kernel = (phi.T @ phi_w)
 
-        # Add to global
-        cell_dofs = dofmap[cell]
+        # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
+        phi_scaled = phi * q_w * detJ_q
+        mass_kernel = (phi.T @ phi_scaled)
+
+        # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(mass_kernel)
 
+    num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
     csr = scipy.sparse.csr_matrix((data, (rows, cols)), shape=(num_dofs_glob, num_dofs_glob))
     csr.eliminate_zeros()
     csr.prune()
