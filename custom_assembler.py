@@ -2,8 +2,8 @@ import basix
 import dolfinx
 import numba
 import numpy as np
-import numpy.linalg as linalg
 import scipy.sparse
+import scipy.sparse.linalg
 import ufl
 from mpi4py import MPI
 from petsc4py import PETSc
@@ -33,7 +33,44 @@ def create_csr_sparsity_pattern(num_cells: int, num_dofs_per_cell: int, dofmap: 
     return rows, cols.ravel()
 
 
-@numba.njit(cache=True, fastmath=True)
+@numba.njit(cache=True)
+def compute_determinant(A: np.ndarray, detJ: np.ndarray):
+    """
+    Compute the determinant of A matrix with max dimension 3 on any axis
+    """
+    num_rows = A.shape[0]
+    num_cols = A.shape[1]
+    if num_rows == num_cols:
+        if num_rows == 1:
+            detJ = A[0]
+        elif num_rows == 2:
+            detJ[0] = A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0]
+        elif num_rows == 3:
+            detJ[0] = A[0, 0] * A[1, 1] * A[2, 2] + A[0, 1] * A[1, 2] * A[2, 0]\
+                + A[0, 2] * A[1, 0] * A[2, 1] - A[2, 0] * A[1, 1] * A[0, 2]\
+                - A[2, 1] * A[1, 2] * A[0, 0] - A[2, 2] * A[1, 0] * A[0, 1]
+        else:
+            # print(f"Matrix has invalid size {num_rows}x{num_cols}")
+            assert(False)
+    else:
+        # det(A^T A) = det(A) det(A)
+        ATA = A.T @ A
+        num_rows = ATA.shape[0]
+        num_cols = ATA.shape[1]
+        if num_rows == 1:
+            detJ[0] = ATA[0, 0]
+        elif num_rows == 2:
+            detJ[0] = ATA[0, 0] * ATA[1, 1] - ATA[0, 1] * ATA[1, 0]
+        elif num_rows == 3:
+            detJ[0] = ATA[0, 0] * ATA[1, 1] * ATA[2, 2] + ATA[0, 1] * ATA[1, 2] * ATA[2, 0]\
+                + ATA[0, 2] * ATA[1, 0] * ATA[2, 1] - ATA[2, 0] * ATA[1, 1] * ATA[0, 2]\
+                - ATA[2, 1] * ATA[1, 2] * ATA[0, 0] - ATA[2, 2] * ATA[1, 0] * ATA[0, 1]
+        else:
+            # print(f"Matrix has invalid size {num_rows}x{num_cols}")
+            assert(False)
+
+
+@numba.njit(cache=True)
 def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                 x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                 phi: np.ndarray, is_affine: bool):
@@ -48,7 +85,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
     J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
     dphi_c = np.empty(c_tab[1:3, 0, :, 0].shape, dtype=np.float64)
-
+    detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = num_dofs_per_cell**2
 
     # Assemble matrix
@@ -60,17 +97,17 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
         if is_affine:
             dphi_c[:] = c_tab[1:3, 0, :, 0]
             J_q[0] = np.dot(geometry.T, dphi_c.T)
-            detJ = np.abs(linalg.det(J_q[0]))
-            detJ_q[:] = detJ
+            compute_determinant(J_q[0], detJ)
+            detJ_q[:] = detJ[0]
         else:
             for i, q in enumerate(q_p):
                 dphi_c[:] = c_tab[1: 3, i, :, 0]
                 J_q[i] = geometry.T @ dphi_c.T
-                # This is the slow part of the assembly
-                detJ_q[i] = np.abs(linalg.det(J_q[i]))
-            pass
+                compute_determinant(J_q[i], detJ)
+                detJ_q[i] = detJ[0]
+
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
-        phi_scaled = phi_w * detJ_q
+        phi_scaled = phi_w * np.abs(detJ_q)
         kernel = phi.T @ phi_scaled
 
         # Add to csr matrix
@@ -150,7 +187,7 @@ def create_mesh(quad):
         ufl_mesh = ufl.Mesh(ufl.VectorElement("Lagrange", "triangle", 1))
     mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh)
     ct = dolfinx.cpp.mesh.CellType.quadrilateral if quad else dolfinx.cpp.mesh.CellType.triangle
-    N = 100
+    N = 500
     mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
     return mesh
 
@@ -205,6 +242,8 @@ if __name__ == "__main__":
     if verbose:
         print(f"Reference:\n {Aref[:,:]}")
         print(f"Solution:\n {A.toarray()}")
-
-    print(f"Norm of matrix error {np.linalg.norm(Aref[:, :] - A.toarray())}")
-    assert(np.allclose(A.toarray(), Aref[:, :]))
+    ai, aj, av = Aref.getValuesCSR()
+    Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
+    matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
+    print(f"Norm of matrix error {matrix_error}")
+    #assert(np.allclose(A.toarray(), Aref[:, :]))
