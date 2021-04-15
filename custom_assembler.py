@@ -24,22 +24,13 @@ def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: i
     return Aref
 
 
-@numba.njit(cache=True)
 def create_csr_sparsity_pattern(num_cells: int, num_dofs_per_cell: int, dofmap: np.ndarray):
     """
     Create a csr matrix given a flattened dofmap and the number of cells and dofs per cell
     """
-    entries_per_cell = num_dofs_per_cell**2
-    num_data = num_cells * entries_per_cell
-    rows, cols = np.zeros(num_data, dtype=np.int32), np.zeros(num_data, dtype=np.int32)
-    offset = 0
-    for cell in range(num_cells):
-        cell_dofs = dofmap[cell]
-        for i in range(num_dofs_per_cell):
-            rows[offset:offset + num_dofs_per_cell] = cell_dofs
-            cols[offset:offset + num_dofs_per_cell] = np.full(num_dofs_per_cell, cell_dofs[i])
-            offset += num_dofs_per_cell
-    return (rows, cols)
+    rows = np.repeat(dofmap, num_dofs_per_cell)
+    cols = np.tile(np.reshape(dofmap, (num_cells, num_dofs_per_cell)), num_dofs_per_cell)
+    return rows, cols.ravel()
 
 
 @numba.njit(cache=True, fastmath=True)
@@ -49,14 +40,17 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
     """
     Assemble mass matrix into CSR array "data"
     """
+    # Compute weighted basis functions at quadrature points
+    phi_w = phi * q_w
+
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
     J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
+    dphi_c = np.empty(c_tab[1:3, 0, :, 0].shape, dtype=np.float64)
 
     entries_per_cell = num_dofs_per_cell**2
 
-    dphi_c = np.empty(c_tab[1:3, 0, :, 0].shape, dtype=np.float64)
     # Assemble matrix
     for cell in range(num_cells):
         for j in range(num_dofs_x):
@@ -76,8 +70,9 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
                 detJ_q[i] = np.abs(linalg.det(J_q[i]))
             pass
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
-        phi_scaled = phi * q_w * detJ_q
+        phi_scaled = phi_w * detJ_q
         kernel = phi.T @ phi_scaled
+
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(kernel)
 
@@ -136,8 +131,9 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
                 x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine)
 
     num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
-    csr = scipy.sparse.coo_matrix((data, (rows, cols)), shape=(num_dofs_glob, num_dofs_glob))
-    return csr
+    # Faster than CSR
+    out_matrix = scipy.sparse.coo_matrix((data, (rows, cols)), shape=(num_dofs_glob, num_dofs_glob))
+    return out_matrix
 
 
 def create_mesh(quad):
@@ -189,18 +185,23 @@ if __name__ == "__main__":
     el = ufl.FiniteElement("CG", cell_str, degree)
     quadrature_degree = 2 * el.degree() + 1
     V = dolfinx.FunctionSpace(mesh, el)
-
+    dolfin_times = np.zeros(runs - 1)
+    numba_times = np.zeros(runs - 1)
     for i in range(runs):
         start = time.time()
         Aref = compute_reference_mass_matrix(V, quadrature_degree)
         end = time.time()
         print(f"{i}: DOLFINx {end-start:.2e}")
-
+        if i > 0:
+            dolfin_times[i - 1] = end - start
         start = time.time()
         A = assemble_mass_matrix(V, quadrature_degree)
         end = time.time()
-        print(f"{i}: Numba {end-start:.2e}")
+        if i > 0:
+            numba_times[i - 1] = end - start
 
+        print(f"{i}: Numba {end-start:.2e}")
+    print(f"numba/dolfin: {np.sum(numba_times) / np.sum(dolfin_times)}")
     if verbose:
         print(f"Reference:\n {Aref[:,:]}")
         print(f"Solution:\n {A.toarray()}")
