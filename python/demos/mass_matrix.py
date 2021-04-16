@@ -1,3 +1,7 @@
+# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+
 import argparse
 import time
 
