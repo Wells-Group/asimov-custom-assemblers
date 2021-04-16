@@ -31,7 +31,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
     J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
-    dphi_c = np.empty(c_tab[1:gdim + 1, 0, :, 0].shape, dtype=np.float64)
+    dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
     detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = num_dofs_per_cell**2
 
@@ -42,7 +42,6 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
 
         # Compute Jacobian at each quadrature point
         if is_affine:
-            dphi_c[:] = c_tab[1:gdim + 1, 0, :, 0]
             J_q[0] = np.dot(geometry.T, dphi_c.T)
             compute_determinant(J_q[0], detJ)
             detJ_q[:] = detJ[0]
