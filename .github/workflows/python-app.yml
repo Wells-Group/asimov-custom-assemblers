@@ -20,12 +20,15 @@ jobs:
       - name: flake8 code
         run: flake8 .
 
+      - name: Install package
+        run: pip3 install python/
+
       - name: Run tests
         run: |
-          cd tests
+          cd python/tests
           python3 -m pytest test_mass_matrix.py
 
       - name: Run demos
         run: |
-          cd demos
+          cd python/demos
           python3 mass_matrix.py
