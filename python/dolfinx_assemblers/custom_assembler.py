@@ -4,72 +4,12 @@ import numba
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
-import ufl
-from mpi4py import MPI
+from .utils import compute_determinant, create_csr_sparsity_pattern
 from petsc4py import PETSc
 
 float_type = PETSc.ScalarType
 
-__all__ = ["compute_reference_mass_matrix", "create_mesh", "assemble_mass_matrix"]
-
-
-def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
-    """
-    Compute mass matrix with given quadrature degree
-    """
-    u = ufl.TrialFunction(V)
-    v = ufl.TestFunction(V)
-    dx = ufl.dx(domain=mesh, metadata={"quadrature_degree": quadrature_degree})
-    a = ufl.inner(u, v) * dx
-    Aref = dolfinx.fem.assemble_matrix(a)
-    Aref.assemble()
-    return Aref
-
-
-def create_csr_sparsity_pattern(num_cells: int, num_dofs_per_cell: int, dofmap: np.ndarray):
-    """
-    Create a csr matrix given a flattened dofmap and the number of cells and dofs per cell
-    """
-    rows = np.repeat(dofmap, num_dofs_per_cell)
-    cols = np.tile(np.reshape(dofmap, (num_cells, num_dofs_per_cell)), num_dofs_per_cell)
-    return rows, cols.ravel()
-
-
-@numba.njit(cache=True)
-def compute_determinant(A: np.ndarray, detJ: np.ndarray):
-    """
-    Compute the determinant of A matrix with max dimension 3 on any axis
-    """
-    num_rows = A.shape[0]
-    num_cols = A.shape[1]
-    if num_rows == num_cols:
-        if num_rows == 1:
-            detJ = A[0]
-        elif num_rows == 2:
-            detJ[0] = A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0]
-        elif num_rows == 3:
-            detJ[0] = A[0, 0] * A[1, 1] * A[2, 2] + A[0, 1] * A[1, 2] * A[2, 0]\
-                + A[0, 2] * A[1, 0] * A[2, 1] - A[2, 0] * A[1, 1] * A[0, 2]\
-                - A[2, 1] * A[1, 2] * A[0, 0] - A[2, 2] * A[1, 0] * A[0, 1]
-        else:
-            # print(f"Matrix has invalid size {num_rows}x{num_cols}")
-            assert(False)
-    else:
-        # det(A^T A) = det(A) det(A)
-        ATA = A.T @ A
-        num_rows = ATA.shape[0]
-        num_cols = ATA.shape[1]
-        if num_rows == 1:
-            detJ[0] = ATA[0, 0]
-        elif num_rows == 2:
-            detJ[0] = ATA[0, 0] * ATA[1, 1] - ATA[0, 1] * ATA[1, 0]
-        elif num_rows == 3:
-            detJ[0] = ATA[0, 0] * ATA[1, 1] * ATA[2, 2] + ATA[0, 1] * ATA[1, 2] * ATA[2, 0]\
-                + ATA[0, 2] * ATA[1, 0] * ATA[2, 1] - ATA[2, 0] * ATA[1, 1] * ATA[0, 2]\
-                - ATA[2, 1] * ATA[1, 2] * ATA[0, 0] - ATA[2, 2] * ATA[1, 0] * ATA[0, 1]
-        else:
-            # print(f"Matrix has invalid size {num_rows}x{num_cols}")
-            assert(False)
+__all__ = ["assemble_mass_matrix"]
 
 
 @numba.njit(cache=True)
@@ -137,6 +77,7 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     # Extract function space data
     num_dofs_per_cell = V.dofmap.cell_dofs(0).size
     dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
+    quad = True if mesh.topology.cell_type == dolfinx.cpp.mesh.CellType.quadrilateral else False
 
     # Create basix element based on function space
     family = V.ufl_element().family() if not quad else "Lagrange"
@@ -170,83 +111,7 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
                 x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine)
 
     num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
-    print(num_dofs_glob)
+
     # Faster than CSR
     out_matrix = scipy.sparse.coo_matrix((data, (rows, cols)), shape=(num_dofs_glob, num_dofs_glob))
     return out_matrix
-
-
-def create_mesh(quad):
-    """
-    Create simplistic first order mesh
-    """
-    if quad:
-        x = np.array([[0, 0], [1, 0], [0, 1.3], [1.2, 1]])
-        cells = np.array([[0, 1, 2, 3]], dtype=np.int32)
-        ufl_mesh = ufl.Mesh(ufl.VectorElement("Lagrange", "quadrilateral", 1))
-    else:
-        x = np.array([[0, 0], [1.1, 0], [0.3, 1.0], [2, 1.5]])
-        cells = np.array([[0, 1, 2], [1, 2, 3]], dtype=np.int32)
-        ufl_mesh = ufl.Mesh(ufl.VectorElement("Lagrange", "triangle", 1))
-    mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh)
-    ct = dolfinx.cpp.mesh.CellType.quadrilateral if quad else dolfinx.cpp.mesh.CellType.triangle
-    N = 500
-    mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
-    return mesh
-
-
-if __name__ == "__main__":
-    import argparse
-    import time
-    parser = argparse.ArgumentParser(description="Custom assembler of mass matrix using numba and Basix",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--num-runs", default=2, type=np.int32, dest="runs",
-                        help="Number of times to run the assembler")
-    parser.add_argument("--degree", default=1, type=int, dest="degree",
-                        help="Degree of Lagrange finite element space")
-    _ct = parser.add_mutually_exclusive_group(required=False)
-    _ct.add_argument('--quad', dest='quad', action='store_true',
-                     help="Use quadrilateral mesh", default=False)
-    _verbose = parser.add_mutually_exclusive_group(required=False)
-    _verbose.add_argument('--verbose', dest='verbose', action='store_true',
-                          help="Print matrices", default=False)
-
-    args = parser.parse_args()
-    quad = args.quad
-    runs = args.runs
-    verbose = args.verbose
-    degree = args.degree
-
-    np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
-
-    mesh = create_mesh(quad)
-
-    cell_str = "quadrilateral" if quad else "triangle"
-    el = ufl.FiniteElement("CG", cell_str, degree)
-    quadrature_degree = 2 * el.degree() + 1
-    V = dolfinx.FunctionSpace(mesh, el)
-    dolfin_times = np.zeros(runs - 1)
-    numba_times = np.zeros(runs - 1)
-    for i in range(runs):
-        start = time.time()
-        Aref = compute_reference_mass_matrix(V, quadrature_degree)
-        end = time.time()
-        print(f"{i}: DOLFINx {end-start:.2e}")
-        if i > 0:
-            dolfin_times[i - 1] = end - start
-        start = time.time()
-        A = assemble_mass_matrix(V, quadrature_degree)
-        end = time.time()
-        if i > 0:
-            numba_times[i - 1] = end - start
-
-        print(f"{i}: Numba {end-start:.2e}")
-    print(f"numba/dolfin: {np.sum(numba_times) / np.sum(dolfin_times)}")
-    if verbose:
-        print(f"Reference:\n {Aref[:,:]}")
-        print(f"Solution:\n {A.toarray()}")
-    ai, aj, av = Aref.getValuesCSR()
-    Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
-    matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
-    print(f"Norm of matrix error {matrix_error}")
-    #assert(np.allclose(A.toarray(), Aref[:, :]))

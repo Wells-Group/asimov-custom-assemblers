@@ -20,8 +20,12 @@ jobs:
       - name: flake8 code
         run: flake8 .
 
-      - name: Run code
+      - name: Run tests
         run: |
           cd tests
           python3 -m pytest test_mass_matrix.py
 
+     - name: Run demos
+       run: | 
+         cd demos
+         python3 mass_matrix.py

@@ -6,4 +6,5 @@
 
 # flake8: noqa
 
-from .custom_assembler import compute_reference_mass_matrix, create_mesh, assemble_mass_matrix
+from .custom_assembler import assemble_mass_matrix
+from .verification import compute_reference_mass_matrix
