@@ -3,9 +3,10 @@ import numpy as np
 import pytest
 import scipy.sparse
 import scipy.sparse.linalg
+import ufl.algorithms
 import ufl
 from dolfinx_assemblers import (assemble_mass_matrix,
-                                compute_reference_mass_matrix)
+                                compute_reference_mass_matrix, estimate_max_polynomial_degree)
 from mpi4py import MPI
 
 
@@ -38,11 +39,13 @@ def test_mass_matrix(ct, degree):
         raise ValueError(f"Unsupported mesh type {ct}")
     mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh)
     el = ufl.FiniteElement("CG", ct, degree)
-    # Would expect + 1 but non-affine hexes need +2
-    quadrature_degree = 2 * el.degree() + 2
     V = dolfinx.FunctionSpace(mesh, el)
-    Aref = compute_reference_mass_matrix(V, quadrature_degree)
+
+    a_mass = ufl.TrialFunction(V) * ufl.TestFunction(V) * ufl.dx
+    quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
+    Aref = compute_reference_mass_matrix(V)
     A = assemble_mass_matrix(V, quadrature_degree)
+    print(quadrature_degree)
     ai, aj, av = Aref.getValuesCSR()
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
