@@ -25,7 +25,7 @@ jobs:
           cd tests
           python3 -m pytest test_mass_matrix.py
 
-     - name: Run demos
-       run: | 
-         cd demos
-         python3 mass_matrix.py
+      - name: Run demos
+        run: |
+          cd demos
+          python3 mass_matrix.py
