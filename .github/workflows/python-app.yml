@@ -21,4 +21,7 @@ jobs:
         run: flake8 .
 
       - name: Run code
-        run: python3 custom_assembler.py
+        run: |
+          cd tests
+          python3 -m pytest test_mass_matrix.py
+

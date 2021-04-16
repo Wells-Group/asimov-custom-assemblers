@@ -10,6 +10,8 @@ from petsc4py import PETSc
 
 float_type = PETSc.ScalarType
 
+__all__ = ["compute_reference_mass_matrix", "create_mesh", "assemble_mass_matrix"]
+
 
 def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     """
@@ -168,6 +170,7 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
                 x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine)
 
     num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
+    print(num_dofs_glob)
     # Faster than CSR
     out_matrix = scipy.sparse.coo_matrix((data, (rows, cols)), shape=(num_dofs_glob, num_dofs_glob))
     return out_matrix
