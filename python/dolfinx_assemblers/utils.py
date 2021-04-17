@@ -4,10 +4,13 @@
 
 import numpy as np
 import numba
+import ufl
 
 """
 Utilities for assembly
 """
+
+__all__ = ["estimate_max_polynomial_degree"]
 
 
 def create_csr_sparsity_pattern(num_cells: int, num_dofs_per_cell: int, dofmap: np.ndarray):
@@ -54,3 +57,16 @@ def compute_determinant(A: np.ndarray, detJ: np.ndarray):
         else:
             # print(f"Matrix has invalid size {num_rows}x{num_cols}")
             assert(False)
+
+
+def estimate_max_polynomial_degree(form: ufl.form.Form) -> int:
+    """
+    Estimate the maximum polynomial degree in a ufl form (including variations in the determinant)
+    """
+    form_data = ufl.algorithms.compute_form_data(
+        form, do_apply_function_pullbacks=True, do_apply_integral_scaling=True, do_apply_geometry_lowering=True)
+    pol_degrees = []
+    for i in range(len(form_data.integral_data)):
+        for j in range(len(form_data.integral_data[i].integrals)):
+            pol_degrees.append(form_data.integral_data[0].integrals[0].metadata()['estimated_polynomial_degree'])
+    return np.max(pol_degrees)

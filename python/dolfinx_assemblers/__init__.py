@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-"""User interface for custom assembelrs"""
+"""User interface for custom assemblers"""
 
 # flake8: noqa
 
 from .custom_assembler import assemble_mass_matrix
 from .verification import compute_reference_mass_matrix
+from .utils import estimate_max_polynomial_degree

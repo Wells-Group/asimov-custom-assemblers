@@ -31,7 +31,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
     J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
-    dphi_c = np.empty(c_tab[1:3, 0, :, 0].shape, dtype=np.float64)
+    dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
     detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = num_dofs_per_cell**2
 
@@ -42,13 +42,12 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
 
         # Compute Jacobian at each quadrature point
         if is_affine:
-            dphi_c[:] = c_tab[1:3, 0, :, 0]
             J_q[0] = np.dot(geometry.T, dphi_c.T)
             compute_determinant(J_q[0], detJ)
             detJ_q[:] = detJ[0]
         else:
             for i, q in enumerate(q_p):
-                dphi_c[:] = c_tab[1: 3, i, :, 0]
+                dphi_c[:] = c_tab[1:gdim + 1, i, :, 0]
                 J_q[i] = geometry.T @ dphi_c.T
                 compute_determinant(J_q[i], detJ)
                 detJ_q[i] = detJ[0]
@@ -82,10 +81,11 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     # Extract function space data
     num_dofs_per_cell = V.dofmap.cell_dofs(0).size
     dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
-    quad = True if mesh.topology.cell_type == dolfinx.cpp.mesh.CellType.quadrilateral else False
 
     # Create basix element based on function space
-    family = V.ufl_element().family() if not quad else "Lagrange"
+    family = V.ufl_element().family()
+    if family == "Q":
+        family = "Lagrange"
     element = basix.create_element(family, str(
         V.ufl_cell()), V.ufl_element().degree())
 
@@ -98,7 +98,10 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
 
     # Data from coordinate element
     ufl_c_el = mesh.ufl_domain().ufl_coordinate_element()
-    ufc_family = ufl_c_el.family() if not quad else "Lagrange"
+    ufc_family = ufl_c_el.family()
+    if ufc_family == "Q":
+        ufc_family = "Lagrange"
+
     c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
     c_tab = c_element.tabulate_x(1, q_p)
 
