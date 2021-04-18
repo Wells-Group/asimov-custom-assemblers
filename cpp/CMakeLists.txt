@@ -13,7 +13,7 @@ find_package(Basix REQUIRED)
 find_package(xtensor REQUIRED)
 find_package(xtensor-blas REQUIRED)
 
-add_executable(${PROJECT_NAME} main.cpp mass.c)
+add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/mass.c)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE dolfinx)
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${xtensor_INCLUDE_DIRS})
