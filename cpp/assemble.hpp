@@ -1,3 +1,4 @@
+#include "CsrMatrix.hpp"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <dolfinx.h>
@@ -13,9 +14,12 @@ enum Kernel
 
 auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Kernel kernel = Kernel::Mass)
 {
-  const auto& mesh = V->mesh();
+  // create sparsity pattern and allocate data
+  custom::la::CsrMatrix<double, std::int32_t> A
+      = custom::la::create_csr_matrix<double, std::int32_t>(V);
 
   // Get topology information
+  const auto& mesh = V->mesh();
   const std::int32_t tdim = mesh->topology().dim();
 
   // Get geometry information
@@ -49,9 +53,6 @@ auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Kernel kernel
 
   std::int32_t ncells = mesh->topology().index_map(tdim)->size_local();
   std::int32_t ndofs_cell = element.dim();
-
-  // Allocate data for COO matrix
-  xt::xtensor<double, 3> A = xt::empty<double>({ncells, ndofs_cell, ndofs_cell});
 
   // FIXME: Should be really constexpr/ should be known at compile time
   const std::int32_t d = coordinate_element.dim();
@@ -88,10 +89,8 @@ auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Kernel kernel
         for (int j = 0; j < ndofs_cell; j++)
           Ae(i, j) += weights[q] * phi(q, i) * phi(q, j) * detJ;
 
-    auto A_local = xt::view(A, c, xt::all(), xt::all());
-    for (int i = 0; i < ndofs_cell; i++)
-      for (int j = 0; j < ndofs_cell; j++)
-        A_local(i, j) = Ae(i, j);
+    auto dofs = dofmap->cell_dofs(c);
+    A.add_values(Ae, dofs);
   }
 
   return A;
