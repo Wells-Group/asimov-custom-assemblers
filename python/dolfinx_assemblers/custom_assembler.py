@@ -43,7 +43,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
         # Compute Jacobian at each quadrature point
         if is_affine:
             dphi_c[:] = c_tab[1:3, 0, :, 0]
-            J_q[0] = np.dot(geometry.T, dphi_c.T)
+            J_q[:] = np.dot(dphi_c, geometry)
             compute_determinant(J_q[0], detJ)
             detJ_q[:] = detJ[0]
         else:
@@ -121,56 +121,52 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     out_matrix = scipy.sparse.coo_matrix((data, (rows, cols)), shape=(num_dofs_glob, num_dofs_glob))
     return out_matrix
 
+
+@numba.njit
 def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
-                x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                dphi: np.ndarray, is_affine: bool):
+                     x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
+                     dphi: np.ndarray, is_affine: bool):
     """
     Assemble stiffness matrix into CSR array "data"
     """
 
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
-    J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
-    invJ = np.zeros(( gdim, tdim), dtype=np.float64)
+    num_quadrature_points = q_w.size
+    J_q = np.zeros((q_w.size, tdim, gdim), dtype=np.float64)
+    invJ = np.zeros((tdim, gdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
     dphi_c = np.empty(c_tab[1:3, 0, :, 0].shape, dtype=np.float64)
     detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = num_dofs_per_cell**2
-    dphi_p    = np.zeros(dphi.shape, dtype = np.float64)
-    # Assemble matrix
+    dphi_p = np.zeros((tdim, num_quadrature_points, dphi.shape[2]), dtype=np.float64)
     for cell in range(num_cells):
         for j in range(num_dofs_x):
             geometry[j] = x[x_dofs[cell, j], : gdim]
 
         # Compute Jacobian at each quadrature point
         if is_affine:
-            dphi_c[:] = c_tab[1:3, 0, :, 0]
-            J_q[0] = np.dot(geometry.T, dphi_c.T)
-            # compute_determinant(J_q[0], detJ)
-            # detJ_q[:] = detJ[0]
-            
-            invJ = np.linalg.inv(J_q[0])
-            detJ[0] = np.linalg.det(J_q[0])
+            dphi_c[:] = c_tab[1:gdim + 1, 0, :, 0]
+            J_q[:] = np.dot(dphi_c, geometry)
+            compute_determinant(J_q[0], detJ)
             detJ_q[:] = detJ[0]
-            for k in range(dphi.shape[1]):
-                for l in range(dphi.shape[2]):
-                    dphi_p[:,k,l] = np.dot(invJ,dphi[:,k,l]) 
-        else:
-            for i, q in enumerate(q_p):
-                dphi_c[:] = c_tab[1: 3, i, :, 0]
-                J_q[i] = geometry.T @ dphi_c.T
-                compute_determinant(J_q[i], detJ)
-                detJ_q[i] = detJ[0]
-
+            compute_inverse(J_q[0], invJ, detJ_q[0])
+            for p in range(num_quadrature_points):
+                for d in range(dphi.shape[2]):
+                    dphi_p[:, p, d] = invJ @ dphi[:, p, d].copy()
+        # else:
+        #     for i, q in enumerate(q_p):
+        #         dphi_c[:] = c_tab[1: 3, i, :, 0]
+        #         J_q[i] = geometry.T @ dphi_c.T
+        #         compute_determinant(J_q[i], detJ)
+        #         detJ_q[i] = detJ[0]
         # Compute weighted basis functions at quadrature points
-        dphi_w = dphi_p * q_w
-       
-
-        # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
-        dphi_scaled = dphi_w * np.abs(detJ_q)
-        kernel = np.zeros((dphi.shape[2],dphi.shape[2]),dtype=np.float64)
-        for k in range(dphi.shape[0]):
-            kernel += dphi_p[k,:,:].T @ dphi_scaled[k,:,:]
+        scale = q_w * np.abs(detJ_q)
+        kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
+        for i in range(tdim):
+            dphidxi = dphi_p[i, :, :]
+            # Compute Ae_(k,j) += sum_(s=1)^len(q_w) w_s dphi_k/dx_i(q_s) dphi_j/dx_i(q_s) |det(J(q_s))|
+            kernel += dphidxi.T.copy() @ (dphidxi * scale)
 
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(kernel)
@@ -226,7 +222,7 @@ def assemble_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     data = np.zeros(len(rows), dtype=float_type)
 
     stiffness_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
-                x, gdim, tdim, c_tab, q_p, q_w, d_phi, is_affine)
+                     x, gdim, tdim, c_tab, q_p, q_w, d_phi, is_affine)
 
     num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
 
