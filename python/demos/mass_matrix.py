@@ -11,7 +11,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import ufl
 from dolfinx_assemblers import (assemble_mass_matrix,
-                                compute_reference_mass_matrix)
+                                compute_reference_mass_matrix, estimate_max_polynomial_degree)
 from mpi4py import MPI
 
 if __name__ == "__main__":
@@ -43,7 +43,7 @@ if __name__ == "__main__":
             ct = dolfinx.cpp.mesh.CellType.tetrahedron
         else:
             ct = dolfinx.cpp.mesh.CellType.hexahedron
-        N = 20
+        N = 30
         mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N, cell_type=ct)
 
     else:
@@ -56,8 +56,11 @@ if __name__ == "__main__":
 
     cell_str = dolfinx.cpp.mesh.to_string(mesh.topology.cell_type)
     el = ufl.FiniteElement("CG", cell_str, degree)
-    quadrature_degree = 2 * el.degree() + 1
+
     V = dolfinx.FunctionSpace(mesh, el)
+    a_mass = ufl.TrialFunction(V) * ufl.TestFunction(V) * ufl.dx
+    quadrature_degree = quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
+
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)
     for i in range(runs):
@@ -74,7 +77,8 @@ if __name__ == "__main__":
             numba_times[i - 1] = end - start
 
         print(f"{i}: Numba {end-start:.2e}")
-    print(f"numba/dolfin: {np.sum(numba_times) / np.sum(dolfin_times)}")
+    print(f"num dofs {V.dofmap.index_map.size_local}",
+          f"numba/dolfin: {np.sum(numba_times) / np.sum(dolfin_times)}")
     if verbose:
         print(f"Reference:\n {Aref[:,:]}")
         print(f"Solution:\n {A.toarray()}")

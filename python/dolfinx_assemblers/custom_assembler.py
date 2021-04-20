@@ -4,43 +4,65 @@
 
 
 import basix
-from basix.numba_helpers import apply_dof_transformation
+from basix.numba_helpers import (apply_dof_transformation_triangle,
+                                 apply_dof_transformation_quadrilateral,
+                                 apply_dof_transformation_tetrahedron,
+                                 apply_dof_transformation_hexahedron)
 import dolfinx
 import numba
+from numba import types
+from numba.typed import Dict
+
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 from .utils import compute_determinant, create_csr_sparsity_pattern
 from petsc4py import PETSc
-from numba.typed import List
 float_type = PETSc.ScalarType
 
 __all__ = ["assemble_mass_matrix"]
 
 
-@numba.njit(cache=True)
+@numba.njit
 def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                 x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                phi: np.ndarray, is_affine: bool, e_transformations, e_dofs, ct: str, cell_info):
+                phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
+                needs_transformations: bool):
     """
     Assemble mass matrix into CSR array "data"
     """
 
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
-    J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
-    detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
+    num_q_points = q_w.size
+    if ct == "triangle":
+        apply_dof_trans = apply_dof_transformation_triangle
+    elif ct == "quadrilateral":
+        apply_dof_trans = apply_dof_transformation_quadrilateral
+    elif ct == "tetrahedron":
+        apply_dof_trans = apply_dof_transformation_tetrahedron
+    elif ct == "hexahedron":
+        apply_dof_trans = apply_dof_transformation_hexahedron
+    else:
+        assert(False)
+    J_q = np.zeros((num_q_points, gdim, tdim), dtype=np.float64)
+    detJ_q = np.zeros((num_q_points, 1), dtype=np.float64)
     dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
     detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = num_dofs_per_cell**2
     # Assemble matrix
     for cell in range(num_cells):
-        phi_i = phi.copy()
-        for phi_row in phi_i:
-            apply_dof_transformation(e_transformations, ct, e_dofs, phi_row, 1, cell_info[cell])
+        # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
+        if needs_transformations:
+            phi_i = phi.T.flatten()
+            apply_dof_trans(e_transformations, e_dofs, phi_i, num_q_points, cell_info[cell])
+            # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
+            phi_i = phi_i.reshape(phi.shape[1], phi.shape[0])
+        else:
+            phi_i = phi.T.copy()
 
         # Compute weighted basis functions at quadrature points
-        phi_w = phi_i * q_w
+        phi_w = phi_i.T * q_w
 
         for j in range(num_dofs_x):
             geometry[j] = x[x_dofs[cell, j], : gdim]
@@ -59,7 +81,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
 
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
         phi_scaled = phi_w * np.abs(detJ_q)
-        kernel = phi_i.T @ phi_scaled
+        kernel = phi_i @ phi_scaled
 
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(kernel)
@@ -112,8 +134,17 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     tabulated_data = element.tabulate_x(num_derivatives, q_p)
     phi = tabulated_data[0, :, :, 0]
 
-    e_transformations = element.entity_transformations()
-    e_dofs = List(element.entity_dofs)
+    # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
+    # and "dof_transformations_are_indentity"
+    needs_transformations = not element.dof_transformations_are_identity
+    entity_transformations = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
+    for i, transformation in enumerate(element.entity_transformations()):
+        entity_transformations[i] = transformation
+
+    entity_dofs = Dict.empty(key_type=types.int64, value_type=types.int32[:])
+    for i, e_dofs in enumerate(element.entity_dofs):
+        entity_dofs[i] = np.asarray(e_dofs, dtype=np.int32)
+
     mesh.topology.create_entity_permutations()
     cell_info = mesh.topology.get_cell_permutation_info()
 
@@ -124,8 +155,8 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     data = np.zeros(len(rows), dtype=float_type)
 
     mass_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
-                x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, e_transformations,
-                e_dofs, ct, cell_info)
+                x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, entity_transformations,
+                entity_dofs, ct, cell_info, needs_transformations)
 
     num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
 
