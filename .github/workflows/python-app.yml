@@ -36,7 +36,7 @@ jobs:
           repository: FEniCS/basix
           ref: mscroggs/numba-transformations
 
-      - name: Install FEniCS Python components
+      - name: Install FEniCS Python components (dolfinx)
         run: |
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build-dir -S ./basix
           cmake --build build-dir
@@ -51,15 +51,19 @@ jobs:
           repository: FEniCS/dolfinx
           ref: main
 
-      - name: Configure C++
+      - name: Configure C++ (dolfinx)
         run: cmake -G Ninja -DCMAKE_BUILD_TYPE=Developer -B build -S ./dolfinx/cpp/
 
-      - name: Build and install C++ library
+      - name: Build and install C++ library (dolfinx)
         run: |
           cmake --build build
           cmake --install build
-      - name: Build Python interface
+
+      - name: Build Python interface (dolfinx)
         run: python3 -m pip -v install ./dolfinx/python/
+
+      - name: Install custom assemblers
+        run: python3 -m pip -v install python3/
 
       - name: Run tests
         run: |
