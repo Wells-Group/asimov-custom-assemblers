@@ -63,7 +63,7 @@ jobs:
         run: python3 -m pip -v install ./dolfinx/python/
 
       - name: Install custom assemblers
-        run: python3 -m pip -v install python3/
+        run: python3 -m pip -v install python/
 
       - name: Run tests
         run: |
