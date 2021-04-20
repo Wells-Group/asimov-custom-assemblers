@@ -18,10 +18,10 @@ float_type = PETSc.ScalarType
 __all__ = ["assemble_mass_matrix"]
 
 
-# @numba.njit(cache=True)
+@numba.njit(cache=True)
 def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                 x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                phi: np.ndarray, is_affine: bool, e_transformations, e_dofs, ct: str, block_size: int, cell_info):
+                phi: np.ndarray, is_affine: bool, e_transformations, e_dofs, ct: str, cell_info):
     """
     Assemble mass matrix into CSR array "data"
     """
@@ -33,11 +33,11 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
     dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
     detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = num_dofs_per_cell**2
-
     # Assemble matrix
     for cell in range(num_cells):
         phi_i = phi.copy()
-        apply_dof_transformation(e_transformations, ct, e_dofs, phi_i, block_size, cell_info[cell])
+        for phi_row in phi_i:
+            apply_dof_transformation(e_transformations, ct, e_dofs, phi_row, 1, cell_info[cell])
 
         # Compute weighted basis functions at quadrature points
         phi_w = phi_i * q_w
@@ -112,13 +112,10 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     tabulated_data = element.tabulate_x(num_derivatives, q_p)
     phi = tabulated_data[0, :, :, 0]
 
-    # if not element.dof_transformations_are_identity:
-    #     raise RuntimeError("Dof permutations not supported")
     e_transformations = element.entity_transformations()
     e_dofs = List(element.entity_dofs)
     mesh.topology.create_entity_permutations()
     cell_info = mesh.topology.get_cell_permutation_info()
-    block_size = V.dofmap.index_map_bs
 
     is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
 
@@ -128,7 +125,7 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
 
     mass_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
                 x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, e_transformations,
-                e_dofs, ct, block_size, cell_info)
+                e_dofs, ct, cell_info)
 
     num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
 
