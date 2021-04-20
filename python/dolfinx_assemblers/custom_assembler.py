@@ -4,6 +4,7 @@
 
 
 import basix
+from basix.numba_helpers import apply_dof_transformation
 import dolfinx
 import numba
 import numpy as np
@@ -11,21 +12,19 @@ import scipy.sparse
 import scipy.sparse.linalg
 from .utils import compute_determinant, create_csr_sparsity_pattern
 from petsc4py import PETSc
-
+from numba.typed import List
 float_type = PETSc.ScalarType
 
 __all__ = ["assemble_mass_matrix"]
 
 
-@numba.njit(cache=True)
+# @numba.njit(cache=True)
 def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                 x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                phi: np.ndarray, is_affine: bool):
+                phi: np.ndarray, is_affine: bool, e_transformations, e_dofs, ct: str, block_size: int, cell_info):
     """
     Assemble mass matrix into CSR array "data"
     """
-    # Compute weighted basis functions at quadrature points
-    phi_w = phi * q_w
 
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
@@ -37,6 +36,12 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
 
     # Assemble matrix
     for cell in range(num_cells):
+        phi_i = phi.copy()
+        apply_dof_transformation(e_transformations, ct, e_dofs, phi_i, block_size, cell_info[cell])
+
+        # Compute weighted basis functions at quadrature points
+        phi_w = phi_i * q_w
+
         for j in range(num_dofs_x):
             geometry[j] = x[x_dofs[cell, j], : gdim]
 
@@ -54,7 +59,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
 
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
         phi_scaled = phi_w * np.abs(detJ_q)
-        kernel = phi.T @ phi_scaled
+        kernel = phi_i.T @ phi_scaled
 
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(kernel)
@@ -86,11 +91,8 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     family = V.ufl_element().family()
     if family == "Q":
         family = "Lagrange"
-    element = basix.create_element(family, str(
-        V.ufl_cell()), V.ufl_element().degree())
-
-    if not element.dof_transformations_are_identity:
-        raise RuntimeError("Dof permutations not supported")
+    ct = str(V.ufl_cell())
+    element = basix.create_element(family, ct, V.ufl_element().degree())
 
     # Get quadrature points and weights
     q_p, q_w = basix.make_quadrature("default", element.cell_type, quadrature_degree)
@@ -109,6 +111,15 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     num_derivatives = 0
     tabulated_data = element.tabulate_x(num_derivatives, q_p)
     phi = tabulated_data[0, :, :, 0]
+
+    # if not element.dof_transformations_are_identity:
+    #     raise RuntimeError("Dof permutations not supported")
+    e_transformations = element.entity_transformations()
+    e_dofs = List(element.entity_dofs)
+    mesh.topology.create_entity_permutations()
+    cell_info = mesh.topology.get_cell_permutation_info()
+    block_size = V.dofmap.index_map_bs
+
     is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
 
     # Create sparsity pattern
@@ -116,7 +127,8 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     data = np.zeros(len(rows), dtype=float_type)
 
     mass_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
-                x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine)
+                x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, e_transformations,
+                e_dofs, ct, block_size, cell_info)
 
     num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
 
