@@ -37,7 +37,7 @@ if __name__ == "__main__":
     np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
 
     ct = dolfinx.cpp.mesh.CellType.quadrilateral if quad else dolfinx.cpp.mesh.CellType.triangle
-    N = 1
+    N = 500
     mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
 
     cell_str = "quadrilateral" if quad else "triangle"
