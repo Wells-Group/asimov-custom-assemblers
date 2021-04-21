@@ -12,7 +12,7 @@ Verification of assembly using dolfin-x
 __all__ = ["compute_reference_mass_matrix", "compute_reference_stiffness_matrix"]
 
 
-def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
+def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int = -1):
     """
     Compute mass matrix with given quadrature degree
     """
