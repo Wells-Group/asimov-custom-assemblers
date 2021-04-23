@@ -10,7 +10,7 @@ from dolfinx_assemblers import (assemble_mass_matrix,
 from mpi4py import MPI
 
 
-@pytest.mark.parametrize("degree", [1, 2])
+@pytest.mark.parametrize("degree", range(1, 5))
 @pytest.mark.parametrize("ct", ["quadrilateral", "triangle", "tetrahedron",
                                 "hexahedron"])
 def test_mass_matrix(ct, degree):
@@ -24,7 +24,8 @@ def test_mass_matrix(ct, degree):
         ufl_mesh = ufl.Mesh(ufl.VectorElement("Lagrange", "quadrilateral", 1))
     elif cell_type == dolfinx.cpp.mesh.CellType.triangle:
         x = np.array([[0, 0], [1.1, 0], [0.3, 1.0], [2, 1.5]])
-        cells = np.array([[0, 1, 2], [1, 2, 3]], dtype=np.int32)
+        cells = np.array([[0, 1, 2], [2, 1, 3]], dtype=np.int32)
+
         ufl_mesh = ufl.Mesh(ufl.VectorElement("Lagrange", "triangle", 1))
     elif cell_type == dolfinx.cpp.mesh.CellType.tetrahedron:
         x = np.array([[0, 0, 0], [1.1, 0, 0], [0.3, 1.0, 0], [1, 1.2, 1.5], [2, 2, 1.5]])
@@ -45,7 +46,6 @@ def test_mass_matrix(ct, degree):
     quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
     Aref = compute_reference_mass_matrix(V)
     A = assemble_mass_matrix(V, quadrature_degree)
-    print(quadrature_degree)
     ai, aj, av = Aref.getValuesCSR()
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
