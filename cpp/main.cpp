@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
   {
   case 0:
     mesh = std::make_shared<mesh::Mesh>(
-        generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {10, 10, 10},
+        generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {50, 50, 50},
                                     mesh::CellType::tetrahedron, mesh::GhostMode::none));
     break;
   case 1:
@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
       = fem::create_functionspace(functionspace_form_mass_a, "u", mesh);
 
   dolfinx::common::Timer t0("this");
-  auto A_csr = assemble_stiffness_matrix<5>(V);
+  auto A_csr = assemble_nedelec_mass_matrix<1>(V);
   t0.stop();
 
   // Define variational forms
@@ -53,12 +53,12 @@ int main(int argc, char* argv[])
   auto a = std::make_shared<fem::Form<PetscScalar>>(
       fem::create_form<PetscScalar>(*form_mass_a, {V, V}, {}, {{"kappa", kappa}}, {}));
 
-  dolfinx::common::Timer t1("dolfinx");
   la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
   MatZeroEntries(A.mat());
+  dolfinx::common::Timer t1("dolfinx");
   fem::assemble_matrix(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), *a, {});
-  MatAssemblyBegin(A.mat(), MAT_FLUSH_ASSEMBLY);
-  MatAssemblyEnd(A.mat(), MAT_FLUSH_ASSEMBLY);
+  MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t1.stop();
 
   dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
