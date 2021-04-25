@@ -13,10 +13,14 @@ find_package(Basix REQUIRED)
 find_package(xtensor REQUIRED)
 find_package(xtensor-blas REQUIRED)
 
-add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/mass.c)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE dolfinx)
-target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${xtensor_INCLUDE_DIRS})
-target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${xtensor_blas_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${xtensor_blas_LIBRARY})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${LAPACK_LIBRARIES})
+
+add_executable(lagrange lagrange.cpp ${CMAKE_CURRENT_SOURCE_DIR}/lagrange.c)
+
+add_definitions(-DELEMENT_DEGREE=${ELEMENT_DEGREE})
+
+target_link_libraries(lagrange PRIVATE dolfinx)
+target_include_directories(lagrange SYSTEM PUBLIC ${xtensor_INCLUDE_DIRS})
+target_include_directories(lagrange SYSTEM PRIVATE ${xtensor_blas_INCLUDE_DIR})
+target_link_libraries(lagrange PRIVATE ${xtensor_blas_LIBRARY})
+target_link_libraries(lagrange PRIVATE ${LAPACK_LIBRARIES})

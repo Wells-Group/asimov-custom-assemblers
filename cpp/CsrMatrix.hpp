@@ -1,10 +1,12 @@
 // Copyright (C) 2021 Igor Baratta
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
-#include <dolfinx.h>
+#pragma once
+
 #include <xtensor/xadapt.hpp>
 #include <xtensor/xexpression.hpp>
 #include <xtensor/xtensor.hpp>
+#include <xtensor/xview.hpp>
 
 namespace custom::la
 {
@@ -35,7 +37,7 @@ public:
       auto data = row(dofs[i]);
       for (std::size_t j = 0; j < Ae.shape(2); j++)
       {
-        auto it = std::find(indices.begin(), indices.end(), dofs[j]);
+        auto it = std::lower_bound(indices.begin(), indices.end(), dofs[j]);
         auto pos = std::distance(indices.begin(), it);
         data[pos] += Ae(i, j);
       }
@@ -52,26 +54,4 @@ private:
   xt::xtensor<index_type, 1> _indptr;
   xt::xtensor<index_type, 1> _indices;
 };
-
-// ----------------------------------------------------------------------------------------------
-// Create CSR Matrix using dolfinx create_sparsity_pattern.
-template <typename ValueType, typename IndexType>
-auto create_csr_matrix(const std::shared_ptr<dolfinx::fem::FunctionSpace>& V)
-{
-  const auto& mesh = V->mesh();
-  std::array<const std::reference_wrapper<const dolfinx::fem::DofMap>, 2> dofmaps{*V->dofmap(),
-                                                                                  *V->dofmap()};
-  dolfinx::la::SparsityPattern pattern = dolfinx::fem::create_sparsity_pattern(
-      mesh->topology(), dofmaps, {dolfinx::fem::IntegralType::cell});
-  pattern.assemble();
-
-  const auto& offsets = pattern.diagonal_pattern().offsets();
-  xt::xtensor<IndexType, 1> indptr = xt::adapt(offsets);
-
-  const auto& array = pattern.diagonal_pattern().array();
-  xt::xtensor<IndexType, 1> indices = xt::adapt(array);
-  xt::xtensor<ValueType, 1> data = xt::zeros<ValueType>({array.size()});
-
-  return CsrMatrix<ValueType, IndexType>(data, indptr, indices);
-}
 } // namespace custom::la
