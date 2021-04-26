@@ -106,23 +106,24 @@ generate_kernel(std::string family, std::string cell, Kernel type, Representatio
     xt::xtensor<double, 2> K = xt::empty<double>({tdim, gdim});
 
     dot34(dphi0_c, coordinate_dofs, J);
-    J = xt::transpose(J);
     dolfinx::math::inv(J, K);
     double detJ = std::abs(dolfinx::math::det(J));
 
-    // K = xt::transpose(K);
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       for (std::int32_t i = 0; i < ndofs_cell; i++)
       {
+        xt::xtensor<double, 1> xi = xt::view(dphi, xt::all(), q, i);
+        auto xik = xt::linalg::dot(xi, xt::transpose(K));
         for (std::int32_t j = 0; j < ndofs_cell; j++)
         {
+          xt::xtensor<double, 1> xj = xt::view(dphi, xt::all(), q, j);
+          auto xjk = xt::linalg::dot(xj, xt::transpose(K));
           double acc = 0;
           for (std::int32_t k = 0; k < gdim; k++)
-            for (std::int32_t l = 0; l < tdim; l++)
-              acc += K(k, l) * _dphi(q, i, k) * K(k, l) * _dphi(q, j, k);
+            acc += xjk[k] * xik[k];
           Ae(i, j) += weights[q] * acc * detJ;
         }
       }
@@ -138,7 +139,6 @@ generate_kernel(std::string family, std::string cell, Kernel type, Representatio
           xt::xtensor<double, 2> K = xt::empty<double>({tdim, gdim});
           dolfinx::math::inv(J, K);
           double detJ = std::abs(dolfinx::math::det(J));
-
           // Main loop
           for (std::size_t q = 0; q < weights.size(); q++)
           {

@@ -22,18 +22,18 @@ int main(int argc, char* argv[])
 
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
-  // std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-  //     generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {1, 1, 1},
-  //                                 mesh::CellType::tetrahedron, mesh::GhostMode::none));
-
-  dolfinx::fem::CoordinateElement element(dolfinx::mesh::CellType::tetrahedron, 1);
-  xt::xtensor<double, 2> geom{{0.1, 0., 0}, {1, 0., 0}, {0., 1, 0.}, {0., 0., 1.}};
-  xt::xtensor<std::int64_t, 2> topo{{0, 1, 2, 3}};
-
-  auto [data, offset] = dolfinx::graph::create_adjacency_data(topo);
-  auto cells = dolfinx::graph::AdjacencyList<std::int64_t>(data, offset);
   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-      create_mesh(mpi_comm, cells, element, geom, dolfinx::mesh::GhostMode::none));
+      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {50, 50, 50},
+                                  mesh::CellType::tetrahedron, mesh::GhostMode::none));
+
+  // dolfinx::fem::CoordinateElement element(dolfinx::mesh::CellType::tetrahedron, 1);
+  // xt::xtensor<double, 2> geom{{0.1, 0., 0}, {1, 0., 0}, {0., 1, 0.}, {0., 0., 1.}};
+  // xt::xtensor<std::int64_t, 2> topo{{0, 1, 2, 3}};
+
+  // auto [data, offset] = dolfinx::graph::create_adjacency_data(topo);
+  // auto cells = dolfinx::graph::AdjacencyList<std::int64_t>(data, offset);
+  // std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
+  //     create_mesh(mpi_comm, cells, element, geom, dolfinx::mesh::GhostMode::none));
 
   mesh->topology().create_entity_permutations();
 
@@ -77,10 +77,9 @@ int main(int argc, char* argv[])
   std::cout << "\nquadrature"
             << ", " << P << ", " << check0 << ", " << ncells << ", " << t0;
 
-  std::cout << "\n \n"
-            << xt::view(A.array(), 0, xt::all(), xt::all())
-                   - xt::view(B.array(), 0, xt::all(), xt::all())
-            << "\n";
+  std::cout << "\n \n" << xt::view(A.array(), 0, xt::all(), xt::all());
+
+  std::cout << "\n \n" << xt::view(B.array(), 0, xt::all(), xt::all());
 
   // custom::la::CooMatrix<double, std::int32_t> C(ncells, ndofs_cell);
   // double t1 = assemble_matrix<P>(V, C, Kernel::Mass, Representation::Tensor);
