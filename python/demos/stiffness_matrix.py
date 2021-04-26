@@ -37,12 +37,12 @@ if __name__ == "__main__":
     np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
 
     ct = dolfinx.cpp.mesh.CellType.quadrilateral if quad else dolfinx.cpp.mesh.CellType.triangle
-    N = 500
+    N = 1
     mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
-
     cell_str = "quadrilateral" if quad else "triangle"
     el = ufl.FiniteElement("CG", cell_str, degree)
-    quadrature_degree = 2 * el.degree() - 1
+
+    quadrature_degree = 2 * el.degree()+ 1
     V = dolfinx.FunctionSpace(mesh, el)
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)

@@ -52,6 +52,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
                 compute_determinant(J_q[i], detJ)
                 detJ_q[i] = detJ[0]
 
+        print(detJ_q[i])
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
         phi_scaled = phi_w * np.abs(detJ_q)
         kernel = phi.T @ phi_scaled
@@ -159,11 +160,14 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
         else:
             for i, q in enumerate(q_p):
                 dphi_c[:] = c_tab[1:gdim + 1, i, :, 0]
-                J_q[i] = np.dot(dphi_c, geometry)
-                compute_inverse(J_q[i],invJ,detJ)
+                J_q[i] = dphi_c @ geometry
+                compute_inverse(J_q[i], invJ, detJ)
                 detJ_q[i] = detJ[0]
                 for d in range(dphi.shape[2]):
-                    dphi_p[:,i,d] = invJ @ dphi[:, i, d].copy()
+                    dphi_p[:, i, d] = invJ @ dphi[:, i, d].copy()
+        print(dphi_p)  
+        print(dphi)     
+        print(q_w)  
         # Compute weighted basis functions at quadrature points
         scale = q_w * np.abs(detJ_q)
         kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
@@ -221,6 +225,8 @@ def assemble_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     tabulated_data = element.tabulate_x(num_derivatives, q_p)
     d_phi = tabulated_data[1:, :, :, 0]
     is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
+
+    print(is_affine)
     # Create sparsity pattern
     rows, cols = create_csr_sparsity_pattern(num_cells, num_dofs_per_cell, dofmap)
     data = np.zeros(len(rows), dtype=float_type)

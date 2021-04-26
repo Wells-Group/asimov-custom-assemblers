@@ -24,7 +24,8 @@ def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: i
     Aref = dolfinx.fem.assemble_matrix(a)
     Aref.assemble()
     return Aref
-    
+
+
 def compute_reference_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     """
     Compute stiffness matrix with given quadrature degree
