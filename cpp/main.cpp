@@ -3,6 +3,7 @@
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <dolfinx.h>
+#include <dolfinx/fem/petsc.h>
 #include <xtensor/xio.hpp>
 
 using namespace dolfinx;
@@ -10,35 +11,57 @@ using namespace dolfinx;
 int main(int argc, char* argv[])
 {
   common::subsystem::init_logging(argc, argv);
-  common::subsystem::init_mpi(argc, argv);
+  common::subsystem::init_petsc(argc, argv);
 
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
-  auto mesh = std::make_shared<mesh::Mesh>(
-      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {1, 1, 1},
-                                  mesh::CellType::tetrahedron, mesh::GhostMode::none));
+  int mesh_string = 0;
+  std::shared_ptr<mesh::Mesh> mesh;
 
-  // TODO: Is it possible to create a function space with a basix element?
-  // should we propose an interface for that, and avoid using ffcx for custom
-  // assemblers?
+  switch (mesh_string)
+  {
+  case 0:
+    mesh = std::make_shared<mesh::Mesh>(
+        generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {50, 50, 50},
+                                    mesh::CellType::tetrahedron, mesh::GhostMode::none));
+    break;
+  case 1:
+    mesh = std::make_shared<mesh::Mesh>(
+        generation::RectangleMesh::create(mpi_comm, {{{0.0, 0.0}, {1.0, 1.0}}}, {500, 500},
+                                          mesh::CellType::triangle, mesh::GhostMode::none));
+    break;
+  default:
+    dolfinx::fem::CoordinateElement element(dolfinx::mesh::CellType::triangle, 1);
+    xt::xtensor<double, 2> geom{{0.1, 0.}, {1, 0.}, {0., 1}};
+    xt::xtensor<std::int64_t, 2> topo{{0, 1, 2}};
+
+    auto [data, offset] = dolfinx::graph::create_adjacency_data(topo);
+    auto cells = dolfinx::graph::AdjacencyList<std::int64_t>(data, offset);
+    mesh = std::make_shared<mesh::Mesh>(
+        create_mesh(mpi_comm, cells, element, geom, dolfinx::mesh::GhostMode::none));
+  }
+
   const std::shared_ptr<fem::FunctionSpace>& V
       = fem::create_functionspace(functionspace_form_mass_a, "u", mesh);
 
-  custom::la::CsrMatrix A = assemble_matrix(V, Kernel::Mass);
+  dolfinx::common::Timer t0("this");
+  auto A_csr = assemble_nedelec_mass_matrix<1>(V);
+  t0.stop();
 
-  xt::xtensor<double, 1> ref_data = {
-      0.033333333333333, 0.016666666666667, 0.008333333333333, 0.016666666666667, 0.008333333333333,
-      0.016666666666667, 0.100000000000000, 0.016666666666667, 0.050000000000000, 0.016666666666667,
-      0.016666666666667, 0.016666666666667, 0.016666666666667, 0.008333333333333, 0.016666666666667,
-      0.033333333333333, 0.016666666666667, 0.008333333333333, 0.016666666666667, 0.050000000000000,
-      0.016666666666667, 0.100000000000000, 0.016666666666667, 0.016666666666667, 0.016666666666667,
-      0.016666666666667, 0.008333333333333, 0.016666666666667, 0.016666666666667, 0.033333333333333,
-      0.008333333333333, 0.016666666666667, 0.008333333333333, 0.016666666666667, 0.033333333333333,
-      0.008333333333333, 0.016666666666667, 0.016666666666667, 0.008333333333333, 0.033333333333333,
-      0.008333333333333, 0.016666666666667, 0.016666666666667, 0.008333333333333, 0.008333333333333,
-      0.033333333333333};
+  // Define variational forms
+  auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
+  auto a = std::make_shared<fem::Form<PetscScalar>>(
+      fem::create_form<PetscScalar>(*form_mass_a, {V, V}, {}, {{"kappa", kappa}}, {}));
 
-  assert(xt::allclose(ref_data, A));
+  la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
+  MatZeroEntries(A.mat());
+  dolfinx::common::Timer t1("dolfinx");
+  fem::assemble_matrix(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), *a, {});
+  MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
+  t1.stop();
+
+  dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
 
   return 0;
 }

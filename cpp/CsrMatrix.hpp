@@ -33,7 +33,6 @@ public:
     {
       auto indices = row_indices(dofs[i]);
       auto data = row(dofs[i]);
-      auto current = indices.begin();
       for (std::size_t j = 0; j < Ae.shape(2); j++)
       {
         auto it = std::find(indices.begin(), indices.end(), dofs[j]);
