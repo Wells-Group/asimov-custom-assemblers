@@ -44,11 +44,12 @@ generate_kernel(std::string family, std::string cell, Kernel type, Representatio
 
   // Get coordinate element from dolfinx
   basix::FiniteElement coordinate_element = basix::create_element("Lagrange", cell, 1);
-  xt::xtensor<double, 4> c_basis = coordinate_element.tabulate(1, points);
+  xt::xtensor<double, 4> coordinate_basis = coordinate_element.tabulate(1, points);
 
-  xt::xtensor<double, 2> dphi0_c = xt::view(c_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
+  xt::xtensor<double, 2> dphi0_c
+      = xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
+
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
-
   xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
   xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
 
@@ -92,12 +93,24 @@ generate_kernel(std::string family, std::string cell, Kernel type, Representatio
 
   // Stiffness Matrix using quadrature formulation
   // =====================================================================================
+
+  xt::xtensor<double, 3> _dphi({dphi.shape(1), dphi.shape(2), dphi.shape(0)});
+  for (std::int32_t k = 0; k < tdim; k++)
+    for (std::size_t q = 0; q < weights.size(); q++)
+      for (std::int32_t i = 0; i < ndofs_cell; i++)
+        _dphi(q, i, k) = dphi(k, q, i);
+
   kernel_fn stiffness = [=](xt::xtensor<double, 2>& coordinate_dofs, xt::xtensor<double, 2>& Ae) {
     // Compute local matrix
-    xt::xtensor<double, 2> J = xt::linalg::dot(coordinate_dofs, dphi0_c);
+    xt::xtensor<double, 2> J = xt::empty<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::empty<double>({tdim, gdim});
+
+    dot34(dphi0_c, coordinate_dofs, J);
+    J = xt::transpose(J);
     dolfinx::math::inv(J, K);
     double detJ = std::abs(dolfinx::math::det(J));
+
+    // K = xt::transpose(K);
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
@@ -109,14 +122,14 @@ generate_kernel(std::string family, std::string cell, Kernel type, Representatio
           double acc = 0;
           for (std::int32_t k = 0; k < gdim; k++)
             for (std::int32_t l = 0; l < tdim; l++)
-              acc += K(k, l) * dphi(k, q, i) * K(k, l) * dphi(k, q, j);
+              acc += K(k, l) * _dphi(q, i, k) * K(k, l) * _dphi(q, j, k);
           Ae(i, j) += weights[q] * acc * detJ;
         }
       }
     }
   };
 
-  // Mass Matrix using quadrature formulation
+  // Stiffness Matrix using tensor representation
   // =====================================================================================
   kernel_fn stiffness_tensor
       = [=](xt::xtensor<double, 2>& coordinate_dofs, xt::xtensor<double, 2>& Ae) {
@@ -136,7 +149,7 @@ generate_kernel(std::string family, std::string cell, Kernel type, Representatio
                 double acc = 0;
                 for (std::int32_t k = 0; k < gdim; k++)
                   for (std::int32_t l = 0; l < tdim; l++)
-                    acc += K(k, l) * dphi(k, q, i) * K(k, l) * dphi(k, q, j);
+                    acc += K(k, l) * _dphi(q, i, k) * K(k, l) * _dphi(q, j, k);
                 Ae(i, j) += weights[q] * acc * detJ;
               }
             }

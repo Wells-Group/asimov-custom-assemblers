@@ -1,4 +1,4 @@
-degree = 6
+degree = 1
 cell_type = tetrahedron
 element = FiniteElement("Lagrange", cell_type, degree)
 coord_element = VectorElement("Lagrange", cell_type, 1)
@@ -6,4 +6,4 @@ mesh = Mesh(coord_element)
 V = FunctionSpace(mesh, element)
 u = TrialFunction(V)
 v = TestFunction(V)
-a = inner(u, v) * dx
+a = inner(grad(u), grad(v)) * dx

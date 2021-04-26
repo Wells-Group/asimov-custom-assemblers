@@ -1,7 +1,7 @@
 import os
 
-forms = ["a = inner(u, v) * dx"]
-degrees = [1, 2, 3, 4, 5, 6]
+forms = ["a = inner(grad(u), grad(v)) * dx"]
+degrees = [1]
 nrepeats = 5
 out_file = "out.txt"
 
