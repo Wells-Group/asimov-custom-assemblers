@@ -9,8 +9,8 @@
 using namespace dolfinx;
 
 template <std::int32_t P, typename Matrix>
-auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Matrix& A,
-                     Kernel type = Kernel::Stiffness)
+auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Matrix& A, Kernel type,
+                     Representation repr)
 {
   // Get topology information
   const auto& mesh = V->mesh();
@@ -33,13 +33,11 @@ auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Matrix& A,
   // FIXME: Should be really constexpr/ should be known at compile time
   constexpr std::int32_t d = 4;
 
-  xt::xtensor<double, 2> coordinate_dofs = xt::empty<double>({gdim, d});
+  xt::xtensor<double, 2> coordinate_dofs = xt::empty<double>({d, gdim});
   xt::xtensor<double, 2> Ae = xt::empty<double>({ndofs_cell, ndofs_cell});
 
   const auto& dofmap = V->dofmap();
-
-  auto kernel = generate_kernel<P>(family, cell, type);
-
+  auto kernel = generate_kernel<P>(family, cell, type, repr);
   std::vector<std::int32_t> dofs(ndofs_cell);
 
   double t_this = MPI_Wtime();
@@ -49,12 +47,11 @@ auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Matrix& A,
     auto x_dofs = x_dofmap.links(c);
     for (int i = 0; i < d; ++i)
       for (int j = 0; j < gdim; ++j)
-        coordinate_dofs(j, i) = x_g(x_dofs[i], j);
+        coordinate_dofs(i, j) = x_g(x_dofs[i], j);
 
     Ae.fill(0);
     kernel(coordinate_dofs, Ae);
 
-    // std::copy(cell_dofs.begin(), cell_dofs.end(), dofs.begin());
     std::iota(dofs.begin(), dofs.end(), 0);
     auto dofs_span = xtl::span<std::int32_t>(dofs);
     element.permute_dofs(dofs_span, cell_info[c]);

@@ -30,7 +30,7 @@ public:
     auto A_local = xt::view(_data, cell, xt::all(), xt::all());
     for (std::size_t i = 0; i < dofs.size(); i++)
       for (std::size_t j = 0; j < dofs.size(); j++)
-        A_local(dofs[i], dofs[j]) = Ae(i, j);
+        A_local(i, j) = Ae(dofs[i], dofs[j]);
   }
 
   auto& array() { return _data; }

@@ -23,7 +23,7 @@ int main(int argc, char* argv[])
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {50, 50, 50},
+      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {30, 30, 30},
                                   mesh::CellType::tetrahedron, mesh::GhostMode::none));
 
   mesh->topology().create_entity_permutations();
@@ -36,38 +36,43 @@ int main(int argc, char* argv[])
   int ncells = topology.index_map(tdim)->size_global();
   int ndofs_cell = V->element()->space_dimension();
 
-  // create sparsity pattern and allocate data
-  custom::la::CooMatrix<double, std::int32_t> A(ncells, ndofs_cell);
-  double t = assemble_matrix<P>(V, A, Kernel::Mass);
-
   // Define variational forms
-  auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
-  auto a = std::make_shared<fem::Form<PetscScalar>>(
-      fem::create_form<PetscScalar>(*form_lagrange_a, {V, V}, {}, {{"kappa", kappa}}, {}));
+  auto a = std::make_shared<fem::Form<PetscScalar>>(fem::create_form<PetscScalar>(
+      *form_lagrange_a, {V, V}, {},
+      std::map<std::string, std::shared_ptr<const fem::Constant<double>>>(), {}));
 
   // create sparsity pattern and allocate data
   custom::la::CooMatrix<double, std::int32_t> B(ncells, ndofs_cell);
 
   std::int32_t cell = 0;
-  insert_func_t insert_block
-      = [&B, &cell](std::int32_t nr, const std::int32_t* rows, const std::int32_t nc,
-                    const std::int32_t* cols, const double* data) {
-          std::vector<std::size_t> shape({std::size_t(nr), std::size_t(nr)});
-          xt::xtensor<double, 2> Ae = xt::adapt(data, nc * nr, xt::no_ownership(), shape);
-          B.add_values(Ae, cell);
-          cell++;
-          return 0;
-        };
+  insert_func_t insert_block = [&](std::int32_t nr, const std::int32_t* rows, const std::int32_t nc,
+                                   const std::int32_t* cols, const double* data) {
+    std::vector<std::size_t> shape({std::size_t(nr), std::size_t(nr)});
+    xt::xtensor<double, 2> Ae = xt::adapt(data, nc * nr, xt::no_ownership(), shape);
+    B.add_values(Ae, cell);
+    cell++;
+    return 0;
+  };
 
   // Dolfinx Assemble
   double t_ffcx = MPI_Wtime();
   dolfinx::fem::assemble_matrix(insert_block, *a, {});
   t_ffcx = MPI_Wtime() - t_ffcx;
+  std::cout << "\nffcx"
+            << ", " << P << ", " << 1 << ", " << ncells << ", " << t_ffcx;
 
-  bool check = xt::allclose(A.array(), B.array());
+  // create sparsity pattern and allocate data
+  custom::la::CooMatrix<double, std::int32_t> A(ncells, ndofs_cell);
+  double t0 = assemble_matrix<P>(V, A, Kernel::Mass, Representation::Quadrature);
+  bool check0 = xt::allclose(A.array(), B.array());
+  std::cout << "\nquadrature"
+            << ", " << P << ", " << check0 << ", " << ncells << ", " << t0;
 
-  std::cout << P << ", " << ncells << ", " << check << ", " << t_ffcx / t << ", " << t_ffcx << ", "
-            << t << "\n";
+  custom::la::CooMatrix<double, std::int32_t> C(ncells, ndofs_cell);
+  double t1 = assemble_matrix<P>(V, C, Kernel::Mass, Representation::Tensor);
+  bool check1 = xt::allclose(A.array(), B.array());
+  std::cout << "\ntensor"
+            << ", " << P << ", " << check1 << ", " << ncells << ", " << t1;
 
   return 0;
 }

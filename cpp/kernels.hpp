@@ -1,3 +1,4 @@
+#include "math.hpp"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <dolfinx/common/math.h>
@@ -16,11 +17,11 @@ enum Representation
   Tensor
 };
 
-using kernel_ = std::function<void(xt::xtensor<double, 2>&, xt::xtensor<double, 2>&)>;
+using kernel_fn = std::function<void(xt::xtensor<double, 2>&, xt::xtensor<double, 2>&)>;
 
 template <std::int32_t P>
 std::function<void(xt::xtensor<double, 2>&, xt::xtensor<double, 2>&)>
-generate_kernel(std::string family, std::string cell, Kernel type)
+generate_kernel(std::string family, std::string cell, Kernel type, Representation repr)
 {
   constexpr std::int32_t gdim = 3;
   constexpr std::int32_t tdim = 3;
@@ -31,8 +32,9 @@ generate_kernel(std::string family, std::string cell, Kernel type)
   else if (type == Kernel::Mass)
     quad_degree = 2 * P + 1;
 
-  auto [points, weights]
+  auto [points, weight]
       = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell), quad_degree);
+  std::vector<double> weights(weight);
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element = basix::create_element(family, cell, P);
@@ -44,47 +46,42 @@ generate_kernel(std::string family, std::string cell, Kernel type)
   basix::FiniteElement coordinate_element = basix::create_element("Lagrange", cell, 1);
   xt::xtensor<double, 4> c_basis = coordinate_element.tabulate(1, points);
 
-  // FIXME: Add documentation about the dimensions of dphi0, transpose in relation to basix
-  // definition for performance purposes
-  xt::xtensor<double, 2> dphi0_c
-      = xt::transpose(xt::view(c_basis, xt::range(1, tdim + 1), 0, xt::all(), 0));
-
+  xt::xtensor<double, 2> dphi0_c = xt::view(c_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
-  //   constexpr std::int32_t d = 4;
 
-  // NOTE: transposed in relation to dolfinx, so we avoid tranposing
-  // it for multiplifcation
-  //  N0  N1, ..., Nd
-  // [x0, x1, ..., xd]
-  // [y0, y1, ..., yd]
-  // [z0, z2, ..., zd]
-  xt::xtensor<double, 2> J = xt::empty<double>({gdim, tdim});
-  xt::xtensor<double, 2> K = xt::empty<double>({tdim, gdim});
+  xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+  xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
 
   // Mass Matrix using quadrature formulation
   // =====================================================================================
-  kernel_ mass = [=](xt::xtensor<double, 2>& coordinate_dofs, xt::xtensor<double, 2>& Ae) {
-    xt::xtensor<double, 2> J = xt::linalg::dot(coordinate_dofs, dphi0_c);
+  kernel_fn mass = [=](xt::xtensor<double, 2>& coordinate_dofs, xt::xtensor<double, 2>& Ae) {
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    dot34(dphi0_c, coordinate_dofs, J);
     double detJ = std::abs(dolfinx::math::det(J));
 
     // Compute local matrix
     for (std::size_t q = 0; q < weights.size(); q++)
+    {
+      double w0 = weights[q] * detJ;
       for (int i = 0; i < ndofs_cell; i++)
+      {
+        double w1 = w0 * phi.unchecked(q, i);
         for (int j = 0; j < ndofs_cell; j++)
-          Ae(i, j) += weights[q] * phi(q, i) * phi(q, j) * detJ;
+          Ae.unchecked(i, j) += w1 * phi.unchecked(q, j);
+      }
+    }
   };
 
   // Mass matrix using tensor representation
   // =====================================================================================
+  // Pre-compute local matrix for reference element
   xt::xtensor<double, 2> A0 = xt::zeros<double>({ndofs_cell, ndofs_cell});
-
-  // Compute local matrix for reference element
   for (std::size_t q = 0; q < weights.size(); q++)
     for (int i = 0; i < ndofs_cell; i++)
       for (int j = 0; j < ndofs_cell; j++)
         A0(i, j) += weights[q] * phi(q, i) * phi(q, j);
 
-  kernel_ mass_tensor = [=](xt::xtensor<double, 2>& coordinate_dofs, xt::xtensor<double, 2>& Ae) {
+  kernel_fn mass_tensor = [=](xt::xtensor<double, 2>& coordinate_dofs, xt::xtensor<double, 2>& Ae) {
     xt::xtensor<double, 2> J = xt::linalg::dot(coordinate_dofs, dphi0_c);
     double detJ = std::abs(dolfinx::math::det(J));
     // Compute local matrix
@@ -93,9 +90,9 @@ generate_kernel(std::string family, std::string cell, Kernel type)
         Ae(i, j) = A0(i, j) * detJ;
   };
 
-  // Mass Matrix using quadrature formulation
+  // Stiffness Matrix using quadrature formulation
   // =====================================================================================
-  kernel_ stiffness = [=](xt::xtensor<double, 2>& coordinate_dofs, xt::xtensor<double, 2>& Ae) {
+  kernel_fn stiffness = [=](xt::xtensor<double, 2>& coordinate_dofs, xt::xtensor<double, 2>& Ae) {
     // Compute local matrix
     xt::xtensor<double, 2> J = xt::linalg::dot(coordinate_dofs, dphi0_c);
     xt::xtensor<double, 2> K = xt::empty<double>({tdim, gdim});
@@ -121,7 +118,7 @@ generate_kernel(std::string family, std::string cell, Kernel type)
 
   // Mass Matrix using quadrature formulation
   // =====================================================================================
-  kernel_ stiffness_tensor
+  kernel_fn stiffness_tensor
       = [=](xt::xtensor<double, 2>& coordinate_dofs, xt::xtensor<double, 2>& Ae) {
           // Compute local matrix
           xt::xtensor<double, 2> J = xt::linalg::dot(coordinate_dofs, dphi0_c);
@@ -147,7 +144,19 @@ generate_kernel(std::string family, std::string cell, Kernel type)
         };
 
   if (type == Kernel::Mass)
-    return mass_tensor;
+  {
+    if (repr == Representation::Quadrature)
+      return mass;
+    else
+      return mass_tensor;
+  }
+  else if (type == Kernel::Stiffness)
+  {
+    if (repr == Representation::Quadrature)
+      return stiffness;
+    else
+      return stiffness_tensor;
+  }
   else
-    return stiffness;
+    throw std::runtime_error("Unknown kernel");
 }
