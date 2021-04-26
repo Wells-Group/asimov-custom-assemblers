@@ -29,6 +29,9 @@ if __name__ == "__main__":
     _verbose = parser.add_mutually_exclusive_group(required=False)
     _verbose.add_argument('--verbose', dest='verbose', action='store_true',
                           help="Print matrices", default=False)
+    _vector = parser.add_mutually_exclusive_group(required=False)
+    _vector.add_argument('--vector', dest='vector', action='store_true',
+                         help="Use vector finite elements", default=False)
 
     args = parser.parse_args()
     simplex = args.simplex
@@ -36,6 +39,7 @@ if __name__ == "__main__":
     runs = args.runs
     verbose = args.verbose
     degree = args.degree
+    vector = args.vector
 
     np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
     if threed:
@@ -55,10 +59,10 @@ if __name__ == "__main__":
         mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
 
     cell_str = dolfinx.cpp.mesh.to_string(mesh.topology.cell_type)
-    el = ufl.FiniteElement("CG", cell_str, degree)
+    el = ufl.VectorElement("CG", cell_str, degree) if vector else ufl.FiniteElement("CG", cell_str, degree)
 
     V = dolfinx.FunctionSpace(mesh, el)
-    a_mass = ufl.TrialFunction(V) * ufl.TestFunction(V) * ufl.dx
+    a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
     quadrature_degree = quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
 
     dolfin_times = np.zeros(runs - 1)
