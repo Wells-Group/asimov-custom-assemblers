@@ -4,92 +4,25 @@
 
 
 import basix
-from basix.numba_helpers import (apply_dof_transformation_triangle,
-                                 apply_dof_transformation_quadrilateral,
-                                 apply_dof_transformation_tetrahedron,
-                                 apply_dof_transformation_hexahedron)
 import dolfinx
-import numba
-from numba import types
-from numba.typed import Dict
-
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
-from .utils import compute_determinant, create_csr_sparsity_pattern, compute_inverse
+from numba import types
+from numba.typed import Dict
 from petsc4py import PETSc
+
+from .utils import create_csr_sparsity_pattern, expand_dofmap, compute_inverse
+from .kernels import mass_kernel
+
 float_type = PETSc.ScalarType
 
-__all__ = ["assemble_mass_matrix", "assemble_stiffness_matrix"]
+__all__ = ["assemble_matrix", "assemble_stiffness_matrix"]
 
 
-@numba.njit
-def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
-                x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
-                needs_transformations: bool):
+def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: str = "mass"):
     """
-    Assemble mass matrix into CSR array "data"
-    """
-
-    # Declaration of local structures
-    geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
-    num_q_points = q_w.size
-    if ct == "triangle":
-        apply_dof_trans = apply_dof_transformation_triangle
-    elif ct == "quadrilateral":
-        apply_dof_trans = apply_dof_transformation_quadrilateral
-    elif ct == "tetrahedron":
-        apply_dof_trans = apply_dof_transformation_tetrahedron
-    elif ct == "hexahedron":
-        apply_dof_trans = apply_dof_transformation_hexahedron
-    else:
-        assert(False)
-    J_q = np.zeros((num_q_points, gdim, tdim), dtype=np.float64)
-    detJ_q = np.zeros((num_q_points, 1), dtype=np.float64)
-    dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
-    detJ = np.zeros(1, dtype=np.float64)
-    entries_per_cell = num_dofs_per_cell**2
-    # Assemble matrix
-    for cell in range(num_cells):
-        # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
-        if needs_transformations:
-            phi_i = phi.T.flatten()
-            apply_dof_trans(e_transformations, e_dofs, phi_i, num_q_points, cell_info[cell])
-            # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
-            phi_i = phi_i.reshape(phi.shape[1], phi.shape[0])
-        else:
-            phi_i = phi.T.copy()
-
-        # Compute weighted basis functions at quadrature points
-        phi_w = phi_i.T * q_w
-
-        for j in range(num_dofs_x):
-            geometry[j] = x[x_dofs[cell, j], : gdim]
-
-        # Compute Jacobian at each quadrature point
-        if is_affine:
-            J_q[0] = np.dot(geometry.T, dphi_c.T)
-            compute_determinant(J_q[0], detJ)
-            detJ_q[:] = detJ[0]
-        else:
-            for i, q in enumerate(q_p):
-                dphi_c[:] = c_tab[1:gdim + 1, i, :, 0]
-                J_q[i] = geometry.T @ dphi_c.T
-                compute_determinant(J_q[i], detJ)
-                detJ_q[i] = detJ[0]
-
-        # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
-        phi_scaled = phi_w * np.abs(detJ_q)
-        kernel = phi_i @ phi_scaled
-
-        # Add to csr matrix
-        data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(kernel)
-
-
-def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
-    """
-    Assemble a mass matrix using custom assembler
+    Assemble a matrix using custom assembler
     """
 
     # Extract mesh data
@@ -107,8 +40,6 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
 
     # Extract function space data
     num_dofs_per_cell = V.dofmap.cell_dofs(0).size
-    dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
-
     # Create basix element based on function space
     family = V.ufl_element().family()
     if family == "Q":
@@ -151,17 +82,23 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
 
     # Create sparsity pattern
-    rows, cols = create_csr_sparsity_pattern(num_cells, num_dofs_per_cell, dofmap)
+    dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
+    block_size = V.dofmap.index_map_bs
+    expanded_dofmap = np.zeros((num_cells, num_dofs_per_cell * block_size))
+    expand_dofmap(dofmap, block_size, expanded_dofmap)
+
+    rows, cols = create_csr_sparsity_pattern(num_cells, num_dofs_per_cell * block_size, expanded_dofmap)
     data = np.zeros(len(rows), dtype=float_type)
+    if int_type == "mass":
+        mass_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
+                    x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, entity_transformations,
+                    entity_dofs, ct, cell_info, needs_transformations, block_size)
+    else:
+        raise NotImplementedError(f"Integration kernel for {int_type} has not been implemeted.")
 
-    mass_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
-                x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, entity_transformations,
-                entity_dofs, ct, cell_info, needs_transformations)
-
-    num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
-
-    # Faster than CSR
-    out_matrix = scipy.sparse.coo_matrix((data, (rows, cols)), shape=(num_dofs_glob, num_dofs_glob))
+    # Coo is faster than CSR
+    num_dofs_loc = V.dofmap.index_map.size_local * block_size
+    out_matrix = scipy.sparse.coo_matrix((data, (rows, cols)), shape=(num_dofs_loc, num_dofs_loc))
     return out_matrix
 
 

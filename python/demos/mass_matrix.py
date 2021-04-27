@@ -10,7 +10,7 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import ufl
-from dolfinx_assemblers import (assemble_mass_matrix,
+from dolfinx_assemblers import (assemble_matrix,
                                 compute_reference_mass_matrix, estimate_max_polynomial_degree)
 from mpi4py import MPI
 
@@ -29,6 +29,9 @@ if __name__ == "__main__":
     _verbose = parser.add_mutually_exclusive_group(required=False)
     _verbose.add_argument('--verbose', dest='verbose', action='store_true',
                           help="Print matrices", default=False)
+    _vector = parser.add_mutually_exclusive_group(required=False)
+    _vector.add_argument('--vector', dest='vector', action='store_true',
+                         help="Use vector finite elements", default=False)
 
     args = parser.parse_args()
     simplex = args.simplex
@@ -36,6 +39,7 @@ if __name__ == "__main__":
     runs = args.runs
     verbose = args.verbose
     degree = args.degree
+    vector = args.vector
 
     np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
     if threed:
@@ -55,23 +59,24 @@ if __name__ == "__main__":
         mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
 
     cell_str = dolfinx.cpp.mesh.to_string(mesh.topology.cell_type)
-    el = ufl.FiniteElement("CG", cell_str, degree)
+    el = ufl.VectorElement("CG", cell_str, degree) if vector else ufl.FiniteElement("CG", cell_str, degree)
 
     V = dolfinx.FunctionSpace(mesh, el)
-    a_mass = ufl.TrialFunction(V) * ufl.TestFunction(V) * ufl.dx
+    a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
     quadrature_degree = quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
 
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)
+    jit_parameters = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
     for i in range(runs):
         start = time.time()
-        Aref = compute_reference_mass_matrix(V, quadrature_degree)
+        Aref = compute_reference_mass_matrix(V, quadrature_degree, jit_parameters=jit_parameters)
         end = time.time()
         print(f"{i}: DOLFINx {end-start:.2e}")
         if i > 0:
             dolfin_times[i - 1] = end - start
         start = time.time()
-        A = assemble_mass_matrix(V, quadrature_degree)
+        A = assemble_matrix(V, quadrature_degree)
         end = time.time()
         if i > 0:
             numba_times[i - 1] = end - start

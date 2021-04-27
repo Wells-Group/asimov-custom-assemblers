@@ -13,6 +13,18 @@ Utilities for assembly
 __all__ = ["estimate_max_polynomial_degree"]
 
 
+@numba.njit(cache=True)
+def expand_dofmap(dofmap: np.ndarray, block_size: int, expanded_dofmap: np.ndarray):
+    """
+    Expand dofmap for a given block size
+    """
+    num_cells, num_dofs_per_cell = dofmap.shape
+    for i in range(num_cells):
+        for j in range(num_dofs_per_cell):
+            for k in range(block_size):
+                expanded_dofmap[i, j * block_size + k] = dofmap[i, j] * block_size + k
+
+
 def create_csr_sparsity_pattern(num_cells: int, num_dofs_per_cell: int, dofmap: np.ndarray):
     """
     Create a csr matrix given a flattened dofmap and the number of cells and dofs per cell
