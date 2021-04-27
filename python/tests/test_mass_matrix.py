@@ -13,7 +13,8 @@ from mpi4py import MPI
 @pytest.mark.parametrize("degree", range(1, 5))
 @pytest.mark.parametrize("ct", ["quadrilateral", "triangle", "tetrahedron",
                                 "hexahedron"])
-def test_mass_matrix(ct, degree):
+@pytest.mark.parametrize("element", [ufl.FiniteElement, ufl.VectorElement])
+def test_mass_matrix(element, ct, degree):
     """
     Test assembly of mass matrices on non-affine mesh
     """
@@ -39,10 +40,10 @@ def test_mass_matrix(ct, degree):
     else:
         raise ValueError(f"Unsupported mesh type {ct}")
     mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh)
-    el = ufl.FiniteElement("CG", ct, degree)
+    el = element("CG", ct, degree)
     V = dolfinx.FunctionSpace(mesh, el)
 
-    a_mass = ufl.TrialFunction(V) * ufl.TestFunction(V) * ufl.dx
+    a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
     quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
     Aref = compute_reference_mass_matrix(V)
     A = assemble_mass_matrix(V, quadrature_degree)
