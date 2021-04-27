@@ -12,7 +12,7 @@ Verification of assembly using dolfin-x
 __all__ = ["compute_reference_mass_matrix"]
 
 
-def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int = -1):
+def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int = -1, jit_parameters={}):
     """
     Compute mass matrix with given quadrature degree
     """
@@ -21,6 +21,7 @@ def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: i
     v = ufl.TestFunction(V)
     dx = ufl.dx(domain=mesh, metadata={"quadrature_degree": quadrature_degree})
     a = ufl.inner(u, v) * dx
+    a = dolfinx.fem.Form(a)
     Aref = dolfinx.fem.assemble_matrix(a)
     Aref.assemble()
     return Aref
