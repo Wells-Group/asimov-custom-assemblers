@@ -10,7 +10,7 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import ufl
-from dolfinx_assemblers import (assemble_mass_matrix,
+from dolfinx_assemblers import (assemble_matrix,
                                 compute_reference_mass_matrix, estimate_max_polynomial_degree)
 from mpi4py import MPI
 
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         if i > 0:
             dolfin_times[i - 1] = end - start
         start = time.time()
-        A = assemble_mass_matrix(V, quadrature_degree)
+        A = assemble_matrix(V, quadrature_degree)
         end = time.time()
         if i > 0:
             numba_times[i - 1] = end - start

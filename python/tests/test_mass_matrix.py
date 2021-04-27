@@ -5,7 +5,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import ufl.algorithms
 import ufl
-from dolfinx_assemblers import (assemble_mass_matrix,
+from dolfinx_assemblers import (assemble_matrix,
                                 compute_reference_mass_matrix, estimate_max_polynomial_degree)
 from mpi4py import MPI
 
@@ -46,7 +46,7 @@ def test_mass_matrix(element, ct, degree):
     a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
     quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
     Aref = compute_reference_mass_matrix(V)
-    A = assemble_mass_matrix(V, quadrature_degree)
+    A = assemble_matrix(V, quadrature_degree)
     ai, aj, av = Aref.getValuesCSR()
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
