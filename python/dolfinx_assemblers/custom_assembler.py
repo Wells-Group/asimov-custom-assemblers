@@ -134,8 +134,6 @@ def assemble_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     ct = str(V.ufl_cell())
     element = basix.create_element(family, ct, V.ufl_element().degree())
 
-    if not element.dof_transformations_are_identity:
-        raise RuntimeError("Dof permutations not supported")
 
     # Get quadrature points and weights
     q_p, q_w = basix.make_quadrature("default", element.cell_type, quadrature_degree)
