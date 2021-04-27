@@ -42,6 +42,8 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
     entries_per_cell = (block_size * num_dofs_per_cell)**2
     # Assemble matrix
     Ae = np.zeros((block_size * num_dofs_per_cell, block_size * num_dofs_per_cell))
+    blocks = [np.arange(b, block_size * num_dofs_per_cell + b, block_size) for b in range(block_size)]
+
     for cell in range(num_cells):
         for j in range(num_dofs_x):
             geometry[j] = x[x_dofs[cell, j], : gdim]
@@ -73,8 +75,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
         # Insert per block size
         for i in range(num_dofs_per_cell):
             for b in range(block_size):
-                block = np.arange(b, block_size * num_dofs_per_cell + b, block_size)
                 Ai = Ae[i * block_size + b]
-                Ai[block] = kernel[i]
+                Ai[blocks[b]] = kernel[i]
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(Ae)
