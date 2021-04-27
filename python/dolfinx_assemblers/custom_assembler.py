@@ -168,34 +168,62 @@ def assemble_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
 @numba.njit
 def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                      x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                     dphi: np.ndarray, is_affine: bool):
+                     dphi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
+                     needs_transformations: bool):
     """
     Assemble stiffness matrix into CSR array "data"
     """
 
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
-    num_quadrature_points = q_w.size
-    J_q = np.zeros((q_w.size, tdim, gdim), dtype=np.float64)
-    invJ = np.zeros((tdim, gdim), dtype=np.float64)
+    num_q_points = q_w.size
+    if ct == "triangle":
+        apply_dof_trans = apply_dof_transformation_triangle
+    elif ct == "quadrilateral":
+        apply_dof_trans = apply_dof_transformation_quadrilateral
+    elif ct == "tetrahedron":
+        apply_dof_trans = apply_dof_transformation_tetrahedron
+    elif ct == "hexahedron":
+        apply_dof_trans = apply_dof_transformation_hexahedron
+    else:
+        assert(False)
+
+    J_q    = np.zeros((q_w.size, tdim, gdim), dtype=np.float64)
+    invJ   = np.zeros((tdim, gdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
-    dphi_c = np.empty(c_tab[1:3, 0, :, 0].shape, dtype=np.float64)
-    detJ = np.zeros(1, dtype=np.float64)
+    dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
+    detJ   = np.zeros(1, dtype=np.float64)
     entries_per_cell = num_dofs_per_cell**2
-    dphi_p = np.zeros((tdim, num_quadrature_points, dphi.shape[2]), dtype=np.float64)
+    dphi_p = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
+    dphi_i = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
+    
     for cell in range(num_cells):
+
+        # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
+        if needs_transformations:
+            for i in range(tdim):
+                dphidxi = dphi[i,:,:].T.flatten()
+                apply_dof_trans(e_transformations, e_dofs, dphidxi, num_q_points, cell_info[cell])
+                # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
+                dphi_i[i, :, :] = dphidxi.reshape(dphi.shape[2], dphi.shape[1]).copy()
+        else:
+            for i in range(tdim):
+                dphi_i[i, :, : ] = dphi[i, :, :].T.copy()
+        
+
         for j in range(num_dofs_x):
             geometry[j] = x[x_dofs[cell, j], : gdim]
-
+        
+        
         # Compute Jacobian at each quadrature point
         if is_affine:
             dphi_c[:] = c_tab[1:gdim + 1, 0, :, 0]
             J_q[:] = np.dot(dphi_c, geometry)
             compute_inverse(J_q[0], invJ, detJ)
             detJ_q[:] = detJ[0]
-            for p in range(num_quadrature_points):
+            for p in range(num_q_points):
                 for d in range(dphi.shape[2]):
-                    dphi_p[:, p, d] = invJ @ dphi[:, p, d].copy()
+                    dphi_p[:, d, p] = invJ @ dphi_i[:, d, p].copy()
         else:
             for i, q in enumerate(q_p):
                 dphi_c[:] = c_tab[1:gdim + 1, i, :, 0]
@@ -203,7 +231,7 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
                 compute_inverse(J_q[i], invJ, detJ)
                 detJ_q[i] = detJ[0]
                 for d in range(dphi.shape[2]):
-                    dphi_p[:, i, d] = invJ @ dphi[:, i, d].copy()
+                    dphi_p[:, d, i] = invJ @ dphi_i[:, d, i].copy()
 
         # Compute weighted basis functions at quadrature points
         scale = q_w * np.abs(detJ_q)
@@ -211,7 +239,7 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
         for i in range(tdim):
             dphidxi = dphi_p[i, :, :]
             # Compute Ae_(k,j) += sum_(s=1)^len(q_w) w_s dphi_k/dx_i(q_s) dphi_j/dx_i(q_s) |det(J(q_s))|
-            kernel += dphidxi.T.copy() @ (dphidxi * scale)
+            kernel += dphidxi.copy() @ (dphidxi.T * scale)
 
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(kernel)
@@ -238,7 +266,7 @@ def assemble_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     # Extract function space data
     num_dofs_per_cell = V.dofmap.cell_dofs(0).size
     dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
-    quad = True if mesh.topology.cell_type == dolfinx.cpp.mesh.CellType.quadrilateral else False
+    #quad = True if mesh.topology.cell_type == dolfinx.cpp.mesh.CellType.quadrilateral else False
     
     # Create basix element based on function space
     family = V.ufl_element().family()
@@ -256,7 +284,10 @@ def assemble_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
 
     # Data from coordinate element
     ufl_c_el = mesh.ufl_domain().ufl_coordinate_element()
-    ufc_family = ufl_c_el.family() if not quad else "Lagrange"
+    ufc_family = ufl_c_el.family()
+    if ufc_family == "Q":
+        ufc_family = "Lagrange"
+
     c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
     c_tab = c_element.tabulate_x(1, q_p)
 
@@ -264,15 +295,31 @@ def assemble_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     num_derivatives = 1
     tabulated_data = element.tabulate_x(num_derivatives, q_p)
     d_phi = tabulated_data[1:, :, :, 0]
+
+    # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
+    # and "dof_transformations_are_indentity"
+    needs_transformations = not element.dof_transformations_are_identity
+    entity_transformations = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
+    for i, transformation in enumerate(element.entity_transformations()):
+        entity_transformations[i] = transformation
+
+
+    entity_dofs = Dict.empty(key_type=types.int64, value_type=types.int32[:])
+    for i, e_dofs in enumerate(element.entity_dofs):
+        entity_dofs[i] = np.asarray(e_dofs, dtype=np.int32)
+
+    mesh.topology.create_entity_permutations()
+    cell_info = mesh.topology.get_cell_permutation_info()
+
     is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
 
-    print(is_affine)
     # Create sparsity pattern
     rows, cols = create_csr_sparsity_pattern(num_cells, num_dofs_per_cell, dofmap)
     data = np.zeros(len(rows), dtype=float_type)
 
     stiffness_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
-                     x, gdim, tdim, c_tab, q_p, q_w, d_phi, is_affine)
+                     x, gdim, tdim, c_tab, q_p, q_w, d_phi, is_affine, entity_transformations,
+                entity_dofs, ct, cell_info, needs_transformations)
 
     num_dofs_glob = V.dofmap.index_map.size_local * V.dofmap.index_map_bs
 

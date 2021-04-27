@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     V = dolfinx.FunctionSpace(mesh, el)
     a_stiffness =ufl.TrialFunction(V) * ufl.TestFunction(V) * ufl.dx
-    quadrature_degree = estimate_max_polynomial_degree(a_stiffness)-1 
+    quadrature_degree = estimate_max_polynomial_degree(a_stiffness)-1
 
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)
