@@ -79,7 +79,6 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
                 compute_determinant(J_q[i], detJ)
                 detJ_q[i] = detJ[0]
 
-        print(detJ_q[i])
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
         phi_scaled = phi_w * np.abs(detJ_q)
         kernel = phi_i @ phi_scaled
@@ -205,9 +204,7 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
                 detJ_q[i] = detJ[0]
                 for d in range(dphi.shape[2]):
                     dphi_p[:, i, d] = invJ @ dphi[:, i, d].copy()
-        print(dphi_p)  
-        print(dphi)     
-        print(q_w)  
+
         # Compute weighted basis functions at quadrature points
         scale = q_w * np.abs(detJ_q)
         kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
@@ -242,10 +239,13 @@ def assemble_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
     num_dofs_per_cell = V.dofmap.cell_dofs(0).size
     dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
     quad = True if mesh.topology.cell_type == dolfinx.cpp.mesh.CellType.quadrilateral else False
+    
     # Create basix element based on function space
-    family = V.ufl_element().family() if not quad else "Lagrange"
-    element = basix.create_element(family, str(
-        V.ufl_cell()), V.ufl_element().degree())
+    family = V.ufl_element().family()
+    if family == "Q":
+        family = "Lagrange"
+    ct = str(V.ufl_cell())
+    element = basix.create_element(family, ct, V.ufl_element().degree())
 
     if not element.dof_transformations_are_identity:
         raise RuntimeError("Dof permutations not supported")
