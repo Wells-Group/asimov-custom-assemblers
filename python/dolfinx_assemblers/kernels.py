@@ -80,6 +80,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(Ae)
 
+
 @numba.njit
 def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                      x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
@@ -103,34 +104,32 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
     else:
         assert(False)
 
-    J_q    = np.zeros((q_w.size, tdim, gdim), dtype=np.float64)
-    invJ   = np.zeros((tdim, gdim), dtype=np.float64)
+    J_q = np.zeros((q_w.size, tdim, gdim), dtype=np.float64)
+    invJ = np.zeros((tdim, gdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
     dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
-    detJ   = np.zeros(1, dtype=np.float64)
+    detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = num_dofs_per_cell**2
     dphi_p = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
     dphi_i = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
-    
+
     for cell in range(num_cells):
 
         # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
         if needs_transformations:
             # FIXME: Can apply_dof_trans be applied to all dphidxi simultaneously?
             for i in range(tdim):
-                dphidxi = dphi[i,:,:].T.flatten()
+                dphidxi = dphi[i, :, :].T.flatten()
                 apply_dof_trans(e_transformations, e_dofs, dphidxi, num_q_points, cell_info[cell])
                 # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
                 dphi_i[i, :, :] = dphidxi.reshape(dphi.shape[2], dphi.shape[1]).copy()
         else:
             for i in range(tdim):
-                dphi_i[i, :, : ] = dphi[i, :, :].T.copy()
-        
+                dphi_i[i, :, :] = dphi[i, :, :].T.copy()
 
         for j in range(num_dofs_x):
             geometry[j] = x[x_dofs[cell, j], : gdim]
-        
-        
+
         # Compute Jacobian at each quadrature point
         if is_affine:
             dphi_c[:] = c_tab[1:gdim + 1, 0, :, 0]

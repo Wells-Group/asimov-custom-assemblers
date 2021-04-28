@@ -1,4 +1,4 @@
-# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta
+# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta, Sarah Roggendorf
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -94,15 +94,15 @@ def compute_inverse(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
             detJ[0] = A[0, 0] * A[1, 1] * A[2, 2] + A[0, 1] * A[1, 2] * A[2, 0]\
                 + A[0, 2] * A[1, 0] * A[2, 1] - A[2, 0] * A[1, 1] * A[0, 2]\
                 - A[2, 1] * A[1, 2] * A[0, 0] - A[2, 2] * A[1, 0] * A[0, 1]
-            Ainv[0, 0] =  (A[1, 1] * A[2, 2] - A[1, 2] * A[2, 1])/detJ[0]
-            Ainv[0, 1] = -(A[0, 1] * A[2, 2] - A[0, 2] * A[2, 1])/detJ[0]
-            Ainv[0, 2] =  (A[0, 1] * A[1, 2] - A[0, 2] * A[1, 1])/detJ[0]
-            Ainv[1, 0] = -(A[1, 0] * A[2, 2] - A[1, 2] * A[2, 0])/detJ[0]
-            Ainv[1, 1] =  (A[0, 0] * A[2, 2] - A[0, 2] * A[2, 0])/detJ[0]
-            Ainv[1, 2] = -(A[0, 0] * A[1, 2] - A[0, 2] * A[1, 0])/detJ[0]
-            Ainv[2, 0] =  (A[1, 0] * A[2, 1] - A[1, 1] * A[2, 0])/detJ[0]
-            Ainv[2, 1] = -(A[0, 0] * A[2, 1] - A[0, 1] * A[2, 0])/detJ[0]
-            Ainv[2, 2] =  (A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0])/detJ[0]
+            Ainv[0, 0] = (A[1, 1] * A[2, 2] - A[1, 2] * A[2, 1]) / detJ[0]
+            Ainv[0, 1] = -(A[0, 1] * A[2, 2] - A[0, 2] * A[2, 1]) / detJ[0]
+            Ainv[0, 2] = (A[0, 1] * A[1, 2] - A[0, 2] * A[1, 1]) / detJ[0]
+            Ainv[1, 0] = -(A[1, 0] * A[2, 2] - A[1, 2] * A[2, 0]) / detJ[0]
+            Ainv[1, 1] = (A[0, 0] * A[2, 2] - A[0, 2] * A[2, 0]) / detJ[0]
+            Ainv[1, 2] = -(A[0, 0] * A[1, 2] - A[0, 2] * A[1, 0]) / detJ[0]
+            Ainv[2, 0] = (A[1, 0] * A[2, 1] - A[1, 1] * A[2, 0]) / detJ[0]
+            Ainv[2, 1] = -(A[0, 0] * A[2, 1] - A[0, 1] * A[2, 0]) / detJ[0]
+            Ainv[2, 2] = (A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0]) / detJ[0]
         else:
             # print(f"Matrix has invalid size {num_rows}x{num_cols}")
             assert(False)
