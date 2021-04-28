@@ -19,7 +19,7 @@ from mpi4py import MPI
                                 "hexahedron"])
 @pytest.mark.parametrize("element", [ufl.FiniteElement, ufl.VectorElement])
 @pytest.mark.parametrize("integral_type", ["mass", "stiffness"])
-def test_mass_matrix(element, ct, degree, integral_type):
+def test_cell_kernels(element, ct, degree, integral_type):
     """
     Test assembly of mass matrices on non-affine mesh
     """
