@@ -116,6 +116,7 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
 
         # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
         if needs_transformations:
+            # FIXME: Can apply_dof_trans be applied to all dphidxi simultaneously?
             for i in range(tdim):
                 dphidxi = dphi[i,:,:].T.flatten()
                 apply_dof_trans(e_transformations, e_dofs, dphidxi, num_q_points, cell_info[cell])

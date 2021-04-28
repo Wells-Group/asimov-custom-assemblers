@@ -11,7 +11,7 @@ from mpi4py import MPI
 
 @pytest.mark.parametrize("degree", range(1, 5))
 @pytest.mark.parametrize("ct", ["quadrilateral", "triangle", "tetrahedron",
-                                "hexahedron"])
+                                "hexahedron"])                          
 def test_stiffness_matrix(ct, degree):
     """
     Test assembly of stiffness matrices on non-affine mesh
@@ -42,10 +42,15 @@ def test_stiffness_matrix(ct, degree):
     el = ufl.FiniteElement("CG", ct, degree)
 
     V = dolfinx.FunctionSpace(mesh, el)
-    a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
-    quadrature_degree = estimate_max_polynomial_degree(a_mass) +3
-    Aref = compute_reference_stiffness_matrix(V, quadrature_degree)
+    a_stiffness = ufl.inner(ufl.grad(ufl.TrialFunction(V)), ufl.grad(ufl.TestFunction(V))) * ufl.dx
+
+
+    quadrature_degree = estimate_max_polynomial_degree(a_stiffness) + 1
+
+    # FIXME: Once ffcx updated: change quadrature_degree -1 to quadrature_degree 
+    Aref = compute_reference_stiffness_matrix(V, quadrature_degree-1)
     A = assemble_matrix(V, quadrature_degree, "stiffness")
+
     ai, aj, av = Aref.getValuesCSR()
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
