@@ -13,7 +13,7 @@ from numba import types
 from numba.typed import Dict
 from petsc4py import PETSc
 
-from .utils import create_csr_sparsity_pattern, expand_dofmap, pack_facet_info
+from .utils import compute_determinant, create_csr_sparsity_pattern, expand_dofmap, pack_facet_info
 from .kernels import mass_kernel, surface_kernel
 
 float_type = PETSc.ScalarType
@@ -113,7 +113,9 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         # Shape is (derivatives, num_quadrature_point, num_basis_functions)
         q_p, q_w = basix.make_quadrature("default", surface_element.cell_type, quadrature_degree)
         q_w = q_w.reshape(q_w.size, 1)
-        dphi_s = surface_element.tabulate_x(1, q_p)[1:, :, :, 0]
+        tabulated_data = surface_element.tabulate_x(1, q_p)
+        phi_s = tabulated_data[0, :, :, 0]
+        dphi_s = tabulated_data[1:, :, :, 0]
         # basix_surface_el = _dolfinx_to_basix_celltype[surface_cell_type]
 
         # Get the coordinates for the facets of the reference cell
@@ -125,16 +127,24 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
             facet_coords[i] = ref_geometry[facet]
         # As the reference cell and reference facet is always affine this is simplified
         dphi_s0 = dphi_s[:, 0, :]
-        jacs = {}
+        _ref_jacs = {}
         for i, coord in facet_coords.items():
-            jacs[i] = np.dot(coord.T, dphi_s0.T)
+            _ref_jacs[i] = np.dot(coord.T, dphi_s0.T)
+        # Map Jacobians to numba dict
+        ref_jacobians = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
+        for key, value in _ref_jacs.items():
+            ref_jacobians[key] = value
 
-        # Push quadrature points forward to reference cell
-        # cell_vertices = basix.geometry(element)
-        # cell_top = basix.topology(element)
-        # reference_coords = el
-        from IPython import embed
-        embed()
+        # Push quadrature points from reference facet forward to reference element
+        q_cell = {}
+        for i, coords in facet_coords.items():
+            _x = np.zeros((len(q_p), mesh.geometry.dim))
+            for j in range(_x.shape[0]):
+                for k in range(_x.shape[1]):
+                    for l in range(coords.shape[0]):
+                        _x[j, k] += phi_s[j, l] * coords[l, k]
+                q_cell[i] = _x
+
         # surface_kernel(data, num_facets, num_dofs_per_cell, num_dofs_x, x_dofs,
         #                x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, entity_transformations,
         #                entity_dofs, ct, facet_info, needs_transformations, block_size)
