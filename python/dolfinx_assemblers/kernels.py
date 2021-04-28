@@ -79,3 +79,11 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
                 Ai[blocks[b]] = kernel[i]
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(Ae)
+
+
+# @numba.njit
+def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
+                   x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
+                   phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, facet_info: int,
+                   needs_transformations: bool, block_size: int):
+    return

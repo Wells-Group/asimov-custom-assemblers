@@ -5,12 +5,55 @@
 import numpy as np
 import numba
 import ufl
-
+import dolfinx
 """
 Utilities for assembly
 """
 
 __all__ = ["estimate_max_polynomial_degree"]
+
+
+def pack_facet_info(mesh: dolfinx.cpp.mesh.Mesh, mt: dolfinx.MeshTags, index: int):
+    """
+    Given a mesh, meshtag and an index, compute the triplet
+    (facet index (local to process), cell index(local to process), facet index (local to cell) )
+    """
+    # FIXME: Should be moved to dolfinx C++ layer
+    # Set up data required for exterior facet assembly
+    tdim = mesh.topology.dim
+    fdim = mesh.topology.dim - 1
+
+    mesh.topology.create_connectivity(tdim, fdim)
+    mesh.topology.create_connectivity(fdim, tdim)
+    c_to_f = mesh.topology.connectivity(tdim, fdim)
+    f_to_c = mesh.topology.connectivity(fdim, tdim)
+
+    assert(mt.dim == fdim)
+    active_facets = mt.indices[mt.values == index]
+    facet_info = pack_facet_info_numba(active_facets,
+                                       (c_to_f.array, c_to_f.offsets),
+                                       (f_to_c.array, f_to_c.offsets))
+    return facet_info
+
+
+@numba.njit(fastmath=True, cache=True)
+def pack_facet_info_numba(active_facets, c_to_f, f_to_c):
+    """
+    Given a list of external facets get the owning cell and local facet
+    index
+    """
+    facet_info = np.zeros((len(active_facets), 3), dtype=np.int64)
+    c_to_f_pos, c_to_f_offs = c_to_f
+    f_to_c_pos, f_to_c_offs = f_to_c
+
+    for j, facet in enumerate(active_facets):
+        cells = f_to_c_pos[f_to_c_offs[facet]:f_to_c_offs[facet + 1]]
+        assert(len(cells) == 1)
+        local_facets = c_to_f_pos[c_to_f_offs[cells[0]]: c_to_f_offs[cells[0] + 1]]
+        # Should be wrapped in convenience numba function
+        local_index = np.flatnonzero(facet == local_facets)[0]
+        facet_info[j, :] = [facet, cells[0], local_index]
+    return facet_info
 
 
 @numba.njit(cache=True)
