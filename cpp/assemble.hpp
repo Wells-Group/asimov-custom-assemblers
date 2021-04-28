@@ -33,10 +33,9 @@ auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Matrix& A, Ke
   // FIXME: Should be really constexpr/ should be known at compile time
   constexpr std::int32_t d = 4;
 
-  xt::xtensor<double, 2> coordinate_dofs = xt::empty<double>({d, gdim});
+  xt::xtensor_fixed<double, xt::fixed_shape<d, gdim>> coordinate_dofs = xt::empty<double>({d, gdim});
   xt::xtensor<double, 2> Ae = xt::empty<double>({ndofs_cell, ndofs_cell});
 
-  const auto& dofmap = V->dofmap();
   auto kernel = generate_kernel<P>(family, cell, type, repr);
   std::vector<std::int32_t> dofs(ndofs_cell);
 

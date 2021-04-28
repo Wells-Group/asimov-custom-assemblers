@@ -1,4 +1,5 @@
 #include "CsrMatrix.hpp"
+#include <boost/config.hpp>
 #include <dolfinx.h>
 
 // ----------------------------------------------------------------------------------------------
@@ -21,4 +22,17 @@ auto create_csr_matrix(const std::shared_ptr<dolfinx::fem::FunctionSpace>& V)
   xt::xtensor<ValueType, 1> data = xt::zeros<ValueType>({array.size()});
 
   return custom::la::CsrMatrix<ValueType, IndexType>(data, indptr, indices);
+}
+
+void print_data(std::string name, std::int32_t P, std::int32_t ncells, double t)
+{
+  char buffer[sizeof(BOOST_COMPILER) + 5];
+  sprintf(buffer, "%s", BOOST_COMPILER);
+  std::string compileinfo(buffer);
+  std::cout << std::endl;
+  std::cout << name << ", ";
+  std::cout << P << ", ";
+  std::cout << ncells << ", ";
+  std::cout << t << ", ";
+  std::cout << compileinfo;
 }

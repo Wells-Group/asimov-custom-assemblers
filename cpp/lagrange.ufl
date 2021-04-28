@@ -1,4 +1,4 @@
-degree = 1
+degree = 4
 cell_type = tetrahedron
 element = FiniteElement("Lagrange", cell_type, degree)
 coord_element = VectorElement("Lagrange", cell_type, 1)

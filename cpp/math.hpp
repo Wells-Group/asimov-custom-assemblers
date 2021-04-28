@@ -2,8 +2,9 @@ template <typename T, typename E, typename V>
 inline void dot34(const T& A, const E& B, V& out)
 {
   for (int i = 0; i < 3; i++)
-    for (int j = 0; j < 3; j++)
-      out.unchecked(i, j)
-          = A.unchecked(i, 0) * B.unchecked(0, j) + A.unchecked(i, 1) * B.unchecked(1, j)
-            + A.unchecked(i, 2) * B.unchecked(2, j) + A.unchecked(i, 3) * B.unchecked(3, j);
+  {
+    out(i, 0) = A(i, 0) * B(0, 0) + A(i, 1) * B(1, 0) + A(i, 2) * B(2, 0) + A(i, 3) * B(3, 0);
+    out(i, 1) = A(i, 0) * B(0, 1) + A(i, 1) * B(1, 1) + A(i, 2) * B(2, 1) + A(i, 3) * B(3, 1);
+    out(i, 2) = A(i, 0) * B(0, 2) + A(i, 1) * B(1, 2) + A(i, 2) * B(2, 2) + A(i, 3) * B(3, 2);
+  }
 }

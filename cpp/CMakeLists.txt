@@ -4,8 +4,8 @@ set(PROJECT_NAME custom-assembler)
 project(${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-Ofast -march=native -DNDEBUG ${CMAKE_CXX_FLAGS} -Wall")
-set(CMAKE_C_FLAGS "-Ofast -march=native -DNDEBUG ${CMAKE_C_FLAGS} -Wall")
+set(CMAKE_CXX_FLAGS "-DNDEBUG ${CMAKE_CXX_FLAGS} -Wall")
+set(CMAKE_C_FLAGS "-DNDEBUG ${CMAKE_C_FLAGS} -Wall")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
 
@@ -25,3 +25,6 @@ target_include_directories(lagrange SYSTEM PUBLIC ${xtensor_INCLUDE_DIRS})
 target_include_directories(lagrange SYSTEM PRIVATE ${xtensor_blas_INCLUDE_DIR})
 target_link_libraries(lagrange PRIVATE ${xtensor_blas_LIBRARY})
 target_link_libraries(lagrange PRIVATE ${LAPACK_LIBRARIES})
+
+message(${CMAKE_CXX_FLAGS})
+message(${CMAKE_C_FLAGS})

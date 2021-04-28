@@ -5,10 +5,11 @@ import numpy
 
 
 dt = pd.read_csv("out.txt")
+matrix_name = Mass
+# seaborn.set_theme(style="darkgrid")
+seaborn.set_theme(style="ticks")
 
-seaborn.set_theme(style="darkgrid")
-
-g = seaborn.catplot(x="degree", y="time", hue="method", kind="bar", data=dt)
+g = seaborn.catplot(x="degree", y="time", hue="method", col="compiler", kind="bar", data=dt)
 
 max_degree = max(dt["degree"])
 P = numpy.arange(1, max_degree + 1)
@@ -18,5 +19,5 @@ plt.plot(P - 1, Asize / Asize[0] * min(dt["time"]), "r-o")
 plt.legend([r"size($A_e$)"])
 
 plt.yscale("log")
-plt.title("Mass Matrix")
+plt.title(f"{matrix_name} Matrix")
 plt.show()
