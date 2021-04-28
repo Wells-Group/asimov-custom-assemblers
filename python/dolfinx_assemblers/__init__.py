@@ -6,6 +6,6 @@
 
 # flake8: noqa
 
-from .custom_assembler import assemble_matrix, assemble_stiffness_matrix
+from .custom_assembler import assemble_matrix
 from .verification import compute_reference_mass_matrix, compute_reference_stiffness_matrix
 from .utils import estimate_max_polynomial_degree

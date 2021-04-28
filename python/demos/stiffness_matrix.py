@@ -10,7 +10,7 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import ufl
-from dolfinx_assemblers import (assemble_stiffness_matrix,
+from dolfinx_assemblers import (assemble_matrix,
                                 compute_reference_stiffness_matrix, estimate_max_polynomial_degree)
 from mpi4py import MPI
 
@@ -63,6 +63,7 @@ if __name__ == "__main__":
 
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)
+    jit_parameters = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
     for i in range(runs):
         start = time.time()
         Aref = compute_reference_stiffness_matrix(V, quadrature_degree)
@@ -71,7 +72,7 @@ if __name__ == "__main__":
         if i > 0:
             dolfin_times[i - 1] = end - start
         start = time.time()
-        A = assemble_stiffness_matrix(V, quadrature_degree)
+        A = assemble_matrix(V, quadrature_degree, "stiffness")
         end = time.time()
         if i > 0:
             numba_times[i - 1] = end - start
