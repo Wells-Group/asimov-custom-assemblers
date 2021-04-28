@@ -71,8 +71,10 @@ jobs:
         run: |
           cd python/tests
           python3 -m pytest test_mass_matrix.py
+          python3 -m pytest test_stiffness_matrix.py
 
       - name: Run demos
         run: |
           cd python/demos
           python3 mass_matrix.py
+          python3 stiffness_matrix.py
