@@ -1,4 +1,4 @@
-# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta
+# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta, Sarah Roggendorf
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -69,6 +69,46 @@ def compute_determinant(A: np.ndarray, detJ: np.ndarray):
         else:
             # print(f"Matrix has invalid size {num_rows}x{num_cols}")
             assert(False)
+
+
+@numba.njit(cache=True)
+def compute_inverse(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
+    """
+    Compute the inverse of A matrix with max dimension 3 on any axis
+    """
+    # TODO: Finalize this to use instead of numpy.linalg.inv
+
+    num_rows = A.shape[0]
+    num_cols = A.shape[1]
+    if num_rows == num_cols:
+        if num_rows == 1:
+            detJ = A[0]
+            Ainv[0] = 1. / A[0]
+        elif num_rows == 2:
+            detJ[0] = A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0]
+            Ainv[0, 0] = A[1, 1] / detJ[0]
+            Ainv[0, 1] = -A[0, 1] / detJ[0]
+            Ainv[1, 0] = -A[1, 0] / detJ[0]
+            Ainv[1, 1] = A[0, 0] / detJ[0]
+        elif num_rows == 3:
+            detJ[0] = A[0, 0] * A[1, 1] * A[2, 2] + A[0, 1] * A[1, 2] * A[2, 0]\
+                + A[0, 2] * A[1, 0] * A[2, 1] - A[2, 0] * A[1, 1] * A[0, 2]\
+                - A[2, 1] * A[1, 2] * A[0, 0] - A[2, 2] * A[1, 0] * A[0, 1]
+            Ainv[0, 0] = (A[1, 1] * A[2, 2] - A[1, 2] * A[2, 1]) / detJ[0]
+            Ainv[0, 1] = -(A[0, 1] * A[2, 2] - A[0, 2] * A[2, 1]) / detJ[0]
+            Ainv[0, 2] = (A[0, 1] * A[1, 2] - A[0, 2] * A[1, 1]) / detJ[0]
+            Ainv[1, 0] = -(A[1, 0] * A[2, 2] - A[1, 2] * A[2, 0]) / detJ[0]
+            Ainv[1, 1] = (A[0, 0] * A[2, 2] - A[0, 2] * A[2, 0]) / detJ[0]
+            Ainv[1, 2] = -(A[0, 0] * A[1, 2] - A[0, 2] * A[1, 0]) / detJ[0]
+            Ainv[2, 0] = (A[1, 0] * A[2, 1] - A[1, 1] * A[2, 0]) / detJ[0]
+            Ainv[2, 1] = -(A[0, 0] * A[2, 1] - A[0, 1] * A[2, 0]) / detJ[0]
+            Ainv[2, 2] = (A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0]) / detJ[0]
+        else:
+            # print(f"Matrix has invalid size {num_rows}x{num_cols}")
+            assert(False)
+    else:
+        # print(f"Matrix has invalid size {num_rows}x{num_cols}")
+        assert(False)
 
 
 def estimate_max_polynomial_degree(form: ufl.form.Form) -> int:

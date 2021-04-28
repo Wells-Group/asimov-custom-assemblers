@@ -1,3 +1,6 @@
+# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta, Sarah Roggendorf
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
 import dolfinx
 import numpy as np
 import pytest
@@ -6,7 +9,8 @@ import scipy.sparse.linalg
 import ufl.algorithms
 import ufl
 from dolfinx_assemblers import (assemble_matrix,
-                                compute_reference_mass_matrix, estimate_max_polynomial_degree)
+                                compute_reference_mass_matrix, compute_reference_stiffness_matrix,
+                                estimate_max_polynomial_degree)
 from mpi4py import MPI
 
 
@@ -14,7 +18,8 @@ from mpi4py import MPI
 @pytest.mark.parametrize("ct", ["quadrilateral", "triangle", "tetrahedron",
                                 "hexahedron"])
 @pytest.mark.parametrize("element", [ufl.FiniteElement, ufl.VectorElement])
-def test_mass_matrix(element, ct, degree):
+@pytest.mark.parametrize("integral_type", ["mass", "stiffness"])
+def test_cell_kernels(element, ct, degree, integral_type):
     """
     Test assembly of mass matrices on non-affine mesh
     """
@@ -43,11 +48,23 @@ def test_mass_matrix(element, ct, degree):
     el = element("CG", ct, degree)
     V = dolfinx.FunctionSpace(mesh, el)
 
-    a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
-    quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
-    Aref = compute_reference_mass_matrix(V)
-    A = assemble_matrix(V, quadrature_degree)
+    if integral_type == "mass":
+        a_ = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
+        reference_code = compute_reference_mass_matrix
+    elif integral_type == "stiffness":
+        a_ = ufl.inner(ufl.grad(ufl.TrialFunction(V)), ufl.grad(ufl.TestFunction(V))) * ufl.dx
+        reference_code = compute_reference_stiffness_matrix
+
+    quadrature_degree = estimate_max_polynomial_degree(a_) + 1
+    if integral_type == "stiffness" and element == ufl.VectorElement:
+        print("Block size not implemented for stiffness matrix")
+        return
+
+    # FIXME: Once ffcx updated: change quadrature_degree -1 to quadrature_degree
+    Aref = reference_code(V, quadrature_degree - 1)
+    A = assemble_matrix(V, quadrature_degree, int_type=integral_type)
     ai, aj, av = Aref.getValuesCSR()
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
+    print(f"Matrix error {matrix_error}")
     assert(matrix_error < 1e-13)

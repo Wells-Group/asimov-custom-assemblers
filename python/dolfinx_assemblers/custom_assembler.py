@@ -1,4 +1,4 @@
-# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta
+# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta, Sarah Roggendorf
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -13,7 +13,7 @@ from numba.typed import Dict
 from petsc4py import PETSc
 
 from .utils import create_csr_sparsity_pattern, expand_dofmap
-from .kernels import mass_kernel
+from .kernels import mass_kernel, stiffness_kernel
 
 float_type = PETSc.ScalarType
 
@@ -60,11 +60,6 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
     c_tab = c_element.tabulate_x(1, q_p)
 
-    # NOTE: Tabulate basis functions at quadrature points
-    num_derivatives = 0
-    tabulated_data = element.tabulate_x(num_derivatives, q_p)
-    phi = tabulated_data[0, :, :, 0]
-
     # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
     # and "dof_transformations_are_indentity"
     needs_transformations = not element.dof_transformations_are_identity
@@ -90,9 +85,21 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     rows, cols = create_csr_sparsity_pattern(num_cells, num_dofs_per_cell * block_size, expanded_dofmap)
     data = np.zeros(len(rows), dtype=float_type)
     if int_type == "mass":
+        # NOTE: Tabulate basis functions at quadrature points
+        num_derivatives = 0
+        tabulated_data = element.tabulate_x(num_derivatives, q_p)
+        phi = tabulated_data[0, :, :, 0]
         mass_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
                     x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, entity_transformations,
                     entity_dofs, ct, cell_info, needs_transformations, block_size)
+    elif int_type == 'stiffness':
+        # NOTE: Tabulate basis functions at quadrature points
+        num_derivatives = 1
+        tabulated_data = element.tabulate_x(num_derivatives, q_p)
+        d_phi = tabulated_data[1:, :, :, 0]
+        stiffness_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
+                         x, gdim, tdim, c_tab, q_p, q_w, d_phi, is_affine, entity_transformations,
+                         entity_dofs, ct, cell_info, needs_transformations)
     else:
         raise NotImplementedError(f"Integration kernel for {int_type} has not been implemeted.")
 

@@ -67,12 +67,16 @@ jobs:
       - name: Install custom assemblers
         run: python3 -m pip -v install python/
 
+      - name: Flake8 code
+        run: flake8 python/
+
       - name: Run tests
         run: |
           cd python/tests
-          python3 -m pytest test_mass_matrix.py
+          python3 -m pytest . -vs
 
       - name: Run demos
         run: |
           cd python/demos
           python3 mass_matrix.py
+          python3 stiffness_matrix.py
