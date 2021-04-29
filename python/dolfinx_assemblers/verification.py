@@ -21,13 +21,13 @@ def compute_reference_mass_matrix(V: dolfinx.FunctionSpace, quadrature_degree: i
     v = ufl.TestFunction(V)
     dx = ufl.dx(domain=mesh, metadata={"quadrature_degree": quadrature_degree})
     a = ufl.inner(u, v) * dx
-    a = dolfinx.fem.Form(a)
+    a = dolfinx.fem.Form(a, jit_parameters=jit_parameters)
     Aref = dolfinx.fem.assemble_matrix(a)
     Aref.assemble()
     return Aref
 
 
-def compute_reference_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int):
+def compute_reference_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int = -1, jit_parameters={}):
     """
     Compute stiffness matrix with given quadrature degree
     """
@@ -36,6 +36,7 @@ def compute_reference_stiffness_matrix(V: dolfinx.FunctionSpace, quadrature_degr
     v = ufl.TestFunction(V)
     dx = ufl.dx(domain=mesh, metadata={"quadrature_degree": quadrature_degree})
     a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
+    a = dolfinx.fem.Form(a, jit_parameters=jit_parameters)
     Aref = dolfinx.fem.assemble_matrix(a)
     Aref.assemble()
     return Aref
