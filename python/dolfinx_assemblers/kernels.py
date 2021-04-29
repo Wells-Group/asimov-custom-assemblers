@@ -85,7 +85,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
 def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                      x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                      dphi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
-                     needs_transformations: bool):
+                     needs_transformations: bool, block_size: int):
     """
     Assemble stiffness matrix into CSR array "data"
     """
@@ -109,10 +109,13 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
     dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
     detJ = np.zeros(1, dtype=np.float64)
-    entries_per_cell = num_dofs_per_cell**2
+    entries_per_cell = (block_size*num_dofs_per_cell)**2
     dphi_p = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
     dphi_i = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
 
+    # Assemble element matrix
+    Ae = np.zeros((block_size * num_dofs_per_cell, block_size * num_dofs_per_cell))
+    blocks = [np.arange(b, block_size * num_dofs_per_cell + b, block_size) for b in range(block_size)]
     for cell in range(num_cells):
 
         # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
@@ -155,6 +158,10 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
             dphidxi = dphi_p[i, :, :]
             # Compute Ae_(k,j) += sum_(s=1)^len(q_w) w_s dphi_k/dx_i(q_s) dphi_j/dx_i(q_s) |det(J(q_s))|
             kernel += dphidxi.copy() @ (dphidxi.T * scale)
-
+        # Insert per block size
+        for i in range(num_dofs_per_cell):
+            for b in range(block_size):
+                Ai = Ae[i * block_size + b]
+                Ai[blocks[b]] = kernel[i]
         # Add to csr matrix
-        data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(kernel)
+        data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(Ae)
