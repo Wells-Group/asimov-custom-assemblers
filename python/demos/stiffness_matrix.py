@@ -67,7 +67,7 @@ if __name__ == "__main__":
     for i in range(runs):
         start = time.time()
         # FIXME: Once ffcx updated: change quadrature_degree -1 to quadrature_degree
-        Aref = compute_reference_stiffness_matrix(V, quadrature_degree - 1)
+        Aref = compute_reference_stiffness_matrix(V, quadrature_degree - 1, jit_parameters)
         end = time.time()
         print(f"{i}: DOLFINx {end-start:.2e}")
         if i > 0:
