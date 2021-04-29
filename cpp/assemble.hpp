@@ -1,11 +1,6 @@
-#include "CsrMatrix.hpp"
 #include "kernels.hpp"
 #include <basix/finite-element.h>
-#include <basix/quadrature.h>
 #include <dolfinx.h>
-#include <dolfinx/common/math.h>
-#include <xtensor-blas/xlinalg.hpp>
-
 using namespace dolfinx;
 
 template <std::int32_t P, typename Matrix>
@@ -33,11 +28,14 @@ auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Matrix& A, Ke
   // FIXME: Should be really constexpr/ should be known at compile time
   constexpr std::int32_t d = 4;
 
-  xt::xtensor_fixed<double, xt::fixed_shape<d, gdim>> coordinate_dofs = xt::empty<double>({d, gdim});
-  xt::xtensor<double, 2> Ae = xt::empty<double>({ndofs_cell, ndofs_cell});
+  xt::xtensor_fixed<double, xt::fixed_shape<d, gdim>> coordinate_dofs
+      = xt::empty<double>({d, gdim});
+  xt::xtensor_fixed<double, xt::fixed_shape<ndofs_cell, ndofs_cell>> Ae;
 
   auto kernel = generate_kernel<P>(family, cell, type, repr);
   std::vector<std::int32_t> dofs(ndofs_cell);
+
+  bool identity = element.dof_transformations_are_identity();
 
   double t_this = MPI_Wtime();
   for (std::int32_t c = 0; c < ncells; c++)
@@ -51,11 +49,15 @@ auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Matrix& A, Ke
     Ae.fill(0);
     kernel(coordinate_dofs, Ae);
 
-    std::iota(dofs.begin(), dofs.end(), 0);
-    auto dofs_span = xtl::span<std::int32_t>(dofs);
-    element.permute_dofs(dofs_span, cell_info[c]);
-
-    A.add_values(Ae, dofs_span, c);
+    if (identity)
+      A.add_values(Ae, c);
+    else
+    {
+      std::iota(dofs.begin(), dofs.end(), 0);
+      auto dofs_span = xtl::span<std::int32_t>(dofs);
+      element.permute_dofs(dofs_span, cell_info[c]);
+      A.add_values(Ae, dofs_span, c);
+    }
   }
   t_this = MPI_Wtime() - t_this;
 

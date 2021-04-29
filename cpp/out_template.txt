@@ -1,1 +1,0 @@
-method,degree,check,cells,time

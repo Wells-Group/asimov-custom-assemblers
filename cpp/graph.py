@@ -4,20 +4,21 @@ import matplotlib.pyplot as plt
 import numpy
 
 
-dt = pd.read_csv("out.txt")
-matrix_name = Mass
-# seaborn.set_theme(style="darkgrid")
-seaborn.set_theme(style="ticks")
+dt = pd.read_csv("results.txt")
+matrix_name = "Stiffness"
 
-g = seaborn.catplot(x="degree", y="time", hue="method", col="compiler", kind="bar", data=dt)
+seaborn.set(style="ticks")
+seaborn.set_style("darkgrid")
 
-max_degree = max(dt["degree"])
-P = numpy.arange(1, max_degree + 1)
-Asize = ((P + 1) * (P + 2) * (P + 3) / 6)**2
+dt1 = dt[dt["method"] == "main"].copy()
+dt2 = dt[dt["method"] == "custom"].copy()
 
-plt.plot(P - 1, Asize / Asize[0] * min(dt["time"]), "r-o")
-plt.legend([r"size($A_e$)"])
+dt1["speedup"] = dt1.time/dt2.time.array
 
-plt.yscale("log")
-plt.title(f"{matrix_name} Matrix")
+
+g = seaborn.catplot(x="degree", y="speedup", hue="compiler", col="compiler", kind="bar", data=dt1)
+
+
+# plt.yscale("log")
+# plt.title(f"{matrix_name} Matrix")
 plt.show()

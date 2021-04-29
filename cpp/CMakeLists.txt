@@ -4,8 +4,8 @@ set(PROJECT_NAME custom-assembler)
 project(${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-DNDEBUG ${CMAKE_CXX_FLAGS} -Wall")
-set(CMAKE_C_FLAGS "-DNDEBUG ${CMAKE_C_FLAGS} -Wall")
+set(CMAKE_CXX_FLAGS "-DNDEBUG -Ofast -march=native ${CMAKE_CXX_FLAGS} -Wall")
+set(CMAKE_C_FLAGS "-DNDEBUG -Ofast -march=native ${CMAKE_C_FLAGS} -Wall")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
 

@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {10, 10, 10},
+      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {30, 30, 30},
                                   mesh::CellType::tetrahedron, mesh::GhostMode::none));
 
   // dolfinx::fem::CoordinateElement element(dolfinx::mesh::CellType::tetrahedron, 1);
@@ -70,22 +70,23 @@ int main(int argc, char* argv[])
   t_ffcx = MPI_Wtime() - t_ffcx;
   print_data("main", P, ncells, t_ffcx);
 
-  // // create sparsity pattern and allocate data
-  // custom::la::CooMatrix<double, std::int32_t> A(ncells, ndofs_cell);
-  // double t0 = assemble_matrix<P>(V, A, Kernel::Stiffness, Representation::Quadrature);
-  // print_data("custom", P, ncells, t0);
+  // create sparsity pattern and allocate data
+  custom::la::CooMatrix<double, std::int32_t> A(ncells, ndofs_cell);
+  double t0 = assemble_matrix<P>(V, A, Kernel::Stiffness, Representation::Quadrature);
+  print_data("custom", P, ncells, t0);
 
-  // bool check0 = xt::allclose(A.array(), B.array());
-  // if (!check0)
-  //   throw std::runtime_error("Matrix is incorrect.");
+  bool check0 = xt::allclose(A.array(), B.array());
+  if (!check0)
+    throw std::runtime_error("Matrix is incorrect.");
 
-  // std::cout << "\n\n " << A.array() << "\n\n " << B.array();
-
+  // create sparsity pattern and allocate data
   // custom::la::CooMatrix<double, std::int32_t> C(ncells, ndofs_cell);
-  // double t1 = assemble_matrix<P>(V, C, Kernel::Mass, Representation::Tensor);
-  // bool check1 = xt::allclose(A.array(), B.array());
-  // std::cout << "\ntensor"
-  //           << ", " << P << ", " << check1 << ", " << ncells << ", " << t1;
+  // double t1 = assemble_matrix<P>(V, C, Kernel::Stiffness, Representation::Quadrature);
+  // print_data("nothing", P, ncells, t1);
+
+  // bool check1 = xt::allclose(C.array(), B.array());
+  // if (!check1)
+  //   throw std::runtime_error("Matrix is incorrect.");
 
   return 0;
 }
