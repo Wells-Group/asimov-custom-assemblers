@@ -1,0 +1,95 @@
+method,degree,cells,time,compiler
+main, 1, 162000, 0.021868, GNU C++ version 9.3.0
+custom, 1, 162000, 0.00615478, GNU C++ version 9.3.0
+main, 1, 162000, 0.0220091, GNU C++ version 9.3.0
+custom, 1, 162000, 0.00623465, GNU C++ version 9.3.0
+main, 1, 162000, 0.0222683, GNU C++ version 9.3.0
+custom, 1, 162000, 0.00602484, GNU C++ version 9.3.0
+main, 1, 162000, 0.0230262, GNU C++ version 9.3.0
+custom, 1, 162000, 0.00617528, GNU C++ version 9.3.0
+main, 1, 162000, 0.0221167, GNU C++ version 9.3.0
+custom, 1, 162000, 0.00625134, GNU C++ version 9.3.0
+main, 2, 162000, 0.236962, GNU C++ version 9.3.0
+custom, 2, 162000, 0.065089, GNU C++ version 9.3.0
+main, 2, 162000, 0.253896, GNU C++ version 9.3.0
+custom, 2, 162000, 0.0708284, GNU C++ version 9.3.0
+main, 2, 162000, 0.258392, GNU C++ version 9.3.0
+custom, 2, 162000, 0.0922203, GNU C++ version 9.3.0
+main, 2, 162000, 0.247474, GNU C++ version 9.3.0
+custom, 2, 162000, 0.0894282, GNU C++ version 9.3.0
+main, 2, 162000, 0.257346, GNU C++ version 9.3.0
+custom, 2, 162000, 0.0689528, GNU C++ version 9.3.0
+main, 3, 162000, 0.985704, GNU C++ version 9.3.0
+custom, 3, 162000, 0.278666, GNU C++ version 9.3.0
+main, 3, 162000, 0.961723, GNU C++ version 9.3.0
+custom, 3, 162000, 0.275156, GNU C++ version 9.3.0
+main, 3, 162000, 1.21094, GNU C++ version 9.3.0
+custom, 3, 162000, 0.280601, GNU C++ version 9.3.0
+main, 3, 162000, 0.979034, GNU C++ version 9.3.0
+custom, 3, 162000, 0.284585, GNU C++ version 9.3.0
+main, 3, 162000, 0.991158, GNU C++ version 9.3.0
+custom, 3, 162000, 0.282681, GNU C++ version 9.3.0
+main, 4, 162000, 6.18228, GNU C++ version 9.3.0
+custom, 4, 162000, 1.35992, GNU C++ version 9.3.0
+main, 4, 162000, 6.06424, GNU C++ version 9.3.0
+custom, 4, 162000, 1.31885, GNU C++ version 9.3.0
+main, 4, 162000, 6.92326, GNU C++ version 9.3.0
+custom, 4, 162000, 1.36005, GNU C++ version 9.3.0
+main, 4, 162000, 6.75846, GNU C++ version 9.3.0
+custom, 4, 162000, 1.48771, GNU C++ version 9.3.0
+main, 4, 162000, 6.35276, GNU C++ version 9.3.0
+custom, 4, 162000, 1.33944, GNU C++ version 9.3.0
+main, 5, 162000, 47.6811, GNU C++ version 9.3.0
+custom, 5, 162000, 4.70512, GNU C++ version 9.3.0
+main, 5, 162000, 47.1665, GNU C++ version 9.3.0
+custom, 5, 162000, 5.08792, GNU C++ version 9.3.0
+main, 1, 162000, 0.0237672, Clang version 12.0.1 
+custom, 1, 162000, 0.00686598, Clang version 12.0.1 
+main, 1, 162000, 0.0243528, Clang version 12.0.1 
+custom, 1, 162000, 0.00695682, Clang version 12.0.1 
+main, 1, 162000, 0.0245953, Clang version 12.0.1 
+custom, 1, 162000, 0.00723195, Clang version 12.0.1 
+main, 1, 162000, 0.0242839, Clang version 12.0.1 
+custom, 1, 162000, 0.00738192, Clang version 12.0.1 
+main, 1, 162000, 0.0383747, Clang version 12.0.1 
+custom, 1, 162000, 0.00715423, Clang version 12.0.1 
+main, 2, 162000, 0.148563, Clang version 12.0.1 
+custom, 2, 162000, 0.0702472, Clang version 12.0.1 
+main, 2, 162000, 0.147145, Clang version 12.0.1 
+custom, 2, 162000, 0.0686142, Clang version 12.0.1 
+main, 2, 162000, 0.144177, Clang version 12.0.1 
+custom, 2, 162000, 0.0387254, Clang version 12.0.1 
+main, 2, 162000, 0.149169, Clang version 12.0.1 
+custom, 2, 162000, 0.0650132, Clang version 12.0.1 
+main, 2, 162000, 0.143984, Clang version 12.0.1 
+custom, 2, 162000, 0.0702846, Clang version 12.0.1 
+main, 3, 162000, 1.02485, Clang version 12.0.1 
+custom, 3, 162000, 0.387949, Clang version 12.0.1 
+main, 3, 162000, 1.0146, Clang version 12.0.1 
+custom, 3, 162000, 0.386568, Clang version 12.0.1 
+main, 3, 162000, 0.991603, Clang version 12.0.1 
+custom, 3, 162000, 0.3772, Clang version 12.0.1 
+main, 3, 162000, 1.01748, Clang version 12.0.1 
+custom, 3, 162000, 0.381974, Clang version 12.0.1 
+main, 3, 162000, 1.03031, Clang version 12.0.1 
+custom, 3, 162000, 0.381126, Clang version 12.0.1 
+main, 4, 162000, 6.67783, Clang version 12.0.1 
+custom, 4, 162000, 1.92592, Clang version 12.0.1 
+main, 4, 162000, 6.50191, Clang version 12.0.1 
+custom, 4, 162000, 1.80493, Clang version 12.0.1 
+main, 4, 162000, 6.38537, Clang version 12.0.1 
+custom, 4, 162000, 1.85847, Clang version 12.0.1 
+main, 4, 162000, 7.2084, Clang version 12.0.1 
+custom, 4, 162000, 1.88941, Clang version 12.0.1 
+main, 4, 162000, 6.40667, Clang version 12.0.1 
+custom, 4, 162000, 1.8923, Clang version 12.0.1 
+main, 5, 162000, 53.8081, Clang version 12.0.1 
+custom, 5, 162000, 6.81804, Clang version 12.0.1 
+main, 6, 162000, 367.339, GNU C++ version 9.3.0
+custom, 6, 162000, 42.1454, GNU C++ version 9.3.0
+main, 6, 162000, 369.657, GNU C++ version 9.3.0
+custom, 6, 162000, 40.4255, GNU C++ version 9.3.0
+main, 6, 162000, 314.839, Clang version 12.0.1 
+custom, 6, 162000, 40.9907, Clang version 12.0.1 
+main, 6, 162000, 303.201, Clang version 12.0.1 
+custom, 6, 162000, 47.2261, Clang version 12.0.1 
