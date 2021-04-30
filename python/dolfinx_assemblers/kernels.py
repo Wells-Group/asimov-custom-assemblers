@@ -13,7 +13,7 @@ from numba.typed import Dict
 from .utils import compute_determinant, compute_inverse
 
 
-@numba.njit
+@numba.njit(fastmath=True)
 def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                 x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                 phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
@@ -81,7 +81,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(Ae)
 
 
-@numba.njit
+@numba.njit(fastmath=True)
 def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                      x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                      dphi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
@@ -112,6 +112,7 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
     entries_per_cell = num_dofs_per_cell**2
     dphi_p = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
     dphi_i = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
+    kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
 
     for cell in range(num_cells):
 
@@ -137,20 +138,18 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
             compute_inverse(J_q[0], invJ, detJ)
             detJ_q[:] = detJ[0]
             for p in range(num_q_points):
-                for d in range(dphi.shape[2]):
-                    dphi_p[:, d, p] = invJ @ dphi_i[:, d, p].copy()
+                dphi_p[:, :, p] = invJ @ dphi_i[:, :, p].copy()
         else:
             for i, q in enumerate(q_p):
                 dphi_c[:] = c_tab[1:gdim + 1, i, :, 0]
                 J_q[i] = dphi_c @ geometry
                 compute_inverse(J_q[i], invJ, detJ)
                 detJ_q[i] = detJ[0]
-                for d in range(dphi.shape[2]):
-                    dphi_p[:, d, i] = invJ @ dphi_i[:, d, i].copy()
+                dphi_p[:, :, i] = invJ @ dphi_i[:, :, i].copy()
 
         # Compute weighted basis functions at quadrature points
         scale = q_w * np.abs(detJ_q)
-        kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
+        kernel.fill(0)
         for i in range(tdim):
             dphidxi = dphi_p[i, :, :]
             # Compute Ae_(k,j) += sum_(s=1)^len(q_w) w_s dphi_k/dx_i(q_s) dphi_j/dx_i(q_s) |det(J(q_s))|
