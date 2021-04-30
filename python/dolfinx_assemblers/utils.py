@@ -69,9 +69,10 @@ def compute_determinant(A: np.ndarray, detJ: np.ndarray):
         else:
             # print(f"Matrix has invalid size {num_rows}x{num_cols}")
             assert(False)
+        detJ[0] = np.sqrt(detJ[0])
 
 
-@numba.njit(cache = True)
+@numba.njit(cache=True)
 def square_inv(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
     """
     Compute the inverse of A square matrix (1x1, 2x2, 3x3 only)
@@ -108,6 +109,7 @@ def square_inv(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
         # print(f"Matrix has invalid size {num_rows}x{num_cols}")
         assert(False)
 
+
 @numba.njit(cache=True)
 def compute_inverse(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
     """
@@ -122,11 +124,10 @@ def compute_inverse(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
         ATA = A.T @ A
         num_rows = ATA.shape[0]
         num_cols = ATA.shape[1]
-        ATAinv = np.zeros((num_rows, num_cols), dtype = np.float64)
+        ATAinv = np.zeros((num_rows, num_cols), dtype=np.float64)
         square_inv(ATA, ATAinv, detJ)
         Ainv = ATAinv @ A.T
         detJ[0] = np.sqrt(detJ[0])
-
 
 
 def estimate_max_polynomial_degree(form: ufl.form.Form) -> int:
