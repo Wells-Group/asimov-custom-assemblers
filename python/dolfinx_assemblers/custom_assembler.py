@@ -44,7 +44,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     family = V.ufl_element().family()
     if family == "Q":
         family = "Lagrange"
-    ct = str(V.ufl_cell())
+    ct = dolfinx.cpp.mesh.to_string(V.mesh.topology.cell_type)
     element = basix.create_element(family, ct, V.ufl_element().degree())
 
     # Get quadrature points and weights

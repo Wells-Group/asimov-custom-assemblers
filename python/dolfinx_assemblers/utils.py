@@ -71,13 +71,11 @@ def compute_determinant(A: np.ndarray, detJ: np.ndarray):
             assert(False)
 
 
-@numba.njit(cache=True)
-def compute_inverse(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
+@numba.njit(cache = True)
+def square_inv(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
     """
-    Compute the inverse of A matrix with max dimension 3 on any axis
+    Compute the inverse of A square matrix (1x1, 2x2, 3x3 only)
     """
-    # TODO: Finalize this to use instead of numpy.linalg.inv
-
     num_rows = A.shape[0]
     num_cols = A.shape[1]
     if num_rows == num_cols:
@@ -109,6 +107,26 @@ def compute_inverse(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
     else:
         # print(f"Matrix has invalid size {num_rows}x{num_cols}")
         assert(False)
+
+@numba.njit(cache=True)
+def compute_inverse(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
+    """
+    Compute the inverse of A matrix with max dimension 3 on any axis
+    """
+    num_rows = A.shape[0]
+    num_cols = A.shape[1]
+    if num_rows == num_cols:
+        square_inv(A, Ainv, detJ)
+    else:
+        # Moore Penrose Pseudo inverse A^{-1} = (A^T A)^{-1} A^T
+        ATA = A.T @ A
+        num_rows = ATA.shape[0]
+        num_cols = ATA.shape[1]
+        ATAinv = np.zeros((num_rows, num_cols), dtype = np.float64)
+        square_inv(ATA, ATAinv, detJ)
+        Ainv = ATAinv @ A.T
+        detJ[0] = np.sqrt(detJ[0])
+
 
 
 def estimate_max_polynomial_degree(form: ufl.form.Form) -> int:
