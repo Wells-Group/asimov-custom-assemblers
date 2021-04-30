@@ -13,7 +13,7 @@ from numba.typed import Dict
 from .utils import compute_determinant, compute_inverse
 
 
-@numba.njit
+@numba.njit(fastmath=True)
 def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                 x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                 phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
@@ -81,7 +81,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(Ae)
 
 
-@numba.njit
+@numba.njit(fastmath=True)
 def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                      x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                      dphi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
@@ -145,7 +145,7 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
                 J_q[i] = dphi_c @ geometry
                 compute_inverse(J_q[i], invJ, detJ)
                 detJ_q[i] = detJ[0]
-                dphi_p[:, :, p] = invJ @ dphi_i[:, :, p].copy()
+                dphi_p[:, :, i] = invJ @ dphi_i[:, :, i].copy()
 
         # Compute weighted basis functions at quadrature points
         scale = q_w * np.abs(detJ_q)
