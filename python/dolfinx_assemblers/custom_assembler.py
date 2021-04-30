@@ -125,6 +125,12 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         facet_coords = {}
         for i, facet in enumerate(facet_topology):
             facet_coords[i] = ref_geometry[facet]
+
+        # NOTE: This can be greatly simplified if one uses the assumption that the mapping between the reference geometries
+        # are always linear. Then one can use that for the ith facet J_i = (edge_i[1]-edge_i[0]) for 2D,
+        # ((edge_i[1]-edge_i[0]),(edge_i[2]-edge_i[0]))
+        # NOTE: We however use the surface element of the same order as the function space, but employ
+        # that the reference cell is always affine
         # As the reference cell and reference facet is always affine this is simplified
         dphi_s0 = dphi_s[:, 0, :]
         _ref_jacs = {}
