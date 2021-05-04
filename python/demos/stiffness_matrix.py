@@ -59,15 +59,14 @@ if __name__ == "__main__":
 
     V = dolfinx.FunctionSpace(mesh, el)
     a_stiffness = ufl.inner(ufl.grad(ufl.TrialFunction(V)), ufl.grad(ufl.TestFunction(V))) * ufl.dx
-    quadrature_degree = estimate_max_polynomial_degree(a_stiffness) + 1
+    quadrature_degree = estimate_max_polynomial_degree(a_stiffness)
 
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)
     jit_parameters = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
     for i in range(runs):
         start = time.time()
-        # FIXME: Once ffcx updated: change quadrature_degree -1 to quadrature_degree
-        Aref = compute_reference_stiffness_matrix(V, quadrature_degree - 1, jit_parameters)
+        Aref = compute_reference_stiffness_matrix(V, quadrature_degree, jit_parameters)
         end = time.time()
         print(f"{i}: DOLFINx {end-start:.2e}")
         if i > 0:
