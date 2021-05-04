@@ -60,12 +60,12 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
                 compute_determinant(J_q[i], detJ)
                 detJ_q[i] = detJ[0]
 
-        # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
         if needs_transformations:
-            phi_T = phi.T.flatten()
-            apply_dof_trans(e_transformations, e_dofs, phi_T, num_q_points, cell_info[cell])
+            # Transpose phi before applying dof transformations (ndofs, nquadpoints)
+            phi_ = phi.T.copy()
+            apply_dof_trans(e_transformations, e_dofs, phi_, num_q_points, cell_info[cell])
             # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
-            phi_T = phi_T.reshape(phi.shape[1], phi.shape[0])
+            phi_T = phi_.copy()
         else:
             phi_T = phi.T.copy()
         phi_s = (phi_T.T * q_w) * np.abs(detJ_q)
@@ -115,15 +115,13 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
     kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
 
     for cell in range(num_cells):
-
-        # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
         if needs_transformations:
             # FIXME: Can apply_dof_trans be applied to all dphidxi simultaneously?
             for i in range(tdim):
-                dphidxi = dphi[i, :, :].T.flatten()
+                # Reshape input as the transpose of the phi, i.e. (basis_function, quadrature_point)
+                dphidxi = dphi[i].T.copy()
                 apply_dof_trans(e_transformations, e_dofs, dphidxi, num_q_points, cell_info[cell])
-                # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
-                dphi_i[i, :, :] = dphidxi.reshape(dphi.shape[2], dphi.shape[1]).copy()
+                dphi_i[i, :, :] = dphidxi
         else:
             for i in range(tdim):
                 dphi_i[i, :, :] = dphi[i, :, :].T.copy()
