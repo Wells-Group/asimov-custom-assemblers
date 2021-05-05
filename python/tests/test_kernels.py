@@ -25,27 +25,24 @@ def test_cell_kernels(element, ct, degree, integral_type):
     """
     cell_type = dolfinx.cpp.mesh.to_type(ct)
     if cell_type == dolfinx.cpp.mesh.CellType.quadrilateral:
-        x = np.array([[0, 0], [1, 0], [0, 1.3], [1.2, 1]])
+        x = np.array([[0, 0, 0.5], [1, 0, 1.4], [0, 1.3, 0.0], [1.2, 1, 0.0]])
         cells = np.array([[0, 1, 2, 3]], dtype=np.int32)
-        ufl_mesh = ufl.Mesh(ufl.VectorElement("Lagrange", "quadrilateral", 1))
     elif cell_type == dolfinx.cpp.mesh.CellType.triangle:
-        x = np.array([[0, 0], [1.1, 0], [0.3, 1.0], [2, 1.5]])
+        x = np.array([[0, 0, 0.5], [1.1, 0, 1.3], [0.3, 1.0, 0.9], [2, 1.5, 0.0]])
         cells = np.array([[0, 1, 2], [2, 1, 3]], dtype=np.int32)
-
-        ufl_mesh = ufl.Mesh(ufl.VectorElement("Lagrange", "triangle", 1))
     elif cell_type == dolfinx.cpp.mesh.CellType.tetrahedron:
         x = np.array([[0, 0, 0], [1.1, 0, 0], [0.3, 1.0, 0], [1, 1.2, 1.5], [2, 2, 1.5]])
         cells = np.array([[0, 1, 2, 3], [1, 2, 3, 4]], dtype=np.int32)
-        ufl_mesh = ufl.Mesh(ufl.VectorElement("Lagrange", "tetrahedron", 1))
     elif cell_type == dolfinx.cpp.mesh.CellType.hexahedron:
         x = np.array([[0, 0, 0], [1.1, 0, 0], [0.1, 1, 0], [1, 1.2, 0],
                       [0, 0, 1.2], [1.0, 0, 1], [0, 1, 1], [1, 1, 1]])
         cells = np.array([[0, 1, 2, 3, 4, 5, 6, 7]], dtype=np.int32)
-        ufl_mesh = ufl.Mesh(ufl.VectorElement("Lagrange", "hexahedron", 1))
     else:
         raise ValueError(f"Unsupported mesh type {ct}")
-    mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, ufl_mesh)
-    el = element("CG", ct, degree)
+    cell = ufl.Cell(ct, geometric_dimension=x.shape[1])
+    domain = ufl.Mesh(ufl.VectorElement("Lagrange", cell, 1))
+    mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
+    el = ufl.FiniteElement("CG", mesh.ufl_cell(), degree)
     V = dolfinx.FunctionSpace(mesh, el)
 
     if integral_type == "mass":

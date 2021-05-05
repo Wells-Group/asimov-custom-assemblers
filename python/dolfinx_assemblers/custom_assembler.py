@@ -44,7 +44,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     family = V.ufl_element().family()
     if family == "Q":
         family = "Lagrange"
-    ct = str(V.ufl_cell())
+    ct = dolfinx.cpp.mesh.to_string(V.mesh.topology.cell_type)
     element = basix.create_element(family, ct, V.ufl_element().degree())
 
     # Get quadrature points and weights
@@ -57,7 +57,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     if ufc_family == "Q":
         ufc_family = "Lagrange"
 
-    c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
+    c_element = basix.create_element(ufc_family, ct, ufl_c_el.degree())
     c_tab = c_element.tabulate_x(1, q_p)
 
     # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
