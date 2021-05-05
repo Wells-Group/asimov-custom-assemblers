@@ -99,7 +99,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         d_phi = tabulated_data[1:, :, :, 0]
         stiffness_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
                          x, gdim, tdim, c_tab, q_p, q_w, d_phi, is_affine, entity_transformations,
-                         entity_dofs, ct, cell_info, needs_transformations)
+                         entity_dofs, ct, cell_info, needs_transformations, block_size)
     else:
         raise NotImplementedError(f"Integration kernel for {int_type} has not been implemeted.")
 
