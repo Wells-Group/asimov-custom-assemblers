@@ -63,7 +63,7 @@ if __name__ == "__main__":
 
     V = dolfinx.FunctionSpace(mesh, el)
     a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
-    quadrature_degree = quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
+    quadrature_degree = quadrature_degree = estimate_max_polynomial_degree(a_mass)
 
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)

@@ -52,13 +52,12 @@ def test_cell_kernels(element, ct, degree, integral_type):
         a_ = ufl.inner(ufl.grad(ufl.TrialFunction(V)), ufl.grad(ufl.TestFunction(V))) * ufl.dx
         reference_code = compute_reference_stiffness_matrix
 
-    quadrature_degree = estimate_max_polynomial_degree(a_) + 1
+    quadrature_degree = estimate_max_polynomial_degree(a_)
     if integral_type == "stiffness" and element == ufl.VectorElement:
         print("Block size not implemented for stiffness matrix")
         return
 
-    # FIXME: Once ffcx updated: change quadrature_degree -1 to quadrature_degree
-    Aref = reference_code(V, quadrature_degree - 1)
+    Aref = reference_code(V, quadrature_degree)
     A = assemble_matrix(V, quadrature_degree, int_type=integral_type)
     ai, aj, av = Aref.getValuesCSR()
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
