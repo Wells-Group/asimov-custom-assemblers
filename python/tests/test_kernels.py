@@ -53,10 +53,6 @@ def test_cell_kernels(element, ct, degree, integral_type):
         reference_code = compute_reference_stiffness_matrix
 
     quadrature_degree = estimate_max_polynomial_degree(a_)
-    # if integral_type == "stiffness" and element == ufl.VectorElement:
-    #     print("Block size not implemented for stiffness matrix")
-    #     return
-
     Aref = reference_code(V, quadrature_degree)
     A = assemble_matrix(V, quadrature_degree, int_type=integral_type)
     ai, aj, av = Aref.getValuesCSR()

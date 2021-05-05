@@ -109,7 +109,7 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
     dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
     detJ = np.zeros(1, dtype=np.float64)
-    entries_per_cell = (block_size*num_dofs_per_cell)**2
+    entries_per_cell = (block_size * num_dofs_per_cell)**2
     dphi_p = np.zeros((gdim, dphi.shape[2], num_q_points), dtype=np.float64)
     dphi_i = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
     kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
