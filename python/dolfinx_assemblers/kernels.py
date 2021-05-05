@@ -13,7 +13,7 @@ from numba.typed import Dict
 from .utils import compute_determinant, compute_inverse
 
 
-@numba.njit
+@numba.njit(fastmath=True)
 def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                 x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                 phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
@@ -60,12 +60,12 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
                 compute_determinant(J_q[i], detJ)
                 detJ_q[i] = detJ[0]
 
-        # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
         if needs_transformations:
-            phi_T = phi.T.flatten()
-            apply_dof_trans(e_transformations, e_dofs, phi_T, num_q_points, cell_info[cell])
+            # Transpose phi before applying dof transformations (ndofs, nquadpoints)
+            phi_ = phi.T.copy()
+            apply_dof_trans(e_transformations, e_dofs, phi_, num_q_points, cell_info[cell])
             # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
-            phi_T = phi_T.reshape(phi.shape[1], phi.shape[0])
+            phi_T = phi_.copy()
         else:
             phi_T = phi.T.copy()
         phi_s = (phi_T.T * q_w) * np.abs(detJ_q)
@@ -81,7 +81,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(Ae)
 
 
-@numba.njit
+@numba.njit(fastmath=True)
 def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                      x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                      dphi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_info: int,
@@ -104,28 +104,27 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
     else:
         assert(False)
 
-    J_q = np.zeros((q_w.size, tdim, gdim), dtype=np.float64)
+    J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
     invJ = np.zeros((tdim, gdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
     dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
     detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = (block_size*num_dofs_per_cell)**2
-    dphi_p = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
+    dphi_p = np.zeros((gdim, dphi.shape[2], num_q_points), dtype=np.float64)
     dphi_i = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
+    kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
 
     # Assemble element matrix
     Ae = np.zeros((block_size * num_dofs_per_cell, block_size * num_dofs_per_cell))
     blocks = [np.arange(b, block_size * num_dofs_per_cell + b, block_size) for b in range(block_size)]
     for cell in range(num_cells):
-
-        # Reshaping phi to "blocked" data and flatten it to a 1D array for input to dof transformations
         if needs_transformations:
             # FIXME: Can apply_dof_trans be applied to all dphidxi simultaneously?
             for i in range(tdim):
-                dphidxi = dphi[i, :, :].T.flatten()
+                # Reshape input as the transpose of the phi, i.e. (basis_function, quadrature_point)
+                dphidxi = dphi[i].T.copy()
                 apply_dof_trans(e_transformations, e_dofs, dphidxi, num_q_points, cell_info[cell])
-                # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
-                dphi_i[i, :, :] = dphidxi.reshape(dphi.shape[2], dphi.shape[1]).copy()
+                dphi_i[i, :, :] = dphidxi
         else:
             for i in range(tdim):
                 dphi_i[i, :, :] = dphi[i, :, :].T.copy()
@@ -136,25 +135,25 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
         # Compute Jacobian at each quadrature point
         if is_affine:
             dphi_c[:] = c_tab[1:gdim + 1, 0, :, 0]
-            J_q[:] = np.dot(dphi_c, geometry)
+            J_q[:] = np.dot(geometry.T, dphi_c.T)
             compute_inverse(J_q[0], invJ, detJ)
             detJ_q[:] = detJ[0]
+            invJT = invJ.T.copy()
             for p in range(num_q_points):
-                for d in range(dphi.shape[2]):
-                    dphi_p[:, d, p] = invJ @ dphi_i[:, d, p].copy()
+                dphi_p[:, :, p] = invJT @ dphi_i[:, :, p].copy()
         else:
             for i, q in enumerate(q_p):
                 dphi_c[:] = c_tab[1:gdim + 1, i, :, 0]
-                J_q[i] = dphi_c @ geometry
+                J_q[i] = geometry.T @ dphi_c.T
                 compute_inverse(J_q[i], invJ, detJ)
+                invJT = invJ.T.copy()
                 detJ_q[i] = detJ[0]
-                for d in range(dphi.shape[2]):
-                    dphi_p[:, d, i] = invJ @ dphi_i[:, d, i].copy()
+                dphi_p[:, :, i] = invJT @ dphi_i[:, :, i].copy()
 
         # Compute weighted basis functions at quadrature points
         scale = q_w * np.abs(detJ_q)
-        kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
-        for i in range(tdim):
+        kernel.fill(0)
+        for i in range(gdim):
             dphidxi = dphi_p[i, :, :]
             # Compute Ae_(k,j) += sum_(s=1)^len(q_w) w_s dphi_k/dx_i(q_s) dphi_j/dx_i(q_s) |det(J(q_s))|
             kernel += dphidxi.copy() @ (dphidxi.T * scale)
