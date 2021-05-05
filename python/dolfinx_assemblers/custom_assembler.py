@@ -1,8 +1,12 @@
-# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta
+# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta, Sarah Roggendorf
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 
+from .kernels import mass_kernel, stiffness_kernel
+from .utils import create_csr_sparsity_pattern, expand_dofmap
+from .kernels import mass_kernel, surface_kernel
+from .utils import compute_determinant, create_csr_sparsity_pattern, expand_dofmap, pack_facet_info
 import basix
 import dolfinx
 import numpy as np
@@ -13,8 +17,9 @@ from numba import types
 from numba.typed import Dict
 from petsc4py import PETSc
 
-from .utils import compute_determinant, create_csr_sparsity_pattern, expand_dofmap, pack_facet_info
-from .kernels import mass_kernel, surface_kernel
+<< << << < HEAD
+== == == =
+>>>>>> > main
 
 float_type = PETSc.ScalarType
 
@@ -52,7 +57,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     family = V.ufl_element().family()
     if family == "Q":
         family = "Lagrange"
-    ct = str(V.ufl_cell())
+    ct = dolfinx.cpp.mesh.to_string(V.mesh.topology.cell_type)
     element = basix.create_element(family, ct, V.ufl_element().degree())
 
     # Data from coordinate element
@@ -60,6 +65,21 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     ufc_family = ufl_c_el.family()
     if ufc_family == "Q":
         ufc_family = "Lagrange"
+
+    # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
+    # and "dof_transformations_are_indentity"
+    needs_transformations = not element.dof_transformations_are_identity
+    entity_transformations = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
+    for i, transformation in enumerate(element.entity_transformations()):
+        entity_transformations[i] = transformation
+
+    entity_dofs = Dict.empty(key_type=types.int64, value_type=types.int32[:])
+    for i, e_dofs in enumerate(element.entity_dofs):
+        entity_dofs[i] = np.asarray(e_dofs, dtype=np.int32)
+
+    mesh.topology.create_entity_permutations()
+    cell_info = mesh.topology.get_cell_permutation_info()
+
     is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
 
     # Create sparsity pattern
@@ -78,7 +98,6 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
 
         c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
         c_tab = c_element.tabulate_x(1, q_p)
-
         # NOTE: Tabulate basis functions at quadrature points
         num_derivatives = 0
         tabulated_data = element.tabulate_x(num_derivatives, q_p)
@@ -99,6 +118,22 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         mass_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
                     x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, entity_transformations,
                     entity_dofs, ct, cell_info, needs_transformations, block_size)
+    elif int_type == 'stiffness':
+        # Get quadrature points and weights
+        q_p, q_w = basix.make_quadrature("default", element.cell_type, quadrature_degree)
+        q_w = q_w.reshape(q_w.size, 1)
+
+        c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
+        c_tab = c_element.tabulate_x(1, q_p)
+
+        # NOTE: Tabulate basis functions at quadrature points
+        num_derivatives = 1
+        tabulated_data = element.tabulate_x(num_derivatives, q_p)
+        d_phi = tabulated_data[1:, :, :, 0]
+        stiffness_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
+                         x, gdim, tdim, c_tab, q_p, q_w, d_phi, is_affine, entity_transformations,
+                         entity_dofs, ct, cell_info, needs_transformations)
+
     elif int_type == "surface":
         facet_info = pack_facet_info(mesh, mt, 1)
         num_facets = facet_info.shape[0]
@@ -146,9 +181,9 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         for i, coords in facet_coords.items():
             _x = np.zeros((len(q_p), mesh.geometry.dim))
             for j in range(_x.shape[0]):
-                for k in range(_x.shape[1]):
-                    for l in range(coords.shape[0]):
-                        _x[j, k] += phi_s[j, l] * coords[l, k]
+                for m in range(_x.shape[1]):
+                    for n in range(coords.shape[0]):
+                        _x[j, m] += phi_s[j, n] * coords[n, m]
                 q_cell[i] = _x
 
         # surface_kernel(data, num_facets, num_dofs_per_cell, num_dofs_x, x_dofs,

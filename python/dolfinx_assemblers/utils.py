@@ -1,4 +1,4 @@
-# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta
+# Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta, Sarah Roggendorf
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -112,6 +112,66 @@ def compute_determinant(A: np.ndarray, detJ: np.ndarray):
         else:
             # print(f"Matrix has invalid size {num_rows}x{num_cols}")
             assert(False)
+        detJ[0] = np.sqrt(detJ[0])
+
+
+@numba.njit(cache=True)
+def square_inv(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
+    """
+    Compute the inverse of A square matrix (1x1, 2x2, 3x3 only)
+    """
+    num_rows = A.shape[0]
+    num_cols = A.shape[1]
+    if num_rows == num_cols:
+        if num_rows == 1:
+            detJ = A[0]
+            Ainv[0] = 1. / A[0]
+        elif num_rows == 2:
+            detJ[0] = A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0]
+            Ainv[0, 0] = A[1, 1] / detJ[0]
+            Ainv[0, 1] = -A[0, 1] / detJ[0]
+            Ainv[1, 0] = -A[1, 0] / detJ[0]
+            Ainv[1, 1] = A[0, 0] / detJ[0]
+        elif num_rows == 3:
+            detJ[0] = A[0, 0] * A[1, 1] * A[2, 2] + A[0, 1] * A[1, 2] * A[2, 0]\
+                + A[0, 2] * A[1, 0] * A[2, 1] - A[2, 0] * A[1, 1] * A[0, 2]\
+                - A[2, 1] * A[1, 2] * A[0, 0] - A[2, 2] * A[1, 0] * A[0, 1]
+            Ainv[0, 0] = (A[1, 1] * A[2, 2] - A[1, 2] * A[2, 1]) / detJ[0]
+            Ainv[0, 1] = -(A[0, 1] * A[2, 2] - A[0, 2] * A[2, 1]) / detJ[0]
+            Ainv[0, 2] = (A[0, 1] * A[1, 2] - A[0, 2] * A[1, 1]) / detJ[0]
+            Ainv[1, 0] = -(A[1, 0] * A[2, 2] - A[1, 2] * A[2, 0]) / detJ[0]
+            Ainv[1, 1] = (A[0, 0] * A[2, 2] - A[0, 2] * A[2, 0]) / detJ[0]
+            Ainv[1, 2] = -(A[0, 0] * A[1, 2] - A[0, 2] * A[1, 0]) / detJ[0]
+            Ainv[2, 0] = (A[1, 0] * A[2, 1] - A[1, 1] * A[2, 0]) / detJ[0]
+            Ainv[2, 1] = -(A[0, 0] * A[2, 1] - A[0, 1] * A[2, 0]) / detJ[0]
+            Ainv[2, 2] = (A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0]) / detJ[0]
+        else:
+            # print(f"Matrix has invalid size {num_rows}x{num_cols}")
+            assert(False)
+    else:
+        # print(f"Matrix has invalid size {num_rows}x{num_cols}")
+        assert(False)
+
+
+@numba.njit(cache=True)
+def compute_inverse(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
+    """
+    Compute the inverse of A matrix with max dimension 3 on any axis
+    """
+    num_rows = A.shape[0]
+    num_cols = A.shape[1]
+    if num_rows == num_cols:
+        square_inv(A, Ainv, detJ)
+    else:
+        # Moore Penrose Pseudo inverse A^{-1} = (A^T A)^{-1} A^T
+        AT = A.T.copy()
+        ATA = AT @ A
+        num_rows = ATA.shape[0]
+        num_cols = ATA.shape[1]
+        ATAinv = np.zeros((num_rows, num_cols), dtype=np.float64)
+        square_inv(ATA, ATAinv, detJ)
+        Ainv[:] = ATAinv @ AT
+        detJ[0] = np.sqrt(detJ[0])
 
 
 def estimate_max_polynomial_degree(form: ufl.form.Form) -> int:
