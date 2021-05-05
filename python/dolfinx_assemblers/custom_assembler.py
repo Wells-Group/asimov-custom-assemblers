@@ -17,9 +17,6 @@ from numba import types
 from numba.typed import Dict
 from petsc4py import PETSc
 
-<< << << < HEAD
-== == == =
->>>>>> > main
 
 float_type = PETSc.ScalarType
 
