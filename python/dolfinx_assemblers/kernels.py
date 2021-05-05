@@ -135,17 +135,17 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
             J_q[:] = np.dot(geometry.T, dphi_c.T)
             compute_inverse(J_q[0], invJ, detJ)
             detJ_q[:] = detJ[0]
+            invJT = invJ.T.copy()
             for p in range(num_q_points):
-                for d in range(dphi.shape[2]):
-                    dphi_p[:, d, p] = dphi_i[:, d, p].copy() @ invJ
+                dphi_p[:, :, p] = invJT @ dphi_i[:, :, p].copy()
         else:
             for i, q in enumerate(q_p):
                 dphi_c[:] = c_tab[1:gdim + 1, i, :, 0]
                 J_q[i] = geometry.T @ dphi_c.T
                 compute_inverse(J_q[i], invJ, detJ)
+                invJT = invJ.T.copy()
                 detJ_q[i] = detJ[0]
-                for d in range(dphi.shape[2]):
-                    dphi_p[:, d, i] = dphi_i[:, d, i].copy() @ invJ
+                dphi_p[:, :, i] = invJT @ dphi_i[:, :, i].copy()
 
         # Compute weighted basis functions at quadrature points
         scale = q_w * np.abs(detJ_q)
