@@ -104,13 +104,13 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
     else:
         assert(False)
 
-    J_q = np.zeros((q_w.size, tdim, gdim), dtype=np.float64)
+    J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
     invJ = np.zeros((tdim, gdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
     dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
     detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = num_dofs_per_cell**2
-    dphi_p = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
+    dphi_p = np.zeros((gdim, dphi.shape[2], num_q_points), dtype=np.float64)
     dphi_i = np.zeros((tdim, dphi.shape[2], num_q_points), dtype=np.float64)
 
     for cell in range(num_cells):
@@ -133,25 +133,25 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
         # Compute Jacobian at each quadrature point
         if is_affine:
             dphi_c[:] = c_tab[1:gdim + 1, 0, :, 0]
-            J_q[:] = np.dot(dphi_c, geometry)
+            J_q[:] = np.dot(geometry.T, dphi_c.T)
             compute_inverse(J_q[0], invJ, detJ)
             detJ_q[:] = detJ[0]
             for p in range(num_q_points):
                 for d in range(dphi.shape[2]):
-                    dphi_p[:, d, p] = invJ @ dphi_i[:, d, p].copy()
+                    dphi_p[:, d, p] = dphi_i[:, d, p].T.copy() @ invJ
         else:
             for i, q in enumerate(q_p):
                 dphi_c[:] = c_tab[1:gdim + 1, i, :, 0]
-                J_q[i] = dphi_c @ geometry
+                J_q[i] = geometry.T @ dphi_c.T
                 compute_inverse(J_q[i], invJ, detJ)
                 detJ_q[i] = detJ[0]
                 for d in range(dphi.shape[2]):
-                    dphi_p[:, d, i] = invJ @ dphi_i[:, d, i].copy()
+                    dphi_p[:, d, i] = dphi_i[:, d, i].T.copy() @ invJ
 
         # Compute weighted basis functions at quadrature points
         scale = q_w * np.abs(detJ_q)
         kernel = np.zeros((dphi.shape[2], dphi.shape[2]), dtype=np.float64)
-        for i in range(tdim):
+        for i in range(gdim):
             dphidxi = dphi_p[i, :, :]
             # Compute Ae_(k,j) += sum_(s=1)^len(q_w) w_s dphi_k/dx_i(q_s) dphi_j/dx_i(q_s) |det(J(q_s))|
             kernel += dphidxi.copy() @ (dphidxi.T * scale)

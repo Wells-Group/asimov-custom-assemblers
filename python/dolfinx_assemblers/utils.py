@@ -121,12 +121,13 @@ def compute_inverse(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
         square_inv(A, Ainv, detJ)
     else:
         # Moore Penrose Pseudo inverse A^{-1} = (A^T A)^{-1} A^T
-        ATA = A.T @ A
+        AT = A.T.copy()
+        ATA = AT @ A
         num_rows = ATA.shape[0]
         num_cols = ATA.shape[1]
         ATAinv = np.zeros((num_rows, num_cols), dtype=np.float64)
         square_inv(ATA, ATAinv, detJ)
-        Ainv = ATAinv @ A.T
+        Ainv[:] = ATAinv @ AT
         detJ[0] = np.sqrt(detJ[0])
 
 

@@ -57,7 +57,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     if ufc_family == "Q":
         ufc_family = "Lagrange"
 
-    c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
+    c_element = basix.create_element(ufc_family, ct, ufl_c_el.degree())
     c_tab = c_element.tabulate_x(1, q_p)
 
     # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
