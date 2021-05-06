@@ -172,7 +172,8 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
 def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                    x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                    phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str,
-                   cell_perm: np.ndarray, needs_transformations: bool, block_size: int, ref_jacobians: Dict, facet_info: np.ndarray):
+                   cell_perm: np.ndarray, needs_transformations: bool, block_size: int, ref_jacobians: Dict,
+                   facet_info: np.ndarray):
 
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
@@ -191,7 +192,7 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
     detJ_q = np.zeros((num_q_points, 1), dtype=np.float64)
     dphi_c = np.zeros(c_tab[0][1:gdim + 1, 0, :, 0].shape, dtype=np.float64)
     detJ = np.zeros(1, dtype=np.float64)
-    entries_per_cell = (block_size * num_dofs_per_cell)**2
+    # entries_per_cell = (block_size * num_dofs_per_cell)**2
     # Assemble matrix
     Ae = np.zeros((block_size * num_dofs_per_cell, block_size * num_dofs_per_cell))
     blocks = [np.arange(b, block_size * num_dofs_per_cell + b, block_size) for b in range(block_size)]
