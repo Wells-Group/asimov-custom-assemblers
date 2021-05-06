@@ -75,7 +75,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         entity_dofs[i] = np.asarray(e_dofs, dtype=np.int32)
 
     mesh.topology.create_entity_permutations()
-    cell_info = mesh.topology.get_cell_permutation_info()
+    cell_perm = mesh.topology.get_cell_permutation_info()
 
     is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
 
@@ -111,10 +111,10 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         for i, e_dofs in enumerate(element.entity_dofs):
             entity_dofs[i] = np.asarray(e_dofs, dtype=np.int32)
 
-        cell_info = mesh.topology.get_cell_permutation_info()
+        cell_perm = mesh.topology.get_cell_permutation_info()
         mass_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
                     x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, entity_transformations,
-                    entity_dofs, ct, cell_info, needs_transformations, block_size)
+                    entity_dofs, ct, cell_perm, needs_transformations, block_size)
     elif int_type == 'stiffness':
         # Get quadrature points and weights
         q_p, q_w = basix.make_quadrature("default", element.cell_type, quadrature_degree)
@@ -129,7 +129,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         d_phi = tabulated_data[1:, :, :, 0]
         stiffness_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
                          x, gdim, tdim, c_tab, q_p, q_w, d_phi, is_affine, entity_transformations,
-                         entity_dofs, ct, cell_info, needs_transformations)
+                         entity_dofs, ct, cell_perm, needs_transformations)
 
     elif int_type == "surface":
         facet_info = pack_facet_info(mesh, mt, index)
@@ -173,7 +173,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
 
         # Push quadrature points from reference facet forward to reference element
         q_cell = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
-        phi = Dict.empty(key_type=types.int64, value_type=types.float64[:, :, :, :])
+        phi = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         for i, coords in facet_coords.items():
             _x = np.zeros((len(q_p), mesh.geometry.dim))
             for j in range(_x.shape[0]):
@@ -181,12 +181,18 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
                     for n in range(coords.shape[0]):
                         _x[j, m] += phi_s[j, n] * coords[n, m]
             q_cell[i] = _x
-            phi[i] = element.tabulate_x(0, _x)
-        from IPython import embed
-        embed()
+            phi[i] = element.tabulate_x(0, _x)[0, :, :, 0]
+
+        # NOTE: Assumption is that computing the Jacobian from the physical cell to the reference cell is
+        # equivalent with computing the Jacobian from the physical face to the face on the reference cell.
+        c_element = basix.create_element(ufc_family, str(ufl_c_el.cell()), ufl_c_el.degree())
+        c_tab = Dict.empty(key_type=types.int64, value_type=types.float64[:, :, :, :])
+        for i, q_p in q_cell.items():
+            c_tab[i] = c_element.tabulate_x(1, q_p)
+
         surface_kernel(data, num_facets, num_dofs_per_cell, num_dofs_x, x_dofs,
                        x, gdim, tdim, c_tab, q_cell, q_w, phi, is_affine, entity_transformations,
-                       entity_dofs, ct, cell_info, needs_transformations, block_size)
+                       entity_dofs, ct, cell_perm, needs_transformations, block_size, ref_jacobians, facet_info)
     else:
         raise NotImplementedError(f"Integration kernel for {int_type} has not been implemeted.")
 
