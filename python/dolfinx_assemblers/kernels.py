@@ -45,8 +45,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
     blocks = [np.arange(b, block_size * num_dofs_per_cell + b, block_size) for b in range(block_size)]
 
     for cell in range(num_cells):
-        for j in range(num_dofs_x):
-            geometry[j] = x[x_dofs[cell, j], : gdim]
+        geometry[:] = x[x_dofs[cell], :gdim]
 
         # Compute Jacobian at each quadrature point
         if is_affine:
@@ -129,8 +128,9 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
             for i in range(tdim):
                 dphi_i[i, :, :] = dphi[i, :, :].T.copy()
 
-        for j in range(num_dofs_x):
-            geometry[j] = x[x_dofs[cell, j], : gdim]
+        geometry[:] = x[x_dofs[cell], :gdim]
+        # for j in range(num_dofs_x):
+        #     geometry[j] = x[x_dofs[cell, j], : gdim]
 
         # Compute Jacobian at each quadrature point
         if is_affine:
@@ -190,7 +190,7 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
         assert(False)
     J_q = np.zeros((num_q_points, gdim, tdim), dtype=np.float64)
     detJ_q = np.zeros((num_q_points, 1), dtype=np.float64)
-    dphi_c = np.zeros(c_tab[0][1:gdim + 1, 0, :, 0].shape, dtype=np.float64)
+    dphi_c = np.zeros(c_tab[1:gdim + 1, 0, :, 0].shape, dtype=np.float64)
     detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = (block_size * num_dofs_per_cell)**2
     # Assemble matrix
@@ -202,25 +202,26 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
         compute_determinant(jac, rdetJ)
         ref_detJ[i] = rdetJ[0]
     for facet in range(num_facets):
-        cell = facet_info[facet, 1]
-        local_facet = facet_info[facet, 2]
-        for j in range(num_dofs_x):
-            geometry[j] = x[x_dofs[cell, j], : gdim]
+        cell = facet_info[facet, 0]
+        local_facet = facet_info[facet, 1]
+        # Compute facet geoemtry
+        geometry[:] = x[x_dofs[facet], : gdim]
 
         # Compute Jacobian at each quadrature point
         if is_affine:
-            dphi_c[:] = c_tab[local_facet][1:gdim + 1, 0, :, 0]
+            dphi_c[:] = c_tab[1:gdim + 1, 0, :, 0]
             J_q[0] = np.dot(geometry.T, dphi_c.T)
             compute_determinant(J_q[0], detJ)
             detJ_q[:] = detJ[0]
         else:
             for i, q in enumerate(q_p[local_facet]):
 
-                dphi_c[:] = c_tab[local_facet][1:gdim + 1, i, :, 0]
+                dphi_c[:] = c_tab[1:gdim + 1, i, :, 0]
                 J_q[i] = geometry.T @ dphi_c.T
                 compute_determinant(J_q[i], detJ)
                 detJ_q[i] = detJ[0]
-
+        from IPython import embed
+        embed()
         if needs_transformations:
             # Transpose phi before applying dof transformations (ndofs, nquadpoints)
             phi_ = phi[local_facet].T.copy()
@@ -229,6 +230,7 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
             phi_T = phi_.copy()
         else:
             phi_T = phi[local_facet].T.copy()
+        print(np.abs(detJ_q), np.abs(ref_detJ[local_facet]))
         phi_s = (phi_T.T * q_w) * np.abs(detJ_q) * np.abs(ref_detJ[local_facet])
         # Compute weighted basis functions at quadrature points
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|

@@ -33,7 +33,10 @@ def pack_facet_info(mesh: dolfinx.cpp.mesh.Mesh, mt: dolfinx.MeshTags, index: in
     facet_info = pack_facet_info_numba(active_facets,
                                        (c_to_f.array, c_to_f.offsets),
                                        (f_to_c.array, f_to_c.offsets))
-    return facet_info
+    g_indices = dolfinx.cpp.mesh.entities_to_geometry(mesh, fdim,
+                                                      np.array(active_facets, dtype=np.int32),
+                                                      False)
+    return facet_info, g_indices
 
 
 @numba.njit(fastmath=True, cache=True)
@@ -42,7 +45,7 @@ def pack_facet_info_numba(active_facets, c_to_f, f_to_c):
     Given a list of external facets get the owning cell and local facet
     index
     """
-    facet_info = np.zeros((len(active_facets), 3), dtype=np.int64)
+    facet_info = np.zeros((len(active_facets), 2), dtype=np.int64)
     c_to_f_pos, c_to_f_offs = c_to_f
     f_to_c_pos, f_to_c_offs = f_to_c
 
@@ -52,7 +55,7 @@ def pack_facet_info_numba(active_facets, c_to_f, f_to_c):
         local_facets = c_to_f_pos[c_to_f_offs[cells[0]]: c_to_f_offs[cells[0] + 1]]
         # Should be wrapped in convenience numba function
         local_index = np.flatnonzero(facet == local_facets)[0]
-        facet_info[j, :] = [facet, cells[0], local_index]
+        facet_info[j, :] = [cells[0], local_index]
     return facet_info
 
 

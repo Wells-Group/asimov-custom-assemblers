@@ -56,14 +56,14 @@ if __name__ == "__main__":
         else:
             ct = dolfinx.cpp.mesh.CellType.quadrilateral
         N = 1
-        mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
+        mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, 1, 2, cell_type=ct)
 
     cell_str = dolfinx.cpp.mesh.to_string(mesh.topology.cell_type)
     el = ufl.VectorElement("CG", cell_str, degree) if vector else ufl.FiniteElement("CG", cell_str, degree)
 
     V = dolfinx.FunctionSpace(mesh, el)
-    a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
-    quadrature_degree = quadrature_degree = estimate_max_polynomial_degree(a_mass) + 1
+    a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.ds
+    quadrature_degree = estimate_max_polynomial_degree(a_mass)
 
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)
