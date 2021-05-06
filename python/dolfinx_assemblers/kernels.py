@@ -188,7 +188,7 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
         apply_dof_trans = apply_dof_transformation_hexahedron
     else:
         assert(False)
-    J_q = np.zeros((num_q_points, gdim, tdim), dtype=np.float64)
+    J_q = np.zeros((num_q_points, gdim, tdim - 1), dtype=np.float64)
     detJ_q = np.zeros((num_q_points, 1), dtype=np.float64)
     dphi_c = np.zeros(c_tab[1:gdim + 1, 0, :, 0].shape, dtype=np.float64)
     detJ = np.zeros(1, dtype=np.float64)
@@ -220,8 +220,6 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
                 J_q[i] = geometry.T @ dphi_c.T
                 compute_determinant(J_q[i], detJ)
                 detJ_q[i] = detJ[0]
-        from IPython import embed
-        embed()
         if needs_transformations:
             # Transpose phi before applying dof transformations (ndofs, nquadpoints)
             phi_ = phi[local_facet].T.copy()
