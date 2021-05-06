@@ -129,13 +129,11 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         d_phi = tabulated_data[1:, :, :, 0]
         stiffness_kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
                          x, gdim, tdim, c_tab, q_p, q_w, d_phi, is_affine, entity_transformations,
-                         << << << < HEAD
                          entity_dofs, ct, cell_info, needs_transformations)
 
     elif int_type == "surface":
         facet_info = pack_facet_info(mesh, mt, index)
         num_facets = facet_info.shape[0]
-        facet_perm = V.mesh.topology.get_facet_permutations()
 
         # Create quadrature points of reference facet
         surface_cell_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
