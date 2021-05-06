@@ -132,9 +132,9 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
                          entity_dofs, ct, cell_info, needs_transformations)
 
     elif int_type == "surface":
-        facet_info = pack_facet_info(mesh, mt, 1)
+        facet_info = pack_facet_info(mesh, mt, index)
         num_facets = facet_info.shape[0]
-        facet_info = V.mesh.topology.get_facet_permutations()
+        facet_perm = V.mesh.topology.get_facet_permutations()
 
         # Create quadrature points of reference facet
         surface_cell_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
@@ -145,10 +145,9 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         # Shape is (derivatives, num_quadrature_point, num_basis_functions)
         q_p, q_w = basix.make_quadrature("default", surface_element.cell_type, quadrature_degree)
         q_w = q_w.reshape(q_w.size, 1)
-        tabulated_data = surface_element.tabulate_x(1, q_p)
-        phi_s = tabulated_data[0, :, :, 0]
-        dphi_s = tabulated_data[1:, :, :, 0]
-        # basix_surface_el = _dolfinx_to_basix_celltype[surface_cell_type]
+        c_tab = surface_element.tabulate_x(1, q_p)
+        phi_s = c_tab[0, :, :, 0]
+        dphi_s = c_tab[1:, :, :, 0]
 
         # Get the coordinates for the facets of the reference cell
         _cell = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.to_type(ct)]
@@ -174,18 +173,21 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
             ref_jacobians[key] = value
 
         # Push quadrature points from reference facet forward to reference element
-        q_cell = {}
+        q_cell = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
+        phi = Dict.empty(key_type=types.int64, value_type=types.float64[:, :, :, :])
         for i, coords in facet_coords.items():
             _x = np.zeros((len(q_p), mesh.geometry.dim))
             for j in range(_x.shape[0]):
                 for m in range(_x.shape[1]):
                     for n in range(coords.shape[0]):
                         _x[j, m] += phi_s[j, n] * coords[n, m]
-                q_cell[i] = _x
-
-        # surface_kernel(data, num_facets, num_dofs_per_cell, num_dofs_x, x_dofs,
-        #                x, gdim, tdim, c_tab, q_p, q_w, phi, is_affine, entity_transformations,
-        #                entity_dofs, ct, facet_info, needs_transformations, block_size)
+            q_cell[i] = _x
+            phi[i] = element.tabulate_x(0, _x)
+        from IPython import embed
+        embed()
+        surface_kernel(data, num_facets, num_dofs_per_cell, num_dofs_x, x_dofs,
+                       x, gdim, tdim, c_tab, q_cell, q_w, phi, is_affine, entity_transformations,
+                       entity_dofs, ct, facet_info, needs_transformations, block_size, facet_perm)
 
     else:
         raise NotImplementedError(f"Integration kernel for {int_type} has not been implemeted.")
