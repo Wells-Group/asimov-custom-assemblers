@@ -227,7 +227,7 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_facets_per_cell: int, 
             phi_T = phi_.copy()
         else:
             phi_T = phi[local_facet].T.copy()
-        phi_s = (phi_T.T * q_w) * np.abs(detJ_q) * np.abs(ref_detJ[local_facet])
+        phi_s = (phi_T.T * q_w) * np.abs(detJ_q)  # * np.abs(ref_detJ[local_facet])
         # Compute weighted basis functions at quadrature points
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
         kernel = phi_T @ phi_s
