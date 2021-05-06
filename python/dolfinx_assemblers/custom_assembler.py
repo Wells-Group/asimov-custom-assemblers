@@ -138,7 +138,9 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         # Create quadrature points of reference facet
         surface_cell_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
         surface_str = dolfinx.cpp.mesh.to_string(surface_cell_type)
-        surface_element = basix.create_element(family, surface_str, V.ufl_element().degree())
+
+        # FIXME: This is a hack, and should be the order of the coordinate element
+        surface_element = basix.create_element(family, surface_str, 1)
 
         # Basis functions of reference interval at quadrature points.
         # Shape is (derivatives, num_quadrature_point, num_basis_functions)
@@ -170,7 +172,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         ref_jacobians = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         for key, value in _ref_jacs.items():
             ref_jacobians[key] = value
-
+        num_facets_per_cell = len(ref_jacobians.keys())
         # Push quadrature points from reference facet forward to reference element
         q_cell = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         phi = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
@@ -183,7 +185,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
             q_cell[i] = _x
             phi[i] = element.tabulate_x(0, _x)[0, :, :, 0]
 
-        surface_kernel(data, num_facets, num_dofs_per_cell, num_dofs_x, facet_geom,
+        surface_kernel(data, num_facets, num_facets_per_cell, num_dofs_per_cell, num_dofs_x, facet_geom,
                        x, gdim, tdim, c_tab, q_cell, q_w, phi, is_affine, entity_transformations,
                        entity_dofs, ct, cell_perm, needs_transformations, block_size, ref_jacobians, facet_info)
     else:

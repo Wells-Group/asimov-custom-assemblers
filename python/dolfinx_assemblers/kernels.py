@@ -166,10 +166,8 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(Ae)
 
 
-# @numba.njit
-
-
-def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
+@numba.njit
+def surface_kernel(data: np.ndarray, num_facets: int, num_facets_per_cell: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                    x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                    phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str,
                    cell_perm: np.ndarray, needs_transformations: bool, block_size: int, ref_jacobians: Dict,
@@ -196,7 +194,7 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
     # Assemble matrix
     Ae = np.zeros((block_size * num_dofs_per_cell, block_size * num_dofs_per_cell))
     blocks = [np.arange(b, block_size * num_dofs_per_cell + b, block_size) for b in range(block_size)]
-    ref_detJ = np.zeros(len(ref_jacobians.keys()), dtype=np.float64)
+    ref_detJ = np.zeros(num_facets_per_cell, dtype=np.float64)
     rdetJ = np.zeros(1)
     for i, jac in ref_jacobians.items():
         compute_determinant(jac, rdetJ)
@@ -210,7 +208,8 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
         # Compute Jacobian at each quadrature point
         if is_affine:
             dphi_c[:] = c_tab[1:gdim + 1, 0, :, 0]
-            J_q[0] = np.dot(geometry.T, dphi_c.T)
+            J = geometry.T @ dphi_c.T
+            J_q[:] = J
             compute_determinant(J_q[0], detJ)
             detJ_q[:] = detJ[0]
         else:
@@ -228,7 +227,6 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
             phi_T = phi_.copy()
         else:
             phi_T = phi[local_facet].T.copy()
-        print(np.abs(detJ_q), np.abs(ref_detJ[local_facet]))
         phi_s = (phi_T.T * q_w) * np.abs(detJ_q) * np.abs(ref_detJ[local_facet])
         # Compute weighted basis functions at quadrature points
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
@@ -240,5 +238,4 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_dofs_per_cell: int, nu
                 Ai[blocks[b]] = kernel[i]
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] += np.ravel(Ae)
-        print(Ae)
     return

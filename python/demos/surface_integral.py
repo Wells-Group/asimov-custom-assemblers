@@ -47,7 +47,7 @@ if __name__ == "__main__":
             ct = dolfinx.cpp.mesh.CellType.tetrahedron
         else:
             ct = dolfinx.cpp.mesh.CellType.hexahedron
-        N = 1
+        N = 10
         mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N, cell_type=ct)
 
     else:
@@ -55,8 +55,8 @@ if __name__ == "__main__":
             ct = dolfinx.cpp.mesh.CellType.triangle
         else:
             ct = dolfinx.cpp.mesh.CellType.quadrilateral
-        N = 1
-        mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, 1, 2, cell_type=ct)
+        N = 25
+        mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, 12, N, cell_type=ct)
 
     cell_str = dolfinx.cpp.mesh.to_string(mesh.topology.cell_type)
     el = ufl.VectorElement("CG", cell_str, degree) if vector else ufl.FiniteElement("CG", cell_str, degree)
