@@ -29,6 +29,9 @@ if __name__ == "__main__":
     _verbose = parser.add_mutually_exclusive_group(required=False)
     _verbose.add_argument('--verbose', dest='verbose', action='store_true',
                           help="Print matrices", default=False)
+    _vector = parser.add_mutually_exclusive_group(required=False)
+    _vector.add_argument('--vector', dest='vector', action='store_true',
+                         help="Use vector finite elements", default=False)
 
     args = parser.parse_args()
     simplex = args.simplex
@@ -36,6 +39,7 @@ if __name__ == "__main__":
     runs = args.runs
     verbose = args.verbose
     degree = args.degree
+    vector = args.vector
 
     np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
     if threed:
@@ -55,7 +59,7 @@ if __name__ == "__main__":
         mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
 
     cell_str = dolfinx.cpp.mesh.to_string(mesh.topology.cell_type)
-    el = ufl.FiniteElement("CG", cell_str, degree)
+    el = ufl.VectorElement("CG", cell_str, degree) if vector else ufl.FiniteElement("CG", cell_str, degree)
 
     V = dolfinx.FunctionSpace(mesh, el)
     a_stiffness = ufl.inner(ufl.grad(ufl.TrialFunction(V)), ufl.grad(ufl.TestFunction(V))) * ufl.dx
