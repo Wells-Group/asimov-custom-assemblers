@@ -3,20 +3,17 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 
-from .kernels import mass_kernel, stiffness_kernel
-from .utils import create_csr_sparsity_pattern, expand_dofmap
-from .kernels import mass_kernel, surface_kernel
-from .utils import compute_determinant, create_csr_sparsity_pattern, expand_dofmap, pack_facet_info
 import basix
 import dolfinx
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
-
 from numba import types
 from numba.typed import Dict
 from petsc4py import PETSc
 
+from .kernels import mass_kernel, stiffness_kernel, surface_kernel
+from .utils import create_csr_sparsity_pattern, expand_dofmap, pack_facet_info
 
 float_type = PETSc.ScalarType
 
@@ -158,8 +155,9 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         for i, facet in enumerate(facet_topology):
             facet_coords[i] = ref_geometry[facet]
 
-        # NOTE: This can be greatly simplified if one uses the assumption that the mapping between the reference geometries
-        # are always linear. Then one can use that for the ith facet J_i = (edge_i[1]-edge_i[0]) for 2D,
+        # NOTE: This can be greatly simplified if one uses the assumption that the mapping between
+        # the reference geometries are always linear.
+        # Then one can use that for the ith facet J_i = (edge_i[1]-edge_i[0]) for 2D,
         # ((edge_i[1]-edge_i[0]),(edge_i[2]-edge_i[0]))
         # NOTE: We however use the surface element of the same order as the function space, but employ
         # that the reference cell is always affine

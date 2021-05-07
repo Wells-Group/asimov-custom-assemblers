@@ -167,9 +167,9 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
 
 
 @numba.njit
-def surface_kernel(data: np.ndarray, num_facets: int, num_facets_per_cell: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
-                   x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                   phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str,
+def surface_kernel(data: np.ndarray, num_facets: int, num_facets_per_cell: int, num_dofs_per_cell: int, num_dofs_x: int,
+                   x_dofs: np.ndarray, x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray,
+                   q_w: np.ndarray, phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str,
                    cell_perm: np.ndarray, needs_transformations: bool, block_size: int, ref_jacobians: Dict,
                    facet_info: np.ndarray):
 
