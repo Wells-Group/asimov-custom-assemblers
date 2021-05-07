@@ -52,9 +52,15 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     t_imap = mesh.topology.index_map(tdim)
     num_cells = t_imap.size_local + t_imap.num_ghosts
     del t_imap
-
     x = mesh.geometry.x
     x_dofs = mesh.geometry.dofmap.array.reshape(num_cells, num_dofs_x)
+
+    # Data from coordinate element
+    ufl_c_el = mesh.ufl_domain().ufl_coordinate_element()
+    ufc_family = ufl_c_el.family()
+    if ufc_family == "Q":
+        ufc_family = "Lagrange"
+    is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
 
     # Create basix element based on function space
     family = V.ufl_element().family()
@@ -63,29 +69,20 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     ct = dolfinx.cpp.mesh.to_string(V.mesh.topology.cell_type)
     element = basix.create_element(family, ct, V.ufl_element().degree())
 
-    # Data from coordinate element
-    ufl_c_el = mesh.ufl_domain().ufl_coordinate_element()
-    ufc_family = ufl_c_el.family()
-    if ufc_family == "Q":
-        ufc_family = "Lagrange"
-
-    # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
-    # and "dof_transformations_are_indentity"
-    needs_transformations = not element.dof_transformations_are_identity
+    # Extract data required for dof transformations
     entity_transformations = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
     for i, transformation in enumerate(element.entity_transformations()):
         entity_transformations[i] = transformation
-
     entity_dofs = Dict.empty(key_type=types.int64, value_type=types.int32[:])
     for i, e_dofs in enumerate(element.entity_dofs):
         entity_dofs[i] = np.asarray(e_dofs, dtype=np.int32)
-
     mesh.topology.create_entity_permutations()
     cell_perm = mesh.topology.get_cell_permutation_info()
+    # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
+    # and "dof_transformations_are_indentity"
+    needs_transformations = not element.dof_transformations_are_identity
 
-    is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
-
-    # Create sparsity pattern
+    # Create sparsity pattern and "matrix"
     num_dofs_per_cell = V.dofmap.cell_dofs(0).size
     dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
     block_size = V.dofmap.index_map_bs
@@ -94,26 +91,30 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     rows, cols = create_csr_sparsity_pattern(num_cells, num_dofs_per_cell * block_size, expanded_dofmap)
     data = np.zeros(len(rows), dtype=float_type)
 
-    mesh.topology.create_entity_permutations()
     if int_type in ["mass", "stiffness"]:
+        # Get quadrature points and weights
+        q_p, q_w = basix.make_quadrature("default", element.cell_type, quadrature_degree)
+        q_w = q_w.reshape(q_w.size, 1)  # Reshape as nd array to use efficiently in kernels
+
+        # Create coordinate element and tabulate basis functions for pullback
+        c_element = basix.create_element(ufc_family, ct, ufl_c_el.degree())
+        c_tab = c_element.tabulate_x(1, q_p)
+
         if int_type == "mass":
             kernel = mass_kernel
             num_derivatives = 0
         elif int_type == "stiffness":
             kernel = stiffness_kernel
             num_derivatives = 1
-        # Get quadrature points and weights
-        q_p, q_w = basix.make_quadrature("default", element.cell_type, quadrature_degree)
-        q_w = q_w.reshape(q_w.size, 1)
 
-        c_element = basix.create_element(ufc_family, ct, ufl_c_el.degree())
-        c_tab = c_element.tabulate_x(1, q_p)
         # Tabulate basis functions at quadrature points
         tabulated_data = element.tabulate_x(num_derivatives, q_p)
         if int_type == "mass":
             basis_functions = tabulated_data[0, :, :, 0]
         elif int_type == "stiffness":
             basis_functions = tabulated_data[1:, :, :, 0]
+
+        # Assemble kernel into data
         kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
                x, gdim, tdim, c_tab, q_p, q_w, basis_functions, is_affine, entity_transformations,
                entity_dofs, ct, cell_perm, needs_transformations, block_size)
@@ -124,20 +125,17 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         num_facets = facet_info.shape[0]
         num_dofs_x = facet_geom.shape[1]
 
-        # Create quadrature points of reference facet
+        # Create coordinate element for facet
         surface_cell_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
         surface_str = dolfinx.cpp.mesh.to_string(surface_cell_type)
         surface_element = basix.create_element(family, surface_str, ufl_c_el.degree())
 
-        # Basis functions of reference interval at quadrature points.
+        # Tabulate reference coordinate element basis functions for facets at quadrature points.
         # Shape is (derivatives, num_quadrature_point, num_basis_functions, value_size)
         # NOTE: Current assumption is that value size is 1
         q_p, q_w = basix.make_quadrature("default", surface_element.cell_type, quadrature_degree)
         q_w = q_w.reshape(q_w.size, 1)
         c_tab = surface_element.tabulate_x(1, q_p)
-        phi_s = c_tab[0, :, :, 0]
-        dphi_s = c_tab[1:, :, :, 0]
-
         # Get the coordinates for the facets of the reference cell
         _cell = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.to_type(ct)]
         facet_topology = basix.topology(_cell)[mesh.topology.dim - 1]
@@ -149,16 +147,17 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         # that the mapping between the reference geometries are always linear.
         # Then one can use that for the ith facet J_i = (edge_i[1]-edge_i[0]) for 2D,
         # ((edge_i[1]-edge_i[0]),(edge_i[2]-edge_i[0]))
+        phi_s = c_tab[0, :, :, 0]
         # NOTE: We exploit that the reference cell is always affine and the mapping to the reference facet
         # is affine, thus there is only one Jacobian per facet
-        dphi_s0 = dphi_s[:, 0, :]
+        dphi_s_q0 = c_tab[1:, 0, :, 0]
         num_facets_per_cell = len(facet_topology)
         ref_jacobians = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         q_cell = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         phi = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         for i, facet in enumerate(facet_topology):
             coords = ref_geometry[facet]
-            ref_jacobians[i] = np.dot(coords.T, dphi_s0.T)
+            ref_jacobians[i] = np.dot(coords.T, dphi_s_q0.T)
             q_cell[i] = phi_s @ coords
             phi[i] = element.tabulate_x(0, q_cell[i])[0, :, :, 0]
 
@@ -169,7 +168,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     else:
         raise NotImplementedError(f"Integration kernel for {int_type} has not been implemeted.")
 
-    # Coo is faster than CSR
+    # Create coo_matrix (as it is faster than CSR)
     num_dofs_loc = V.dofmap.index_map.size_local * block_size
     out_matrix = scipy.sparse.coo_matrix((data, (rows, cols)), shape=(num_dofs_loc, num_dofs_loc))
     return out_matrix
