@@ -115,9 +115,9 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
             basis_functions = tabulated_data[1:, :, :, 0]
 
         # Assemble kernel into data
-        kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
-               x, gdim, tdim, c_tab, q_p, q_w, basis_functions, is_affine, entity_transformations,
-               entity_dofs, ct, perm_info, needs_transformations, block_size)
+        kernel(data, ct, num_cells, is_affine, block_size, num_dofs_per_cell,
+               num_dofs_x, x_dofs, x, gdim, tdim, q_p, q_w, c_tab, basis_functions, entity_transformations,
+               entity_dofs, perm_info, needs_transformations)
 
     elif int_type == "surface":
         # Extract facets from mesh tag, return ndarray with the (cell_index, local_facet_index) in each row

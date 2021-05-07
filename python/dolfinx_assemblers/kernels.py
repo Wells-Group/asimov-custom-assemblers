@@ -14,12 +14,56 @@ from .utils import compute_determinant, compute_inverse
 
 
 @numba.njit(fastmath=True)
-def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
-                x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, perm_info: int,
-                needs_transformations: bool, block_size: int):
+def mass_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool, block_size: int, num_dofs_per_cell: int,
+                num_dofs_x: int, x_dofs: np.ndarray, x: np.ndarray, gdim: int, tdim: int,
+                q_p: np.ndarray, q_w: np.ndarray, c_tab: np.ndarray, phi: np.ndarray,
+                e_transformations: Dict, e_dofs: Dict, perm_info: int, needs_transformations: bool):
     """
-    Assemble mass matrix into CSR array "data"
+    Assemble the mass matrix inner(u, v)*dx
+    Parameters
+    data
+        Flattened structure of the matrix we would like to insert data into
+    ct
+        String indicating which cell type the mesh consists of.
+        Valid options: 'triangle', 'quadrilateral', 'tetrahedron', 'hexahedron'.
+    num_cells
+        Number of cells we are integrating over
+    is_affine
+        Boolean indicating if we are integrating over an affine cell type (first order simplices).
+    block_size
+        Block size of the problem (number of repeating dimensions in the function space)
+    num_dofs_per_cell
+        Number of degrees of freedom on each cell (not multiplied by block size)
+    num_dofs_x
+        Number of degrees of freedom for the coordinate element
+    x_dofs
+        Two dimensional array (cell, degree of freedom) containing the mesh geometry dofs corrensponding to
+        the ith cells's jth degree of freedom
+    x
+        Two dimensional array containing the coordinates of the mesh geometry
+    gdim
+        Geometrical dimension of the mesh
+    tdim
+        Topological dimension of the mesh
+    q_p
+        Two-dimensional array containing the quadrature points on the reference cell
+    q_w
+        Corresponding quadratue weights
+    c_tab
+        Four-dimensional array containing the coordinate basis functions and first derivatives tabulated at the
+        quadrature points. Shape of the array is (derivatives, quadrature points, basis functions, value size).
+    phi
+        Two-dimensional array containing the basis functions tabulated at quadrature points.
+        phi[i, j] is the jth basis function tabulated at the ith quadrature point
+    e_transformations
+        Dictionary containing the dof transformations for each set of entities
+    e_dofs
+        Dictionary containing the number of degrees of freedom of each entity. The key is the dimension of the entity.
+        e_dofs[i][j] is the number of dofs on the jth entity of dimension i.
+    perm_info
+        Array containing bit information for each cell that is interpreted by basix to permute the dofs
+    needs_transformations
+        Boolean indicating if dof transformations are required for the given space
     """
 
     # Declaration of local structures
@@ -81,12 +125,57 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
 
 
 @numba.njit(fastmath=True)
-def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
-                     x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                     dphi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str,
-                     perm_info: np.ndarray, needs_transformations: bool, block_size: int):
+def stiffness_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool, block_size: int,
+                     num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
+                     x: np.ndarray, gdim: int, tdim: int, q_p: np.ndarray, q_w: np.ndarray,
+                     c_tab: np.ndarray, dphi: np.ndarray, e_transformations: Dict, e_dofs: Dict,
+                     perm_info: np.ndarray, needs_transformations: bool):
     """
-    Assemble stiffness matrix into CSR array "data"
+    Assemble the stiffness matrix inner(grad(u), grad(v))*dx
+    Parameters
+    data
+        Flattened structure of the matrix we would like to insert data into
+    ct
+        String indicating which cell type the mesh consists of.
+        Valid options: 'triangle', 'quadrilateral', 'tetrahedron', 'hexahedron'.
+    num_cells
+        Number of cells we are integrating over
+    is_affine
+        Boolean indicating if we are integrating over an affine cell type (first order simplices).
+    block_size
+        Block size of the problem (number of repeating dimensions in the function space)
+    num_dofs_per_cell
+        Number of degrees of freedom on each cell (not multiplied by block size)
+    num_dofs_x
+        Number of degrees of freedom for the coordinate element
+    x_dofs
+        Two dimensional array (cell, degree of freedom) containing the mesh geometry dofs corrensponding to
+        the ith cells's jth degree of freedom
+    x
+        Two dimensional array containing the coordinates of the mesh geometry
+    gdim
+        Geometrical dimension of the mesh
+    tdim
+        Topological dimension of the mesh
+    q_p
+        Two-dimensional array containing the quadrature points on the reference cell
+    q_w
+        Corresponding quadratue weights
+    c_tab
+        Four-dimensional array containing the coordinate basis functions and first derivatives tabulated at the
+        quadrature points. Shape of the array is (derivatives, quadrature points, basis functions, value size).
+    dphi
+        The first derivatives of the basis functions tabulated at quadrature points. 
+        dphi[i,j,k] is dphi_k/dx_i evaluated at the jth quadrature point.
+    e_transformations
+        Dictionary containing the dof transformations for each set of entities
+    e_dofs
+        Dictionary containing the number of degrees of freedom of each entity. The key is the dimension of the entity.
+        e_dofs[i][j] is the number of dofs on the jth entity of dimension i.
+    perm_info
+        Array containing bit information for each cell that is interpreted by basix to permute the dofs
+    needs_transformations
+        Boolean indicating if dof transformations are required for the given space
     """
 
     # Declaration of local structures
@@ -187,7 +276,7 @@ def surface_kernel(data: np.array, ct: str, is_affine: bool, block_size: int, nu
         Number of degrees of freedom for the surface coordinate element
     x_dofs
         Two dimensional array (facet, degree of freedom) containing the mesh geometry dofs corrensponding to
-        the ith facet's jth degree of freedom (x)
+        the ith facet's jth degree of freedom
     x
         Two dimensional array containing the coordinates of the mesh geometry
     gdim
