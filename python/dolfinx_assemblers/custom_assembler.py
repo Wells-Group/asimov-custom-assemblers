@@ -175,13 +175,8 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         q_cell = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         phi = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         for i, coords in facet_coords.items():
-            _x = np.zeros((len(q_p), mesh.geometry.dim))
-            for j in range(_x.shape[0]):
-                for m in range(_x.shape[1]):
-                    for n in range(coords.shape[0]):
-                        _x[j, m] += phi_s[j, n] * coords[n, m]
-            q_cell[i] = _x
-            phi[i] = element.tabulate_x(0, _x)[0, :, :, 0]
+            q_cell[i] = phi_s @ coords
+            phi[i] = element.tabulate_x(0, q_cell[i])[0, :, :, 0]
 
         surface_kernel(data, num_facets, num_facets_per_cell, num_dofs_per_cell, num_dofs_x, facet_geom,
                        x, gdim, tdim, c_tab, q_cell, q_w, phi, is_affine, entity_transformations,
