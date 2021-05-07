@@ -16,7 +16,7 @@ from .utils import compute_determinant, compute_inverse
 @numba.njit(fastmath=True)
 def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                 x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
-                phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, cell_perm: int,
+                phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str, perm_info: int,
                 needs_transformations: bool, block_size: int):
     """
     Assemble mass matrix into CSR array "data"
@@ -62,7 +62,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
         if needs_transformations:
             # Transpose phi before applying dof transformations (ndofs, nquadpoints)
             phi_ = phi.T.copy()
-            apply_dof_trans(e_transformations, e_dofs, phi_, num_q_points, cell_perm[cell])
+            apply_dof_trans(e_transformations, e_dofs, phi_, num_q_points, perm_info[cell])
             # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
             phi_T = phi_.copy()
         else:
@@ -84,7 +84,7 @@ def mass_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_do
 def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, num_dofs_x: int, x_dofs: np.ndarray,
                      x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray, q_w: np.ndarray,
                      dphi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str,
-                     cell_perm: np.ndarray, needs_transformations: bool, block_size: int):
+                     perm_info: np.ndarray, needs_transformations: bool, block_size: int):
     """
     Assemble stiffness matrix into CSR array "data"
     """
@@ -122,15 +122,13 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
             for i in range(tdim):
                 # Reshape input as the transpose of the phi, i.e. (basis_function, quadrature_point)
                 dphidxi = dphi[i].T.copy()
-                apply_dof_trans(e_transformations, e_dofs, dphidxi, num_q_points, cell_perm[cell])
+                apply_dof_trans(e_transformations, e_dofs, dphidxi, num_q_points, perm_info[cell])
                 dphi_i[i, :, :] = dphidxi
         else:
             for i in range(tdim):
                 dphi_i[i, :, :] = dphi[i, :, :].T.copy()
 
         geometry[:] = x[x_dofs[cell], :gdim]
-        # for j in range(num_dofs_x):
-        #     geometry[j] = x[x_dofs[cell, j], : gdim]
 
         # Compute Jacobian at each quadrature point
         if is_affine:
@@ -167,12 +165,61 @@ def stiffness_kernel(data: np.ndarray, num_cells: int, num_dofs_per_cell: int, n
 
 
 @numba.njit
-def surface_kernel(data: np.ndarray, num_facets: int, num_facets_per_cell: int, num_dofs_per_cell: int, num_dofs_x: int,
-                   x_dofs: np.ndarray, x: np.ndarray, gdim: int, tdim: int, c_tab: np.ndarray, q_p: np.ndarray,
-                   q_w: np.ndarray, phi: np.ndarray, is_affine: bool, e_transformations: Dict, e_dofs: Dict, ct: str,
-                   cell_perm: np.ndarray, needs_transformations: bool, block_size: int, ref_jacobians: Dict,
-                   facet_info: np.ndarray):
-
+def surface_kernel(data: np.array, ct: str, is_affine: bool, block_size: int, num_dofs_per_cell: int, num_dofs_x: int,
+                   x_dofs: np.ndarray, x: np.ndarray, gdim: int, tdim: int, q_p: np.ndarray, q_w: np.ndarray,
+                   c_tab: np.ndarray, phi: Dict, ref_jacobians: Dict, e_transformations: Dict, e_dofs: Dict,
+                   perm_info: np.array, needs_transformations: bool, facet_info: np.ndarray):
+    """
+    Assemble the surface integral inner(u, v)*ds on a set of facets
+    Parameters
+    data
+        Flattened structure of the matrix we would like to insert data into
+    ct
+        String indicating which cell type the mesh consists of.
+        Valid options: 'triangle', 'quadrilateral', 'tetrahedron', 'hexahedron'.
+    is_affine
+        Boolean indicating if we are integrating over an affine cell type (first order simplices).
+    block_size
+        Block size of the problem (number of repeating dimensions in the function space)
+    num_dofs_per_cell
+        Number of degrees of freedom on each cell (not multiplied by block size)
+    num_dofs_x
+        Number of degrees of freedom for the surface coordinate element
+    x_dofs
+        Two dimensional array (facet, degree of freedom) containing the mesh geometry dofs corrensponding to
+        the ith facet's jth degree of freedom (x)
+    x
+        Two dimensional array containing the coordinates of the mesh geometry
+    gdim
+        Geometrical dimension of the mesh
+    tdim
+        Topological dimension of the mesh
+    q_p
+        Two-dimensional array containing the quadrature points on the reference cell
+    q_w
+        Corresponding quadratue weights
+    c_tab
+        Four-dimensional array containing the coordinate basis functions and first derivatives tabulated at the
+        quadrature points. Shape of the array is (derivatives, quadrature points, basis functions, value size).
+    phi
+        Dictionary of the basis functions tabulated at quadrature points. The key is the local facet number on the
+        reference cell. phi[i][j,k] is the kth basis function evaluated on the
+        ith local facet at the jth quadrature point.
+    ref_jacobians
+        Dictionary mapping a local facet of a reference cell to the Jacobian of the reference facet
+    e_transformations
+        Dictionary containing the dof transformations for each set of entities
+    e_dofs
+        Dictionary containing the number of degrees of freedom of each entity. The key is the dimension of the entity.
+        e_dofs[i][j] is the number of dofs on the jth entity of dimension i.
+    perm_info
+        Array containing bit information for each cell that is interpreted by basix to permute the dofs
+    needs_transformations
+        Boolean indicating if dof transformations are required for the given space
+    facet_info
+        Two dimensional array of the form (num_facets, 2) where the first column contains the cell owning the facet,
+        the second colum being the local index of this facet in the cell.
+    """
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
     num_q_points = q_w.size
@@ -191,11 +238,14 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_facets_per_cell: int, 
     dphi_c = np.zeros(c_tab[1:gdim + 1, 0, :, 0].shape, dtype=np.float64)
     detJ = np.zeros(1, dtype=np.float64)
     entries_per_cell = (block_size * num_dofs_per_cell)**2
+
     # Assemble matrix
     Ae = np.zeros((block_size * num_dofs_per_cell, block_size * num_dofs_per_cell))
     blocks = [np.arange(b, block_size * num_dofs_per_cell + b, block_size) for b in range(block_size)]
+    num_facets_per_cell = len(e_dofs[tdim - 1])
     ref_detJ = np.zeros(num_facets_per_cell, dtype=np.float64)
     rdetJ = np.zeros(1)
+    num_facets = facet_info.shape[0]
     for i, jac in ref_jacobians.items():
         compute_determinant(jac, rdetJ)
         ref_detJ[i] = rdetJ[0]
@@ -222,12 +272,13 @@ def surface_kernel(data: np.ndarray, num_facets: int, num_facets_per_cell: int, 
         if needs_transformations:
             # Transpose phi before applying dof transformations (ndofs, nquadpoints)
             phi_ = phi[local_facet].T.copy()
-            apply_dof_trans(e_transformations, e_dofs, phi_, num_q_points, cell_perm[cell])
+            apply_dof_trans(e_transformations, e_dofs, phi_, num_q_points, perm_info[cell])
             # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
             phi_T = phi_.copy()
         else:
             phi_T = phi[local_facet].T.copy()
-        phi_s = (phi_T.T * q_w) * np.abs(detJ_q)  # * np.abs(ref_detJ[local_facet])
+        phi_s = (phi_T.T * q_w) * np.abs(detJ_q)
+
         # Compute weighted basis functions at quadrature points
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
         kernel = phi_T @ phi_s

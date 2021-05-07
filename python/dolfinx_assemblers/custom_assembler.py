@@ -76,18 +76,18 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     entity_dofs = Dict.empty(key_type=types.int64, value_type=types.int32[:])
     for i, e_dofs in enumerate(element.entity_dofs):
         entity_dofs[i] = np.asarray(e_dofs, dtype=np.int32)
+
     mesh.topology.create_entity_permutations()
-    cell_perm = mesh.topology.get_cell_permutation_info()
+    perm_info = mesh.topology.get_cell_permutation_info()
     # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
     # and "dof_transformations_are_indentity"
     needs_transformations = not element.dof_transformations_are_identity
 
     # Create sparsity pattern and "matrix"
     num_dofs_per_cell = V.dofmap.cell_dofs(0).size
-    dofmap = V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell)
     block_size = V.dofmap.index_map_bs
     expanded_dofmap = np.zeros((num_cells, num_dofs_per_cell * block_size))
-    expand_dofmap(dofmap, block_size, expanded_dofmap)
+    expand_dofmap(V.dofmap.list.array.reshape(num_cells, num_dofs_per_cell), block_size, expanded_dofmap)
     rows, cols = create_csr_sparsity_pattern(num_cells, num_dofs_per_cell * block_size, expanded_dofmap)
     data = np.zeros(len(rows), dtype=float_type)
 
@@ -117,12 +117,11 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         # Assemble kernel into data
         kernel(data, num_cells, num_dofs_per_cell, num_dofs_x, x_dofs,
                x, gdim, tdim, c_tab, q_p, q_w, basis_functions, is_affine, entity_transformations,
-               entity_dofs, ct, cell_perm, needs_transformations, block_size)
+               entity_dofs, ct, perm_info, needs_transformations, block_size)
 
     elif int_type == "surface":
         # Extract facets from mesh tag, return ndarray with the (cell_index, local_facet_index) in each row
         facet_info, facet_geom = pack_facet_info(mesh, mt, index)
-        num_facets = facet_info.shape[0]
         num_dofs_x = facet_geom.shape[1]
 
         # Create coordinate element for facet
@@ -151,7 +150,6 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         # NOTE: We exploit that the reference cell is always affine and the mapping to the reference facet
         # is affine, thus there is only one Jacobian per facet
         dphi_s_q0 = c_tab[1:, 0, :, 0]
-        num_facets_per_cell = len(facet_topology)
         ref_jacobians = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         q_cell = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         phi = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
@@ -160,11 +158,10 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
             ref_jacobians[i] = np.dot(coords.T, dphi_s_q0.T)
             q_cell[i] = phi_s @ coords
             phi[i] = element.tabulate_x(0, q_cell[i])[0, :, :, 0]
-
         # Assemble surface integral
-        surface_kernel(data, num_facets, num_facets_per_cell, num_dofs_per_cell, num_dofs_x, facet_geom,
-                       x, gdim, tdim, c_tab, q_cell, q_w, phi, is_affine, entity_transformations,
-                       entity_dofs, ct, cell_perm, needs_transformations, block_size, ref_jacobians, facet_info)
+        surface_kernel(data, ct, is_affine, block_size, num_dofs_per_cell, num_dofs_x, facet_geom,
+                       x, gdim, tdim, q_cell, q_w, c_tab, phi, ref_jacobians, entity_transformations,
+                       entity_dofs, perm_info, needs_transformations, facet_info)
     else:
         raise NotImplementedError(f"Integration kernel for {int_type} has not been implemeted.")
 
