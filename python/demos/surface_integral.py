@@ -47,7 +47,7 @@ if __name__ == "__main__":
             ct = dolfinx.cpp.mesh.CellType.tetrahedron
         else:
             ct = dolfinx.cpp.mesh.CellType.hexahedron
-        N = 10
+        N = 25
         mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N, cell_type=ct)
 
     else:

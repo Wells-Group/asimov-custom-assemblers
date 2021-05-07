@@ -110,7 +110,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         phi = tabulated_data[0, :, :, 0]
 
         # NOTE: This should probably be two flags, one "dof_transformations_are_permutations"
-        # and "dof_transformations_are_indentity"
+        # and "dof_transformations_are_identity"
         needs_transformations = not element.dof_transformations_are_identity
         entity_transformations = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         for i, transformation in enumerate(element.entity_transformations()):
@@ -141,16 +141,19 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
                          entity_dofs, ct, cell_perm, needs_transformations, block_size)
 
     elif int_type == "surface":
+        # Extract facets from mesh tag, return ndarray with the (cell_index, local_facet_index) in each row
         facet_info, facet_geom = pack_facet_info(mesh, mt, index)
         num_facets = facet_info.shape[0]
         num_dofs_x = facet_geom.shape[1]
+
         # Create quadrature points of reference facet
         surface_cell_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
         surface_str = dolfinx.cpp.mesh.to_string(surface_cell_type)
         surface_element = basix.create_element(family, surface_str, ufl_c_el.degree())
 
         # Basis functions of reference interval at quadrature points.
-        # Shape is (derivatives, num_quadrature_point, num_basis_functions)
+        # Shape is (derivatives, num_quadrature_point, num_basis_functions, value_size)
+        # NOTE: Current assumption is that value size is 1
         q_p, q_w = basix.make_quadrature("default", surface_element.cell_type, quadrature_degree)
         q_w = q_w.reshape(q_w.size, 1)
         c_tab = surface_element.tabulate_x(1, q_p)
@@ -161,33 +164,27 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         _cell = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.to_type(ct)]
         facet_topology = basix.topology(_cell)[mesh.topology.dim - 1]
         ref_geometry = basix.geometry(_cell)
-        facet_coords = {}
-        for i, facet in enumerate(facet_topology):
-            facet_coords[i] = ref_geometry[facet]
 
-        # NOTE: This can be greatly simplified if one uses the assumption that the mapping between
-        # the reference geometries are always linear.
+        # Compute Jacobian of reference geometry and push quadrature points forward to reference element
+        # for each facet
+        # NOTE: The reference Jacobian for each facet can be greatly simplified if one uses the assumption
+        # that the mapping between the reference geometries are always linear.
         # Then one can use that for the ith facet J_i = (edge_i[1]-edge_i[0]) for 2D,
         # ((edge_i[1]-edge_i[0]),(edge_i[2]-edge_i[0]))
-        # NOTE: We however use the surface element of the same order as the function space, but employ
-        # that the reference cell is always affine
-        # As the reference cell and reference facet is always affine this is simplified
+        # NOTE: We exploit that the reference cell is always affine and the mapping to the reference facet
+        # is affine, thus there is only one Jacobian per facet
         dphi_s0 = dphi_s[:, 0, :]
-        _ref_jacs = {}
-        for i, coord in facet_coords.items():
-            _ref_jacs[i] = np.dot(coord.T, dphi_s0.T)
-        # Map Jacobians to numba dict
+        num_facets_per_cell = len(facet_topology)
         ref_jacobians = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
-        for key, value in _ref_jacs.items():
-            ref_jacobians[key] = value
-        num_facets_per_cell = len(ref_jacobians.keys())
-        # Push quadrature points from reference facet forward to reference element
         q_cell = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
         phi = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
-        for i, coords in facet_coords.items():
+        for i, facet in enumerate(facet_topology):
+            coords = ref_geometry[facet]
+            ref_jacobians[i] = np.dot(coords.T, dphi_s0.T)
             q_cell[i] = phi_s @ coords
             phi[i] = element.tabulate_x(0, q_cell[i])[0, :, :, 0]
 
+        # Assemble surface integral
         surface_kernel(data, num_facets, num_facets_per_cell, num_dofs_per_cell, num_dofs_x, facet_geom,
                        x, gdim, tdim, c_tab, q_cell, q_w, phi, is_affine, entity_transformations,
                        entity_dofs, ct, cell_perm, needs_transformations, block_size, ref_jacobians, facet_info)
