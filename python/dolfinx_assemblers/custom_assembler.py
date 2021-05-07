@@ -29,7 +29,19 @@ _dolfinx_to_basix_celltype = {dolfinx.cpp.mesh.CellType.interval: basix.CellType
 def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: str = "mass",
                     mt: dolfinx.MeshTags = None, index: int = None):
     """
-    Assemble a matrix using custom assembler
+    Assemble a matrix using custom assembler.
+    Parameters
+    ----------
+    V
+        FunctionSpace used to define trial and test functions
+    quadrature_degree
+        Degree of quadrature scheme integrating polynomials of this degree exactly
+    int_type
+        Type of integral: 'mass', 'stiffness' or 'surface' currently supported
+    mt
+        MeshTag with markers of the entity one would like to integrate (optional)
+    index
+        Which tags in the MeshTag we would like to integrate over (optional)
     """
 
     # Extract mesh data
