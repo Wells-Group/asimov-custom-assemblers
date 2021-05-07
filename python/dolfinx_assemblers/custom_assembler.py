@@ -147,9 +147,7 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
         # Create quadrature points of reference facet
         surface_cell_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
         surface_str = dolfinx.cpp.mesh.to_string(surface_cell_type)
-
-        # FIXME: This is a hack, and should be the order of the coordinate element
-        surface_element = basix.create_element(family, surface_str, 1)
+        surface_element = basix.create_element(family, surface_str, ufl_c_el.degree())
 
         # Basis functions of reference interval at quadrature points.
         # Shape is (derivatives, num_quadrature_point, num_basis_functions)

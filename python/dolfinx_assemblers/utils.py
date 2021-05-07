@@ -10,7 +10,8 @@ import dolfinx
 Utilities for assembly
 """
 
-__all__ = ["estimate_max_polynomial_degree"]
+__all__ = ["estimate_max_polynomial_degree",
+           "pack_facet_info", "expand_dofmap", "create_csr_sparsity_pattern"]
 
 
 def pack_facet_info(mesh: dolfinx.cpp.mesh.Mesh, mt: dolfinx.MeshTags, index: int):
