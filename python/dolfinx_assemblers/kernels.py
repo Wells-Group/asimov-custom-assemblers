@@ -165,7 +165,7 @@ def stiffness_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool,
         Four-dimensional array containing the coordinate basis functions and first derivatives tabulated at the
         quadrature points. Shape of the array is (derivatives, quadrature points, basis functions, value size).
     dphi
-        The first derivatives of the basis functions tabulated at quadrature points. 
+        The first derivatives of the basis functions tabulated at quadrature points.
         dphi[i,j,k] is dphi_k/dx_i evaluated at the jth quadrature point.
     e_transformations
         Dictionary containing the dof transformations for each set of entities
