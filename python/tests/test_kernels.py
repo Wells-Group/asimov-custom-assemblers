@@ -6,10 +6,11 @@ import numpy as np
 import pytest
 import scipy.sparse
 import scipy.sparse.linalg
-import ufl.algorithms
 import ufl
-from dolfinx_assemblers import (assemble_matrix,
-                                compute_reference_mass_matrix, compute_reference_stiffness_matrix,
+import ufl.algorithms
+from dolfinx_assemblers import (assemble_matrix, compute_reference_mass_matrix,
+                                compute_reference_stiffness_matrix,
+                                compute_reference_surface_matrix,
                                 estimate_max_polynomial_degree)
 from mpi4py import MPI
 
@@ -18,7 +19,7 @@ from mpi4py import MPI
 @pytest.mark.parametrize("ct", ["quadrilateral", "triangle", "tetrahedron",
                                 "hexahedron"])
 @pytest.mark.parametrize("element", [ufl.FiniteElement, ufl.VectorElement])
-@pytest.mark.parametrize("integral_type", ["mass", "stiffness"])
+@pytest.mark.parametrize("integral_type", ["mass", "stiffness", "surface"])
 def test_cell_kernels(element, ct, degree, integral_type):
     """
     Test assembly of mass matrices on non-affine mesh
@@ -45,16 +46,29 @@ def test_cell_kernels(element, ct, degree, integral_type):
     el = ufl.FiniteElement("CG", mesh.ufl_cell(), degree)
     V = dolfinx.FunctionSpace(mesh, el)
 
+    # NOTE: Workaround for now
+    mt = None
+    index = None
     if integral_type == "mass":
         a_ = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
         reference_code = compute_reference_mass_matrix
     elif integral_type == "stiffness":
         a_ = ufl.inner(ufl.grad(ufl.TrialFunction(V)), ufl.grad(ufl.TestFunction(V))) * ufl.dx
         reference_code = compute_reference_stiffness_matrix
+    elif integral_type == "surface":
+        a_ = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.ds
+        reference_code = compute_reference_surface_matrix
+        mesh.topology.create_entities(mesh.topology.dim - 1)
+        mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
+        bndry_facets = np.asarray(np.where(np.array(dolfinx.cpp.mesh.compute_boundary_facets(mesh.topology)) == 1)[0],
+                                  dtype=np.int32)
+        indices = np.ones(bndry_facets.size, dtype=np.int32)
+        mt = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
+        index = indices[0]
 
     quadrature_degree = estimate_max_polynomial_degree(a_)
     Aref = reference_code(V, quadrature_degree)
-    A = assemble_matrix(V, quadrature_degree, int_type=integral_type)
+    A = assemble_matrix(V, quadrature_degree, int_type=integral_type, mt=mt, index=index)
     ai, aj, av = Aref.getValuesCSR()
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
