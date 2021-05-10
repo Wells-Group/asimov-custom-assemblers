@@ -172,7 +172,7 @@ rect_facets = dolfinx.mesh.locate_entities_boundary(mesh, fdim, master_obstacle)
 
 # print(rect_bbox.str())
 # circ_to_rect = facet_master_puppet_relation(mesh, circ_facets, rect_facets)
-circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets, quadrature_degree=10)
+circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets, quadrature_degree=4)
 
 print(circ_to_rect)
 # Write contact facets to file (NOTE: Indicies has to be sorted)
