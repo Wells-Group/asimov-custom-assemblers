@@ -10,4 +10,4 @@ setup(name='dolfinx_assemblers',
 
       author_email='dokken92@gmail.com',
 
-      packages=['dolfinx_assemblers'])
+      packages=['dolfinx_assemblers', "dolfinx_assemblers.contact"])
