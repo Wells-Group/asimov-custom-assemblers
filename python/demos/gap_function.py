@@ -172,9 +172,13 @@ rect_facets = dolfinx.mesh.locate_entities_boundary(mesh, fdim, master_obstacle)
 
 # print(rect_bbox.str())
 # circ_to_rect = facet_master_puppet_relation(mesh, circ_facets, rect_facets)
-circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets, quadrature_degree=4)
+circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets, quadrature_degree=2)
 
-print(circ_to_rect)
+print(f"With quadrature eval: {circ_to_rect}")
+
+circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets)
+print(f"Without quadrature eval: {circ_to_rect}")
+
 # Write contact facets to file (NOTE: Indicies has to be sorted)
 indices = np.asarray(np.hstack([np.asarray(list(circ_to_rect.keys())), np.hstack(
     [circ_to_rect[key] for key in circ_to_rect.keys()])]), dtype=np.int32)
