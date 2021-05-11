@@ -59,5 +59,3 @@ target_link_libraries(dolfinx_cuas INTERFACE Basix::basix)
 include(GNUInstallDirs)
 install(FILES dolfinx_cuas.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
 install(FILES CsrMatrix.hpp assemble.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
-
-target_include_directories(dolfinx_cuas INTERFACE ${CMAKE_INSTALL_INCLUDEDIR})
