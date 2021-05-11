@@ -1,4 +1,4 @@
-name: Test Python assemblers
+name: Test custom assemblers
 
 on:
   # Trigger tests on push
@@ -60,6 +60,16 @@ jobs:
         run: |
           cmake --build build
           cmake --install build
+
+      - name: Install and run custom assemblers (C++)
+        run: |
+          cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer cpp/
+          ninja -C build-dir install
+          cd cpp/demo/
+          ffcx mass.ufl
+          cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer .
+          ninja -C build-dir
+          ./build-dir/custom-assembler
 
       - name: Build Python interface (dolfinx)
         run: python3 -m pip -v install ./dolfinx/python/
