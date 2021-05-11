@@ -6,7 +6,6 @@
 
 #include <iostream>
 #include <pybind11/pybind11.h>
-#include <dolfinx.h>
 #include <dolfinx_cuas/assemble.hpp>
 
 #define STRINGIFY(x) #x
@@ -24,6 +23,6 @@ PYBIND11_MODULE(cpp, m)
 #else
     m.attr("__version__") = "dev";
 #endif
-  m.def("assemble_matrix", &dolfinx_cuas::assemble_matrix);
+m.def("assemble_matrix", &dolfinx_cuas::assemble_matrix);
 
 }

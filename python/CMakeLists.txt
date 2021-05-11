@@ -20,12 +20,10 @@ find_package(DOLFINX REQUIRED)
 pybind11_add_module(cpp SHARED dolfinx_cuas/wrappers.cpp)
 
 
-target_link_libraries(cpp PRIVATE pybind11::module dolfinx_cuas)
+target_link_libraries(cpp PUBLIC pybind11::module)
 target_link_libraries(cpp PUBLIC dolfinx)
 
    
 # Add to CMake search path
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Add DOLFINX libraries and other config
 
