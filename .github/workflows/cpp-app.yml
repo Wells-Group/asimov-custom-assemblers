@@ -34,33 +34,33 @@ jobs:
       - name: Get Basix and install
         uses: actions/checkout@v2
         with:
-          path: /root/basix
+          path: ./basix
           repository: FEniCS/basix
           ref: main
 
       - name: Install FEniCS Python components (dolfinx)
         run: |
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build-basix -S /root/basix
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build-basix -S ./basix
           cmake --build build-basix
           cmake --install build-basix
-          python3 -m pip install /root/basix/python
+          python3 -m pip install ./basix/python
           python3 -m pip install git+https://github.com/FEniCS/ufl.git
           python3 -m pip install git+https://github.com/FEniCS/ffcx.git
       - name: Install dolfinx
         uses: actions/checkout@v2
         with:
-          path: /root/dolfinx
+          path: ./dolfinx
           repository: FEniCS/dolfinx
           ref: main
 
       - name: Configure and install C++ (dolfinx)
         run: |
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=Developer -B build-dolfinx -S /root/dolfinx/cpp/
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Developer -B build-dolfinx -S ./dolfinx/cpp/
           cmake --build build-dolfinx
           cmake --install build-dolfinx
 
       - name: Build Python interface (dolfinx)
-        run: python3 -m pip -v install /root/dolfinx/python/
+        run: python3 -m pip -v install ./dolfinx/python/
 
       - name: Install and run custom assemblers (C++)
         run: |
