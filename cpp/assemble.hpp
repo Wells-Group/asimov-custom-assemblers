@@ -13,6 +13,9 @@ enum Kernel
   Stiffness
 };
 
+namespace dolfinx_cuas
+{
+
 auto assemble_matrix(const std::shared_ptr<fem::FunctionSpace>& V, Kernel kernel = Kernel::Mass)
 {
   // create sparsity pattern and allocate data
@@ -313,3 +316,4 @@ auto assemble_nedelec_mass_matrix(const std::shared_ptr<fem::FunctionSpace>& V)
 
   return A;
 }
+} // namespace dolfinx_cuas

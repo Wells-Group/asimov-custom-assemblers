@@ -1,11 +1,10 @@
-#include "assemble.hpp"
 #include "mass.h"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <dolfinx.h>
 #include <dolfinx/fem/petsc.h>
 #include <xtensor/xio.hpp>
-
+#include <dolfinx_cuas/assemble.hpp>
 using namespace dolfinx;
 
 int main(int argc, char* argv[])
@@ -45,7 +44,7 @@ int main(int argc, char* argv[])
       = fem::create_functionspace(functionspace_form_mass_a, "u", mesh);
 
   dolfinx::common::Timer t0("this");
-  auto A_csr = assemble_nedelec_mass_matrix<1>(V);
+  auto A_csr = dolfinx_cuas::assemble_nedelec_mass_matrix<1>(V);
   t0.stop();
 
   // Define variational forms

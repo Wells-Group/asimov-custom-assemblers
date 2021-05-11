@@ -166,7 +166,7 @@ def master_obstacle(x):
 # Locate facets on boundary of circle
 circ_facets = dolfinx.mesh.locate_entities_boundary(mesh, fdim, curved_contact)
 
-# Locate facets on boundary of rectanle
+# Locate facets on boundary of rectangle
 rect_facets = dolfinx.mesh.locate_entities_boundary(mesh, fdim, master_obstacle)
 
 
