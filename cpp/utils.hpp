@@ -1,5 +1,4 @@
 #include<dolfinx.h>
-#include<basix.h>
 
 namespace dolfinx_cuas {
 
