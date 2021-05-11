@@ -13,7 +13,6 @@ find_package(DOLFINX REQUIRED)
 find_package(Basix REQUIRED)
 find_package(xtensor REQUIRED)
 find_package(xtensor-blas REQUIRED)
-find_package(dolfinx_cuas REQUIRED)
 
 add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/mass.c)
 
