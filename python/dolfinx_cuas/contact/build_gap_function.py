@@ -24,8 +24,8 @@ def facet_master_puppet_relation(mesh, puppet_facets, candidate_facets, quadratu
     candidate_facets
         List of facets (local to process) that are the possible closest facets
     quadrature_degree
-        Integer (default: None) indicating if the search should include points on the facet (quadrature points of some order).
-        If None: search is only done at vertices
+        Integer (default: None) indicating if the search should include points on the 
+        facet (quadrature points of some order). If None: search is only done at vertices
     """
 
     # Mesh info
