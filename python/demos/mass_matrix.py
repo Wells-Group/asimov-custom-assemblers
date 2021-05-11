@@ -10,8 +10,8 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import ufl
-from dolfinx_assemblers import (assemble_matrix,
-                                compute_reference_mass_matrix, estimate_max_polynomial_degree)
+from dolfinx_cuas import (assemble_matrix,
+                          compute_reference_mass_matrix, estimate_max_polynomial_degree)
 from mpi4py import MPI
 
 if __name__ == "__main__":
