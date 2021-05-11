@@ -7,7 +7,7 @@ import dolfinx.geometry
 import dolfinx.io
 import gmsh
 import numpy as np
-from dolfinx_assemblers.contact import facet_master_puppet_relation
+from dolfinx_cuas.contact import facet_master_puppet_relation
 from dolfinx.cpp.io import perm_gmsh
 from dolfinx.cpp.mesh import to_type
 from dolfinx.io import (extract_gmsh_geometry,

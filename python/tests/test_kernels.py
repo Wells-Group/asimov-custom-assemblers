@@ -8,7 +8,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import ufl
 import ufl.algorithms
-from dolfinx_assemblers import (assemble_matrix, compute_reference_mass_matrix,
+from dolfinx_cuas import (assemble_matrix, compute_reference_mass_matrix,
                                 compute_reference_stiffness_matrix,
                                 compute_reference_surface_matrix,
                                 estimate_max_polynomial_degree)

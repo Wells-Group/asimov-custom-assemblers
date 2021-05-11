@@ -1,4 +1,4 @@
-name: Test custom assemblers
+name: Test C++ assemblers
 
 on:
   # Trigger tests on push

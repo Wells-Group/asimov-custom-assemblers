@@ -1,4 +1,4 @@
-name: Test custom assemblers
+name: Test Python assemblers
 
 on:
   # Trigger tests on push

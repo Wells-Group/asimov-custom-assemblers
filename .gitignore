@@ -132,3 +132,5 @@ dmypy.json
 
 **/build-dir
 core
+*.xdmf
+*.h5
