@@ -10,6 +10,7 @@ import numpy as np
 from dolfinx_cuas.contact import facet_master_puppet_relation
 from dolfinx.cpp.io import perm_gmsh
 from dolfinx.cpp.mesh import to_type
+from dolfinx_cuas.cpp import facet_master_puppet_relation as fmpr_cpp
 from dolfinx.io import (extract_gmsh_geometry,
                         extract_gmsh_topology_and_markers, ufl_mesh_from_gmsh)
 from dolfinx.mesh import create_mesh
@@ -175,7 +176,7 @@ rect_facets = dolfinx.mesh.locate_entities_boundary(mesh, fdim, master_obstacle)
 circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets, quadrature_degree=2)
 
 print(f"With quadrature eval: {circ_to_rect}")
-
+fmpr_cpp(mesh, rect_facets, circ_facets, 2)
 circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets)
 print(f"Without quadrature eval: {circ_to_rect}")
 
