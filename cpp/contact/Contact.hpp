@@ -23,6 +23,24 @@ public:
       : _marker(marker), _surface_0(surface_0), _surface_1(surface_1)
   {
   }
+
+  // Return map from surface 0 to 1
+  const std::shared_ptr<dolfinx::graph::AdjacencyList<std::int32_t>> map_0_to_1() const
+  {
+    return _map_0_to_1;
+  }
+  // Return map from surface 0 to 1
+  const std::shared_ptr<dolfinx::graph::AdjacencyList<std::int32_t>> map_1_to_0() const
+  {
+    return _map_1_to_0;
+  }
+
+  const int surface_0() const { return _surface_0; }
+  const int surface_1() const { return _surface_1; }
+  const int quadrature_degree() const { return _quadrature_degree; }
+
+  std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> meshtags() const { return _marker; }
+
   void facet_master_puppet_relation(int origin_meshtag)
   {
 
@@ -86,7 +104,7 @@ public:
       auto cell_tab = coordinate_element.tabulate(0, q_facet);
       phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
     }
-    std::cout << phi_facets << "\n";
+    // std::cout << phi_facets << "\n";
 
     auto mesh_geometry = mesh->geometry().x();
     auto cmap = mesh->geometry().cmap();
@@ -161,14 +179,22 @@ public:
       offset.push_back(data.size());
     }
 
-    for (int i = 0; i < offset.size() - 1; ++i)
+    if (origin_meshtag == 0)
     {
-      for (int j = offset[i]; j < offset[i + 1]; ++j)
-      {
-        std::cout << data[j] << " ";
-      }
-      std::cout << "\n";
+      _map_0_to_1 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
     }
+    else
+    {
+      _map_1_to_0 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
+    }
+    // for (int i = 0; i < offset.size() - 1; ++i)
+    // {
+    //   for (int j = offset[i]; j < offset[i + 1]; ++j)
+    //   {
+    //     std::cout << data[j] << " ";
+    //   }
+    //   std::cout << "\n";
+    // }
     return;
   }
 
