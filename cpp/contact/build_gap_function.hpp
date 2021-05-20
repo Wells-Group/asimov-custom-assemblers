@@ -97,7 +97,7 @@ void facet_master_puppet_relation(const std::shared_ptr<dolfinx::mesh::Mesh>& me
   for (auto facet : puppet_facets)
   {
     auto cells = f_to_c->links(facet);
-    assert(cells.size == 1);
+    assert(cells.size() == 1);
     auto cell = cells[0];
     auto x_dofs = x_dofmap.links(cell);
     auto facets = c_to_f->links(cell);
@@ -124,9 +124,10 @@ void facet_master_puppet_relation(const std::shared_ptr<dolfinx::mesh::Mesh>& me
     }
     offset.push_back(data.size());
   }
-
+  std::cout << "function" << std::endl;
   for (int i = 0; i < offset.size() - 1; ++i)
   {
+    std::cout << offset[i] << std::endl;
     for (int j = offset[i]; j < offset[i + 1]; ++j)
     {
       std::cout << data[j] << " ";
