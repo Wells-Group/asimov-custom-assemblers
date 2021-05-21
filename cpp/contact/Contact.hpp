@@ -88,7 +88,6 @@ public:
       auto q_facet = xt::view(_qp_ref_facet, i, xt::all(), xt::all());
       q_facet = xt::linalg::dot(phi_s, coords);
     }
-    return;
   }
 
   void tabulate_on_ref_cell()
@@ -113,7 +112,6 @@ public:
       auto cell_tab = coordinate_element.tabulate(0, q_facet);
       phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
     }
-    return;
   }
 
   void create_q_phys(int origin_meshtag)
@@ -187,7 +185,6 @@ public:
       cmap.push_forward(q_phys, coordinate_dofs, phi_facet);
       xt::view(*q_phys_pt, i, xt::all(), xt::all()) = q_phys;
     }
-    return;
   }
   void create_distance_map(int origin_meshtag)
   {
@@ -250,13 +247,10 @@ public:
     offset[0] = 0;
     for (int i = 0; i < puppet_facets.size(); ++i)
     {
-
       for (int j = 0; j < (*q_phys_pt).shape(1); ++j)
       {
         for (int k = 0; k < gdim; ++k)
-        {
           point[k] = (*q_phys_pt)(i, j, k);
-        }
         // Find initial search radius
         std::pair<int, double> intermediate_result
             = dolfinx::geometry::compute_closest_entity(master_midpoint_tree, point, *mesh);
@@ -268,13 +262,9 @@ public:
     }
 
     if (origin_meshtag == 0)
-    {
       _map_0_to_1 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
-    }
     else
-    {
       _map_1_to_0 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
-    }
 
     std::cout << "new class" << std::endl;
     for (int i = 0; i < offset.size() - 1; ++i)
