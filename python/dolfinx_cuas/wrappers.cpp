@@ -6,8 +6,6 @@
 #include "array.h"
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx_cuas/Contact.hpp>
-#include <dolfinx_cuas/build_gap_function.hpp>
-#include <dolfinx_cuas/utils.hpp>
 #include <iostream>
 #include <pybind11/functional.h>
 #include <pybind11/operators.h>
