@@ -57,4 +57,4 @@ target_link_libraries(dolfinx_cuas INTERFACE Basix::basix)
 
 # Installation of header-only DOLFINX_CUAS Library
 include(GNUInstallDirs)
-install(FILES CsrMatrix.hpp assemble.hpp utils.hpp ./contact/build_gap_function.hpp ./contact/Contact.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
+install(FILES CsrMatrix.hpp assemble.hpp  ./contact/Contact.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
