@@ -1,4 +1,4 @@
-# dolfinx_assemblers
+# dolfinx_cuas
 
 Python interface for custom assemblers using basix to tabulate basis functions and numba to assemble the matrix
 

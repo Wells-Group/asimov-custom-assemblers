@@ -1,22 +1,61 @@
+# Top level CMakeLists for custom assemblers
 cmake_minimum_required(VERSION 3.10)
 
-set(PROJECT_NAME custom-assembler)
-project(${PROJECT_NAME})
+# Set project name and version number
+project(DOLFINX_CUAS VERSION 0.1.0)
 
+#------------------------------------------------------------------------------
+# Set CMake options, see `cmake --help-policy CMP00xx`
+
+cmake_policy(VERSION 3.10)
+if (POLICY CMP0074)
+  cmake_policy(SET CMP0074 NEW)
+endif()
+if (POLICY CMP0075)
+  cmake_policy(SET CMP0075 NEW)
+endif()
+
+# Use C++17
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-Ofast -march=native -DNDEBUG ${CMAKE_CXX_FLAGS} -Wall")
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
+# Require C++17
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(DOLFINX REQUIRED)
-find_package(Basix REQUIRED)
+# Do not enable compler-specific extensions
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+#------------------------------------------------------------------------------
+# General configuration
+# Make sure CMake uses the correct DOLFINConfig.cmake for tests and demos
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${CMAKE_CURRENT_BINARY_DIR}/dolfinx_cuas)
+
+#------------------------------------------------------------------------------
+# configurable options for how we want to build
+
+include(FeatureSummary)
+
+option(BUILD_SHARED_LIBS "Build DOLFINX_CUAS with shared libraries." ON)
+add_feature_info(BUILD_SHARED_LIBS BUILD_SHARED_LIBS "Build DOLFINX_CUAS with shared libraries.")
+
+option(CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and installed rpath." ON)
+add_feature_info(CMAKE_INSTALL_RPATH_USE_LINK_PATH CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and installed rpath.")
+
+# Find packages
+find_package(DOLFINX 0.1.0 REQUIRED)
+find_package(Basix 0.1.0 REQUIRED)
 find_package(xtensor REQUIRED)
 find_package(xtensor-blas REQUIRED)
 
-add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/mass.c)
+feature_summary(WHAT ALL)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE dolfinx)
-target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${xtensor_INCLUDE_DIRS})
-target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${xtensor_blas_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${xtensor_blas_LIBRARY})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${LAPACK_LIBRARIES})
+# add_library(dolfinx_cuas "")
+
+add_library(dolfinx_cuas INTERFACE)
+
+# Basix
+target_link_libraries(dolfinx_cuas INTERFACE Basix::basix)
+
+# Installation of header-only DOLFINX_CUAS Library
+include(GNUInstallDirs)
+install(FILES dolfinx_cuas.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
+install(FILES CsrMatrix.hpp assemble.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
