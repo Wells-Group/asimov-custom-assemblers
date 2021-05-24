@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Set project name and version number
-project(DOLFINX_CUAS VERSION 0.1.0)
+project(DOLFINX_CUAS VERSION 0.1.1.0)
 
 #------------------------------------------------------------------------------
 # Set CMake options, see `cmake --help-policy CMP00xx`
@@ -41,8 +41,8 @@ option(CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and install
 add_feature_info(CMAKE_INSTALL_RPATH_USE_LINK_PATH CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and installed rpath.")
 
 # Find packages
-find_package(DOLFINX 0.1.0 REQUIRED)
-find_package(Basix 0.1.0 REQUIRED)
+find_package(DOLFINX 0.1.1.0 REQUIRED)
+find_package(Basix 0.1.1.0 REQUIRED)
 find_package(xtensor REQUIRED)
 find_package(xtensor-blas REQUIRED)
 

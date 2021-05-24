@@ -106,7 +106,7 @@ def mass_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool, bloc
         if needs_transformations:
             # Transpose phi before applying dof transformations (ndofs, nquadpoints)
             phi_ = phi.T.copy()
-            apply_dof_trans(e_transformations, e_dofs, phi_, num_q_points, perm_info[cell])
+            apply_dof_trans(e_transformations, e_dofs, phi_, perm_info[cell])
             # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
             phi_T = phi_.copy()
         else:
@@ -211,7 +211,7 @@ def stiffness_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool,
             for i in range(tdim):
                 # Reshape input as the transpose of the phi, i.e. (basis_function, quadrature_point)
                 dphidxi = dphi[i].T.copy()
-                apply_dof_trans(e_transformations, e_dofs, dphidxi, num_q_points, perm_info[cell])
+                apply_dof_trans(e_transformations, e_dofs, dphidxi, perm_info[cell])
                 dphi_i[i, :, :] = dphidxi
         else:
             for i in range(tdim):
@@ -361,7 +361,7 @@ def surface_kernel(data: np.array, ct: str, is_affine: bool, block_size: int, nu
         if needs_transformations:
             # Transpose phi before applying dof transformations (ndofs, nquadpoints)
             phi_ = phi[local_facet].T.copy()
-            apply_dof_trans(e_transformations, e_dofs, phi_, num_q_points, perm_info[cell])
+            apply_dof_trans(e_transformations, e_dofs, phi_, perm_info[cell])
             # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
             phi_T = phi_.copy()
         else:
