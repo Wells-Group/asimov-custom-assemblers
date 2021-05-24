@@ -41,8 +41,8 @@ option(CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and install
 add_feature_info(CMAKE_INSTALL_RPATH_USE_LINK_PATH CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and installed rpath.")
 
 # Find packages
-find_package(DOLFINX 0.1.1.0 REQUIRED)
-find_package(Basix 0.1.1.0 REQUIRED)
+find_package(DOLFINX 0.1.0 REQUIRED)
+find_package(Basix 0.1.0 REQUIRED)
 find_package(xtensor REQUIRED)
 find_package(xtensor-blas REQUIRED)
 
@@ -58,4 +58,4 @@ target_link_libraries(dolfinx_cuas INTERFACE Basix::basix)
 # Installation of header-only DOLFINX_CUAS Library
 include(GNUInstallDirs)
 install(FILES dolfinx_cuas.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
-install(FILES CsrMatrix.hpp assemble.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
+install(FILES kernels.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
