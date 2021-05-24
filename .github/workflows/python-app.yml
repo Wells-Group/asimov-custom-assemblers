@@ -1,4 +1,4 @@
-name: Test custom assemblers
+name: Test Python assemblers
 
 on:
   # Trigger tests on push
@@ -40,9 +40,9 @@ jobs:
 
       - name: Install FEniCS Python components (dolfinx)
         run: |
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build-basix -S ./basix
-          cmake --build build-basix
-          cmake --install build-basix
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build-dir -S ./basix
+          cmake --build build-dir
+          cmake --install build-dir
           python3 -m pip install ./basix/python
           python3 -m pip install git+https://github.com/FEniCS/ufl.git
           python3 -m pip install git+https://github.com/FEniCS/ffcx.git
@@ -60,16 +60,6 @@ jobs:
         run: |
           cmake --build build
           cmake --install build
-
-      - name: Install and run custom assemblers (C++)
-        run: |
-          cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer cpp/
-          ninja -C build-dir install
-          cd cpp/demo/
-          ffcx mass.ufl
-          cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer .
-          ninja -C build-dir
-          ./build-dir/custom-assembler
 
       - name: Build Python interface (dolfinx)
         run: python3 -m pip -v install ./dolfinx/python/
