@@ -80,8 +80,8 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
     J(2, 1) = dphi0_c(2, 0) * coordinate_dofs[1] + dphi0_c(2, 3) * coordinate_dofs[10];
     J(2, 2) = dphi0_c(2, 0) * coordinate_dofs[2] + dphi0_c(2, 3) * coordinate_dofs[11];
 
-    dolfinx::math::inv(J, K);
-    double detJ = std::fabs(dolfinx::math::det(J));
+    dolfinx_cuas::math::inv(J, K);
+    double detJ = std::fabs(dolfinx_cuas::math::det(J));
 
     // // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
@@ -126,8 +126,8 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
     J(2, 1) = dphi0_c(2, 0) * coordinate_dofs[1] + dphi0_c(2, 3) * coordinate_dofs[10];
     J(2, 2) = dphi0_c(2, 0) * coordinate_dofs[2] + dphi0_c(2, 3) * coordinate_dofs[11];
 
-    dolfinx::math::inv(J, K);
-    double detJ = std::fabs(dolfinx::math::det(J));
+    dolfinx_cuas::math::inv(J, K);
+    double detJ = std::fabs(dolfinx_cuas::math::det(J));
 
     // // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)

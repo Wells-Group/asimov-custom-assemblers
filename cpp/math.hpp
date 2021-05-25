@@ -8,7 +8,7 @@
 
 #include <cmath>
 
-namespace dolfinx::math
+namespace dolfinx_cuas::math
 {
 
 /// Kahan’s method to compute x = ad − bc with fused multiply-adds.
@@ -106,4 +106,4 @@ void inv(const U& A, V& B)
   }
 }
 
-} // namespace dolfinx::math
+} // namespace dolfinx_cuas::math
