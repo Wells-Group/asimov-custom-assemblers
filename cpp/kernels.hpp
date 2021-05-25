@@ -46,7 +46,7 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
   xt::xtensor<double, 2> dphi0_c
       = xt::round(xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0));
 
-  std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
+  std::int32_t ndofs_cell = phi.shape(2);
   xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
   xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
 
