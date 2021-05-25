@@ -1,8 +1,9 @@
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
-#include <dolfinx/common/math.h>
 #include <string>
 #include <xtensor-blas/xlinalg.hpp>
+
+#include "math.hpp"
 
 constexpr std::int32_t gdim = 3;
 constexpr std::int32_t tdim = 3;
