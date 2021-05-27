@@ -9,6 +9,7 @@
 #include <dolfinx/mesh/MeshTags.h>
 #include <iostream>
 #include <xtensor-blas/xlinalg.hpp>
+#include <xtensor/xindex_view.hpp>
 #include <xtl/xspan.hpp>
 
 namespace dolfinx_cuas
@@ -274,6 +275,51 @@ public:
       _map_0_to_1 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
     else
       _map_1_to_0 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
+
+    evaluate(origin_meshtag);
+  }
+
+  void evaluate(int origin_meshtag)
+  {
+    // Mesh info
+    auto mesh = _marker->mesh();             // mesh
+    const int gdim = mesh->geometry().dim(); // geometrical dimension
+    const int tdim = mesh->topology().dim();
+    const int fdim = tdim - 1;
+    auto mesh_geometry = mesh->geometry().x();
+    std::vector<int32_t>* puppet_facets;
+    std::shared_ptr<dolfinx::graph::AdjacencyList<std::int32_t>> map;
+    xt::xtensor<double, 3>* q_phys_pt;
+    if (origin_meshtag == 0)
+    {
+      puppet_facets = &_facet_0;
+      map = _map_0_to_1;
+      q_phys_pt = &_qp_phys_0;
+    }
+    else
+    {
+      puppet_facets = &_facet_1;
+      map = _map_1_to_0;
+      q_phys_pt = &_qp_phys_1;
+    }
+    std::cout << "dist c++ \n";
+    for (int i = 0; i < (*puppet_facets).size(); ++i)
+    {
+      auto links = map->links(i);
+      auto master_facet_geometry = dolfinx::mesh::entities_to_geometry(*mesh, fdim, links, false);
+
+      for (int j = 0; j < map->num_links(i); ++j)
+      {
+        xt::xtensor<double, 2> point = {{0, 0, 0}};
+        for (int k = 0; k < gdim; k++)
+          point(0, k) = (*q_phys_pt)(i, j, k);
+        auto master_facet = xt::view(master_facet_geometry, j, xt::all());
+        auto master_coords = xt::view(mesh_geometry, xt::keep(master_facet), xt::all());
+
+        auto dist_vec = dolfinx::geometry::compute_distance_gjk(master_coords, point);
+        std::cout << dist_vec << "\n";
+      }
+    }
   }
 
 private:

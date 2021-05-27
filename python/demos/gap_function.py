@@ -183,9 +183,9 @@ contact = cuas.Contact(mt, 1, 2)
 contact.create_distance_map(1)
 circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets, quadrature_degree=2)
 
-print(f"With quadrature eval: {circ_to_rect}")
+# print(f"With quadrature eval: {circ_to_rect}")
 circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets)
-print(f"Without quadrature eval: {circ_to_rect}")
+# print(f"Without quadrature eval: {circ_to_rect}")
 
 # Write contact facets to file (NOTE: Indicies has to be sorted)
 indices = np.asarray(np.hstack([np.asarray(list(circ_to_rect.keys())), np.hstack(
