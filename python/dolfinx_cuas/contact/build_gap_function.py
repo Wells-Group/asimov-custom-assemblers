@@ -85,6 +85,8 @@ def facet_master_puppet_relation(mesh, puppet_facets, candidate_facets, quadratu
             m_facets = []
             for geometry_index in vertex_x:
                 point = mesh_geometry[geometry_index].reshape(3,)
+                print("point")
+                print(point)
                 # Find initial search radius
                 potential_facet, R_init = dolfinx.geometry.compute_closest_entity(master_midpoint_tree, point, mesh)
                 # Find mesh entity
@@ -121,7 +123,6 @@ def facet_master_puppet_relation(mesh, puppet_facets, candidate_facets, quadratu
                 master_coords = mesh_geometry[master_facet_geometry][0]
                 # print(master_coords.shape)
                 # print(point.shape)
-                
                 dist_vec = dolfinx.geometry.compute_distance_gjk(master_coords, point)
                 print(dist_vec)
                 o_facets.append(master_facet)

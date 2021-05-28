@@ -51,7 +51,8 @@ public:
   {
     return _map_1_to_0;
   }
-
+  const std::vector<int32_t> facet_0() const { return _facet_0; }
+  const std::vector<int32_t> facet_1() const { return _facet_1; }
   // Return meshtag value for surface_0
   const int surface_0() const { return _surface_0; }
   // Return mestag value for suface_1
@@ -302,7 +303,7 @@ public:
       map = _map_1_to_0;
       q_phys_pt = &_qp_phys_1;
     }
-    std::cout << "dist c++ \n";
+    // std::cout << "dist c++ \n";
     for (int i = 0; i < (*puppet_facets).size(); ++i)
     {
       auto links = map->links(i);
@@ -317,7 +318,7 @@ public:
         auto master_coords = xt::view(mesh_geometry, xt::keep(master_facet), xt::all());
 
         auto dist_vec = dolfinx::geometry::compute_distance_gjk(master_coords, point);
-        std::cout << dist_vec << "\n";
+        // std::cout << dist_vec << "\n";
       }
     }
   }
