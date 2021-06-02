@@ -87,10 +87,13 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       double w0 = weights[q] * detJ;
+      
+      // Auxiliary data structure
       double d0[ndofs_cell];
       double d1[ndofs_cell];
       double d2[ndofs_cell];
-
+      
+      // precompute J^-1 * dphi in temporary array d
       for (int i = 0; i < ndofs_cell; i++)
       {
         d0[i] = K(0, 0) * _dphi(q, i, 0) + K(0, 1) * _dphi(q, i, 1) + K(0, 2) * _dphi(q, i, 2);
