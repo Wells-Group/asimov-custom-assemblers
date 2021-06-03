@@ -29,10 +29,12 @@ int main(int argc, char* argv[])
   auto a = std::make_shared<fem::Form<PetscScalar>>(
       fem::create_form<PetscScalar>(*form_mass_a, {V, V}, {}, {{"kappa", kappa}}, {}));
 
-  std::int32_t ncells = V->dofmap()->index_map->size_local();
-  std::vector<std::int32_t> active_cells(ncells);
-  std::iota(active_cells.begin(), active_cells.end(), 0);
+  // Define active cells
+  const std::int32_t tdim = mesh->topology().dim();
+  const std::int32_t ncells = mesh->topology().index_map(tdim)->size_local();
+  xt::xarray<std::int32_t> active_cells = xt::arange<std::int32_t>(0, ncells);
 
+  // Extract function space data
   std::shared_ptr<const fem::DofMap> dofmap0 = a->function_spaces().at(0)->dofmap();
   std::shared_ptr<const fem::DofMap> dofmap1 = a->function_spaces().at(1)->dofmap();
   const graph::AdjacencyList<std::int32_t>& dofs0 = dofmap0->list();
@@ -41,6 +43,8 @@ int main(int argc, char* argv[])
   const int bs1 = dofmap1->bs();
   std::vector<bool> bc0;
   std::vector<bool> bc1;
+
+  // Pack constants and coefficients
   const std::vector<double> constants = dolfinx::fem::pack_constants(*a);
   const array2d<double> coeffs = dolfinx::fem::pack_coefficients(*a);
 
