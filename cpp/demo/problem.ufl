@@ -10,4 +10,4 @@ u = TrialFunction(V)
 v = TestFunction(V)
 f = Coefficient(V)
 kappa = Constant(mesh)
-a = kappa * inner(u, v) * dx
+a = kappa * inner(grad(u), grad(v)) * dx

@@ -50,8 +50,7 @@ auto det(const Matrix& A)
     return w4;
   }
   default:
-    throw std::runtime_error("math::det is not implemented for "
-                             + std::to_string(A.shape(0)) + "x"
+    throw std::runtime_error("math::det is not implemented for " + std::to_string(A.shape(0)) + "x"
                              + std::to_string(A.shape(1)) + " matrices.");
   }
 }
@@ -100,10 +99,22 @@ void inv(const U& A, V& B)
     break;
   }
   default:
-    throw std::runtime_error("math::inv is not implemented for "
-                             + std::to_string(A.shape(0)) + "x"
+    throw std::runtime_error("math::inv is not implemented for " + std::to_string(A.shape(0)) + "x"
                              + std::to_string(A.shape(1)) + " matrices.");
   }
+}
+
+template <typename U, typename V, typename P>
+void compute_jacobian(const U& dphi, const V& coords, P& J)
+{
+  // J [gdim, tdim]
+  // coords [d, gdim]
+  // dphi [tdim, d]
+  assert(J.shape(0) == coords.shape(1));
+  assert(J.shape(1) == dphi.shape(0));
+  assert(dphi.shape(1) == coords.shape(0));
+
+  J = xt::transpose(xt::linalg::dot(dphi, coords));
 }
 
 } // namespace dolfinx_cuas::math

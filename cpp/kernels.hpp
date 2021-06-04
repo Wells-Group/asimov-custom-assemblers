@@ -46,10 +46,7 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
 
   xt::xtensor<double, 2> dphi0_c
       = xt::round(xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0));
-
-  std::int32_t ndofs_cell = phi.shape(2);
-  xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-  xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
+  std::int32_t ndofs_cell = phi.shape(1);
 
   // Stiffness Matrix using quadrature formulation
   // =====================================================================================
@@ -61,38 +58,35 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
         _dphi(q, i, k) = dphi(k, q, i);
 
   kernel_fn stiffness
-      = [dphi0_c, _dphi, weights,
-         ndofs_cell](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                     const int* entity_local_index, const std::uint8_t* quadrature_permutation,
-                     const std::uint32_t cell_permutation)
+      = [dphi0_c, _dphi, phi, weights](double* A, const double* c, const double* w,
+                                       const double* coordinate_dofs, const int* entity_local_index,
+                                       const std::uint8_t* quadrature_permutation,
+                                       const std::uint32_t cell_permutation)
   {
-    // Compute local matrix
-    xt::xtensor_fixed<double, xt::fixed_shape<gdim, tdim>> J;
-    xt::xtensor_fixed<double, xt::fixed_shape<tdim, gdim>> K;
+    // Get geometrical data
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
+    std::array<std::size_t, 2> shape = {d, gdim};
+    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
 
-    J(0, 0) = dphi0_c(0, 0) * coordinate_dofs[0] + dphi0_c(0, 1) * coordinate_dofs[3];
-    J(0, 1) = dphi0_c(0, 0) * coordinate_dofs[1] + dphi0_c(0, 1) * coordinate_dofs[4];
-    J(0, 2) = dphi0_c(0, 0) * coordinate_dofs[2] + dphi0_c(0, 1) * coordinate_dofs[5];
-    J(1, 0) = dphi0_c(1, 0) * coordinate_dofs[0] + dphi0_c(1, 2) * coordinate_dofs[6];
-    J(1, 1) = dphi0_c(1, 0) * coordinate_dofs[1] + dphi0_c(1, 2) * coordinate_dofs[7];
-    J(1, 2) = dphi0_c(1, 0) * coordinate_dofs[2] + dphi0_c(1, 2) * coordinate_dofs[8];
-    J(2, 0) = dphi0_c(2, 0) * coordinate_dofs[0] + dphi0_c(2, 3) * coordinate_dofs[9];
-    J(2, 1) = dphi0_c(2, 0) * coordinate_dofs[1] + dphi0_c(2, 3) * coordinate_dofs[10];
-    J(2, 2) = dphi0_c(2, 0) * coordinate_dofs[2] + dphi0_c(2, 3) * coordinate_dofs[11];
-
+    // Compute Jacobian, its inverse and the determinant
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     dolfinx_cuas::math::inv(J, K);
     double detJ = std::fabs(dolfinx_cuas::math::det(J));
 
-    // // Main loop
+    // Get number of dofs per cell
+    std::int32_t ndofs_cell = phi.shape(1);
+
+    // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       double w0 = weights[q] * detJ;
-      
+
       // Auxiliary data structure
       double d0[ndofs_cell];
       double d1[ndofs_cell];
       double d2[ndofs_cell];
-      
+
       // precompute J^-1 * dphi in temporary array d
       for (int i = 0; i < ndofs_cell; i++)
       {
@@ -115,24 +109,19 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
                        const int* entity_local_index, const std::uint8_t* quadrature_permutation,
                        const std::uint32_t cell_permutation)
   {
-    // Compute local matrix
-    xt::xtensor_fixed<double, xt::fixed_shape<gdim, tdim>> J;
-    xt::xtensor_fixed<double, xt::fixed_shape<tdim, gdim>> K;
+    // Get geometrical data
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    std::array<std::size_t, 2> shape = {d, gdim};
+    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
 
-    J(0, 0) = dphi0_c(0, 0) * coordinate_dofs[0] + dphi0_c(0, 1) * coordinate_dofs[3];
-    J(0, 1) = dphi0_c(0, 0) * coordinate_dofs[1] + dphi0_c(0, 1) * coordinate_dofs[4];
-    J(0, 2) = dphi0_c(0, 0) * coordinate_dofs[2] + dphi0_c(0, 1) * coordinate_dofs[5];
-    J(1, 0) = dphi0_c(1, 0) * coordinate_dofs[0] + dphi0_c(1, 2) * coordinate_dofs[6];
-    J(1, 1) = dphi0_c(1, 0) * coordinate_dofs[1] + dphi0_c(1, 2) * coordinate_dofs[7];
-    J(1, 2) = dphi0_c(1, 0) * coordinate_dofs[2] + dphi0_c(1, 2) * coordinate_dofs[8];
-    J(2, 0) = dphi0_c(2, 0) * coordinate_dofs[0] + dphi0_c(2, 3) * coordinate_dofs[9];
-    J(2, 1) = dphi0_c(2, 0) * coordinate_dofs[1] + dphi0_c(2, 3) * coordinate_dofs[10];
-    J(2, 2) = dphi0_c(2, 0) * coordinate_dofs[2] + dphi0_c(2, 3) * coordinate_dofs[11];
-
-    dolfinx_cuas::math::inv(J, K);
+    // Compute Jacobian, its inverse and the determinant
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     double detJ = std::fabs(dolfinx_cuas::math::det(J));
 
-    // // Main loop
+    // Get number of dofs per cell
+    std::int32_t ndofs_cell = phi.shape(1);
+
+    // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       double w0 = weights[q] * detJ;
