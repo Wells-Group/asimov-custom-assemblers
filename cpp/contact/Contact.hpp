@@ -1,3 +1,4 @@
+#include "../math.hpp"
 #include <basix/cell.h>
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
@@ -11,6 +12,9 @@
 #include <xtensor-blas/xlinalg.hpp>
 #include <xtensor/xindex_view.hpp>
 #include <xtl/xspan.hpp>
+
+using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
+                                     const int*, const std::uint8_t*, const std::uint32_t)>;
 
 namespace dolfinx_cuas
 {
@@ -94,8 +98,8 @@ public:
     auto ref_geom = basix::cell::geometry(basix_cell);
 
     // Create facet quadrature points
-    auto quadrature_points
-        = basix::quadrature::make_quadrature("default", basix_facet, _quadrature_degree).first;
+    auto [quadrature_points, weights]
+        = basix::quadrature::make_quadrature("default", basix_facet, _quadrature_degree);
 
     // Create basix surface element and tabulate basis functions
     auto surface_element = basix::create_element("Lagrange", dolfinx_facet_str, degree);
@@ -106,6 +110,7 @@ public:
     const std::uint32_t num_facets = facet_topology.size();
     const std::uint32_t num_quadrature_pts = quadrature_points.shape(0);
     _qp_ref_facet = xt::xtensor<double, 3>({num_facets, num_quadrature_pts, ref_geom.shape(1)});
+    _qw_ref_facet = std::vector<double>(weights);
     for (int i = 0; i < num_facets; ++i)
     {
       auto facet = facet_topology[i];
@@ -323,6 +328,70 @@ public:
     }
   }
 
+  kernel_fn generate_surface_kernel(int origin_meshtag, double gamma, double theta,
+                                    std::vector<double> n_2)
+  {
+    // Starting with implementing the following term in Jacobian:
+    // u*v*ds
+    // Mesh info
+    auto mesh = _marker->mesh();             // mesh
+    const int gdim = mesh->geometry().dim(); // geometrical dimension
+    const int tdim = mesh->topology().dim(); // topological dimension
+    const int fdim = tdim - 1;               // topological dimesnion of facet
+    // FIXME: Need basix element public in mesh
+    // auto degree = mesh->geometry().cmap()._element->degree;
+    int degree = 1; // element degree
+
+    auto dolfinx_cell = mesh->topology().cell_type(); // doffinx cell type
+    auto basix_cell
+        = basix::cell::str_to_type(dolfinx::mesh::to_string(dolfinx_cell)); // basix cell type
+    auto dolfinx_facet
+        = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim);        // dolfinx facet cell type
+    auto dolfinx_facet_str = dolfinx::mesh::to_string(dolfinx_facet); // facet cell type as string
+    auto basix_facet = basix::cell::str_to_type(dolfinx_facet_str);   // basix facet cell type
+
+    // Create facet quadrature points
+    auto quadrature_points
+        = basix::quadrature::make_quadrature("default", basix_facet, _quadrature_degree).first;
+
+    auto surface_element = basix::create_element("Lagrange", dolfinx_facet_str, degree);
+    auto c_tab = surface_element.tabulate(1, quadrature_points);
+    xt::xtensor<double, 2> dphi0_c
+        = xt::round(xt::view(c_tab, xt::range(1, tdim + 1), 0, xt::all(), 0));
+    kernel_fn surface
+        = [dphi0_c, gdim, tdim, fdim,
+           this](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                 const int* entity_local_index, const std::uint8_t* quadrature_permutation,
+                 const std::uint32_t cell_permutation)
+    {
+      // Compute Jacobian at each quadrature point
+      xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
+      xt::xtensor<double, 2> K = xt::zeros<double>({fdim, gdim});
+      // TODO: In kernels hpp 4 is given as a const expr d. What does this mean?
+      std::array<std::size_t, 2> shape = {4, gdim};
+      xt::xtensor<double, 2> coord
+          = xt::adapt(coordinate_dofs, gdim * 4, xt::no_ownership(), shape);
+      dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+      double detJ = std::fabs(dolfinx_cuas::math::det(J));
+      // Get number of dofs per cell
+      std::int32_t ndofs_cell = _phi_ref_facets.shape(2);
+      // Main loop
+      for (std::size_t q = 0; q < _qw_ref_facet.size(); q++)
+      {
+        double w0 = _qw_ref_facet[q] * detJ;
+        for (int i = 0; i < ndofs_cell; i++)
+        {
+          double w1 = w0 * _phi_ref_facets(*entity_local_index, q, i);
+          for (int j = 0; j < ndofs_cell; j++)
+          {
+            A[i * ndofs_cell + j] += w1 * _phi_ref_facets(*entity_local_index, q, j);
+          }
+        }
+      }
+    };
+    return surface;
+  }
+
 private:
   int _quadrature_degree = 3;
   std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> _marker;
@@ -341,6 +410,8 @@ private:
   xt::xtensor<double, 3> _qp_phys_1;
   // quadrature points on reference facet
   xt::xtensor<double, 3> _qp_ref_facet;
+  // quadrature weights
+  std::vector<double> _qw_ref_facet;
   // quadrature points on facets of reference cell
   xt::xtensor<double, 3> _phi_ref_facets;
   // facets in surface 0
