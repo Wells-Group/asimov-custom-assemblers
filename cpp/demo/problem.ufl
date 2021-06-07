@@ -1,0 +1,13 @@
+cell_type = tetrahedron
+degree = 1
+
+element = FiniteElement("Lagrange", cell_type, degree)
+mesh = Mesh(VectorElement("Lagrange", cell_type, 1))
+
+V = FunctionSpace(mesh, element)
+
+u = TrialFunction(V)
+v = TestFunction(V)
+f = Coefficient(V)
+kappa = Constant(mesh)
+a = kappa * inner(grad(u), grad(v)) * dx

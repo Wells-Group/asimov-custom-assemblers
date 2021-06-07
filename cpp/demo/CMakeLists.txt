@@ -5,7 +5,7 @@ set(PROJECT_NAME custom-assembler)
 project(${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-Ofast -march=native -DNDEBUG ${CMAKE_CXX_FLAGS} -Wall")
+set(CMAKE_CXX_FLAGS "-Ofast -march=native ${CMAKE_CXX_FLAGS} -Wall")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
 
@@ -14,7 +14,7 @@ find_package(Basix REQUIRED)
 find_package(xtensor REQUIRED)
 find_package(xtensor-blas REQUIRED)
 
-add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/mass.c)
+add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/problem.c)
 
 
 target_link_directories(${PROJECT_NAME} PRIVATE dolfinx_cuas)
