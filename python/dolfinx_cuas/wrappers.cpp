@@ -5,7 +5,7 @@
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 #include "array.h"
 #include <dolfinx/mesh/MeshTags.h>
-#include <dolfinx_cuas/Contact.hpp>
+#include <dolfinx_cuas/contact/Contact.hpp>
 #include <iostream>
 #include <pybind11/functional.h>
 #include <pybind11/operators.h>
@@ -29,8 +29,9 @@ PYBIND11_MODULE(cpp, m)
 #endif
   py::class_<dolfinx_cuas::contact::Contact, std::shared_ptr<dolfinx_cuas::contact::Contact>>(
       m, "Contact", "Contact object")
-      .def(py::init<std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>>, int, int>(),
-           py::arg("marker"), py::arg("suface_0"), py::arg("surface_1"))
+      .def(py::init<std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>>, int, int,
+                    std::shared_ptr<dolfinx::fem::FunctionSpace>>(),
+           py::arg("marker"), py::arg("suface_0"), py::arg("surface_1"), py::arg("V"))
       .def("create_distance_map",
            [](dolfinx_cuas::contact::Contact& self, int origin_meshtag)
            {

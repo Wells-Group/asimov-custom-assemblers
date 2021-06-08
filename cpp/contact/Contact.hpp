@@ -329,8 +329,8 @@ public:
     }
   }
 
-  kernel_fn generate_surface_kernel(int origin_meshtag, double gamma, double theta,
-                                    std::vector<double> n_2)
+  kernel_fn generate_surface_kernel(
+      int origin_meshtag) //, double gamma, double theta, std::vector<double> n_2)
   {
     // Starting with implementing the following term in Jacobian:
     // u*v*ds

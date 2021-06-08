@@ -1,0 +1,3 @@
+set(HEADERS_contact
+  ${CMAKE_CURRENT_SOURCE_DIR}/Contact.hpp
+  PARENT_SCOPE)

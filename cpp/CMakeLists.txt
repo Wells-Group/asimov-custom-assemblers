@@ -47,9 +47,9 @@ find_package(xtensor REQUIRED)
 find_package(xtensor-blas REQUIRED)
 
 feature_summary(WHAT ALL)
-
+# include_directories(contact contact/Contact.hpp)
+add_subdirectory(contact)
 # add_library(dolfinx_cuas "")
-
 add_library(dolfinx_cuas INTERFACE)
 
 # Basix
@@ -57,5 +57,5 @@ target_link_libraries(dolfinx_cuas INTERFACE Basix::basix)
 
 # Installation of header-only DOLFINX_CUAS Library
 include(GNUInstallDirs)
-install(FILES dolfinx_cuas.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
-install(FILES kernels.hpp  math.hpp ./contact/Contact.hpp  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
+install(FILES kernels.hpp  math.hpp  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
+install(FILES contact/Contact.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas/contact COMPONENT Development)

@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cmath>
+#include <xtensor-blas/xlinalg.hpp>
 
 namespace dolfinx_cuas::math
 {
