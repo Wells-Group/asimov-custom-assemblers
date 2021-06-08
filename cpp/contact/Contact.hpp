@@ -28,8 +28,8 @@ public:
   /// @param[in] surface_0 Value of the meshtag marking the first surface
   /// @param[in] surface_1 Value of the meshtag marking the first surface
   Contact(std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> marker, int surface_0,
-          int surface_1)
-      : _marker(marker), _surface_0(surface_0), _surface_1(surface_1)
+          int surface_1, std::shared_ptr<dolfinx::fem::FunctionSpace> V)
+      : _marker(marker), _surface_0(surface_0), _surface_1(surface_1), _V(V)
   {
     // Extract facets in _surface_0 and _surface_1. Store in _facet_1 and _facet_2
     for (int i = 0; i < _marker->indices().size(); ++i)
@@ -121,31 +121,25 @@ public:
   }
   /// Tabulatethe basis function at the quadrature points _qp_ref_facet
   /// creates and fills _phi_ref_facets
-  void tabulate_on_ref_cell()
+  xt::xtensor<double, 3> tabulate_on_ref_cell(basix::FiniteElement element)
   {
-    // Create coordinate element
-    // FIXME: For higher order geometry need basix element public in mesh
-    // auto degree = mesh->geometry().cmap()._element->degree;
-    int degree = 1;
-    auto dolfinx_cell = _marker->mesh()->topology().cell_type();
-    auto coordinate_element
-        = basix::create_element("Lagrange", dolfinx::mesh::to_string(dolfinx_cell), degree);
 
     // Create _phi_ref_facets
     std::uint32_t num_facets = _qp_ref_facet.shape(0);
     std::uint32_t num_quadrature_pts = _qp_ref_facet.shape(1);
-    std::uint32_t num_local_dofs = coordinate_element.dim();
-    _phi_ref_facets = xt::xtensor<double, 3>({num_facets, num_quadrature_pts, num_local_dofs});
+    std::uint32_t num_local_dofs = element.dim();
+    xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, num_local_dofs});
 
     // Tabulate basis functions at quadrature points _qp_ref_facet for each facet of the referenec
     // cell. Fill _phi_ref_facets
     for (int i = 0; i < num_facets; ++i)
     {
-      auto phi_i = xt::view(_phi_ref_facets, i, xt::all(), xt::all());
+      auto phi_i = xt::view(phi, i, xt::all(), xt::all());
       auto q_facet = xt::view(_qp_ref_facet, i, xt::all(), xt::all());
-      auto cell_tab = coordinate_element.tabulate(0, q_facet);
+      auto cell_tab = element.tabulate(0, q_facet);
       phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
     }
+    return phi;
   }
 
   /// Compute push forward of quadrature points _qp_ref_facet to the physical facet for
@@ -221,8 +215,15 @@ public:
   {
     // Create _qp_ref_facet (quadrature points on reference facet)
     create_reference_facet_qp();
-    // Tabulate basis function on reference cell (_phi_ref_facets)
-    tabulate_on_ref_cell();
+    // Tabulate basis function on reference cell (_phi_ref_facets)// Create coordinate element
+    // FIXME: For higher order geometry need basix element public in mesh
+    // auto degree = mesh->geometry().cmap()._element->degree;
+    int degree = 1;
+    auto dolfinx_cell = _marker->mesh()->topology().cell_type();
+    auto coordinate_element
+        = basix::create_element("Lagrange", dolfinx::mesh::to_string(dolfinx_cell), degree);
+
+    _phi_ref_facets = tabulate_on_ref_cell(coordinate_element);
     // Compute quadrature points on physical facet _qp_phys_"origin_meshtag"
     create_q_phys(origin_meshtag);
 
@@ -358,8 +359,22 @@ public:
     auto c_tab = surface_element.tabulate(1, quadrature_points);
     xt::xtensor<double, 2> dphi0_c
         = xt::round(xt::view(c_tab, xt::range(1, tdim + 1), 0, xt::all(), 0));
+    std::uint32_t num_facets = _qp_ref_facet.shape(0);
+    std::uint32_t num_quadrature_pts = _qp_ref_facet.shape(1);
+    std::shared_ptr<const dolfinx::fem::FiniteElement> element = _V->element();
+    std::uint32_t num_local_dofs = element->space_dimension();
+    xt::xtensor<double, 4> phi({num_facets, num_quadrature_pts, num_local_dofs, 1});
+    xt::xtensor<double, 3> cell_tab({num_quadrature_pts, num_local_dofs, 1});
+    for (int i = 0; i < num_facets; ++i)
+    {
+      auto phi_i = xt::view(phi, i, xt::all(), xt::all(), xt::all());
+      auto q_facet = xt::view(_qp_ref_facet, i, xt::all(), xt::all());
+      element->evaluate_reference_basis(cell_tab, q_facet);
+      phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
+    }
+
     kernel_fn surface
-        = [dphi0_c, gdim, tdim, fdim,
+        = [dphi0_c, phi, gdim, tdim, fdim,
            this](double* A, const double* c, const double* w, const double* coordinate_dofs,
                  const int* entity_local_index, const std::uint8_t* quadrature_permutation,
                  const std::uint32_t cell_permutation)
@@ -368,23 +383,22 @@ public:
       xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
       xt::xtensor<double, 2> K = xt::zeros<double>({fdim, gdim});
       // TODO: In kernels hpp 4 is given as a const expr d. What does this mean?
-      std::array<std::size_t, 2> shape = {4, gdim};
-      xt::xtensor<double, 2> coord
-          = xt::adapt(coordinate_dofs, gdim * 4, xt::no_ownership(), shape);
+      std::array<std::size_t, 2> shape = {4, 3};
+      xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, 3 * 4, xt::no_ownership(), shape);
       dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
       double detJ = std::fabs(dolfinx_cuas::math::det(J));
       // Get number of dofs per cell
-      std::int32_t ndofs_cell = _phi_ref_facets.shape(2);
+      std::int32_t ndofs_cell = phi.shape(2);
       // Main loop
-      for (std::size_t q = 0; q < _qw_ref_facet.size(); q++)
+      for (std::size_t q = 0; q < phi.shape(1); q++)
       {
         double w0 = _qw_ref_facet[q] * detJ;
         for (int i = 0; i < ndofs_cell; i++)
         {
-          double w1 = w0 * _phi_ref_facets(*entity_local_index, q, i);
+          double w1 = w0 * phi(*entity_local_index, q, i, 0);
           for (int j = 0; j < ndofs_cell; j++)
           {
-            A[i * ndofs_cell + j] += w1 * _phi_ref_facets(*entity_local_index, q, j);
+            A[i * ndofs_cell + j] += w1 * phi(*entity_local_index, q, j, 0);
           }
         }
       }
@@ -395,8 +409,9 @@ public:
 private:
   int _quadrature_degree = 3;
   std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> _marker;
-  int _surface_0; // meshtag value for surface 0
-  int _surface_1; // meshtag value for surface 1
+  int _surface_0;                                  // meshtag value for surface 0
+  int _surface_1;                                  // meshtag value for surface 1
+  std::shared_ptr<dolfinx::fem::FunctionSpace> _V; // Function space
 
   // Adjacency list of closest facet on surface_1 for every quadrature point in _qp_phys_0
   // (quadrature points on every facet of surface_0)
