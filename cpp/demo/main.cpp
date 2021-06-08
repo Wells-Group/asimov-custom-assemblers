@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
   // Matrix to be used with custom assembler
   la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
   MatZeroEntries(A.mat());
-  
+
   // Matrix to be used with custom DOLFINx/FFCx
   la::PETScMatrix B = la::PETScMatrix(fem::create_matrix(*a), false);
   MatZeroEntries(B.mat());
@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
   MatNorm(A.mat(), NORM_FROBENIUS, &normA);
 
   double normB;
-  MatNorm(A.mat(), NORM_FROBENIUS, &normB);
+  MatNorm(B.mat(), NORM_FROBENIUS, &normB);
 
   assert(xt::isclose(normA, normB));
 

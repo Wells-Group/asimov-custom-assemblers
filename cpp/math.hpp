@@ -8,10 +8,8 @@
 
 #include <cmath>
 #include <xtensor-blas/xlinalg.hpp>
-
-namespace dolfinx_cuas::math
+namespace
 {
-
 /// Kahan’s method to compute x = ad − bc with fused multiply-adds.
 /// The absolute error is bounded by 1.5 ulps, units of least precision.
 template <typename T>
@@ -22,7 +20,6 @@ inline T difference_of_products(T a, T b, T c, T d) noexcept
   T diff = std::fma(a, d, -w);
   return (diff + err);
 }
-
 /// Compute the determinant of a small matrix (1x1, 2x2, or 3x3).
 /// Tailored for use in computations using the Jacobian.
 template <typename Matrix>
@@ -53,6 +50,23 @@ auto det(const Matrix& A)
   default:
     throw std::runtime_error("math::det is not implemented for " + std::to_string(A.shape(0)) + "x"
                              + std::to_string(A.shape(1)) + " matrices.");
+  }
+}
+} // namespace
+namespace dolfinx_cuas::math
+{
+
+// Computes the determinant of rectangular matrices
+// det(A^T * A) = det(A) * det(A)
+template <typename Matrix>
+double compute_determinant(Matrix& A)
+{
+  if (A.shape(0) == A.shape(1))
+    return det(A);
+  else
+  {
+    auto ATA = xt::linalg::dot(xt::transpose(A), A);
+    return std::sqrt(det(ATA));
   }
 }
 

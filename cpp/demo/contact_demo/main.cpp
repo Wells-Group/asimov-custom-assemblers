@@ -37,12 +37,13 @@ int main(int argc, char* argv[])
       = fem::create_functionspace(functionspace_form_problem_a, "u", mesh);
   auto contact = dolfinx_cuas::contact::Contact(mt, 1, 1, V);
   contact.create_reference_facet_qp();
-  contact.generate_surface_kernel(0);
+  auto kernel = contact.generate_surface_kernel(0);
 
   // Define variational forms
   auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
   auto a = std::make_shared<fem::Form<PetscScalar>>(
-      fem::create_form<PetscScalar>(*form_problem_a, {V, V}, {}, {{"kappa", kappa}}, {}));
+      fem::create_form<PetscScalar>(*form_problem_a, {V, V}, {}, {{"kappa", kappa}},
+                                    {{dolfinx::fem::IntegralType::exterior_facet, &(*mt)}}));
 
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();
@@ -65,7 +66,7 @@ int main(int argc, char* argv[])
 
   auto cell_info = mesh->topology().get_cell_permutation_info();
 
-  auto kernel = dolfinx_cuas::generate_kernel("Lagrange", "tetrahedron", Kernel::Stiffness, 1);
+  // auto kernel = dolfinx_cuas::generate_kernel("Lagrange", "tetrahedron", Kernel::Stiffness, 1);
 
   // Matrix to be used with custom assembler
   la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
@@ -74,16 +75,18 @@ int main(int argc, char* argv[])
   // Matrix to be used with custom DOLFINx/FFCx
   la::PETScMatrix B = la::PETScMatrix(fem::create_matrix(*a), false);
   MatZeroEntries(B.mat());
-
+  const std::vector<std::uint8_t>& perms = mesh->topology().get_facet_permutations();
   common::Timer t0("~Assemble Matrix Custom");
-  dolfinx::fem::impl::assemble_cells<double>(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES),
-                                             mesh->geometry(), active_cells, dofs0, bs0, dofs1, bs1,
-                                             bc0, bc1, kernel, coeffs, constants, cell_info);
+  std::cout << "hello. Can you hear me??\n";
+  dolfinx::fem::impl::assemble_exterior_facets<double>(
+      la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), *mesh, left_facets, dofs0, bs0, dofs1,
+      bs1, bc0, bc1, kernel, coeffs, constants, cell_info, perms);
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();
 
   common::Timer t1("~Assemble Matrix DOLINFx/FFCx");
+  std::cout << "I'm so much better \n";
   dolfinx::fem::assemble_matrix(la::PETScMatrix::set_block_fn(B.mat(), ADD_VALUES), *a, {});
   MatAssemblyBegin(B.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
@@ -93,11 +96,11 @@ int main(int argc, char* argv[])
   MatNorm(A.mat(), NORM_FROBENIUS, &normA);
 
   double normB;
-  MatNorm(A.mat(), NORM_FROBENIUS, &normB);
-
+  MatNorm(B.mat(), NORM_FROBENIUS, &normB);
+  std::cout << "norm A: " << normA << ", normB: " << normB << "\n";
   assert(xt::isclose(normA, normB));
 
-  dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
+  //   dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
 
   return 0;
 }

@@ -363,15 +363,18 @@ public:
     std::uint32_t num_quadrature_pts = _qp_ref_facet.shape(1);
     std::shared_ptr<const dolfinx::fem::FiniteElement> element = _V->element();
     std::uint32_t num_local_dofs = element->space_dimension();
-    xt::xtensor<double, 4> phi({num_facets, num_quadrature_pts, num_local_dofs, 1});
+    xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, num_local_dofs});
     xt::xtensor<double, 3> cell_tab({num_quadrature_pts, num_local_dofs, 1});
     for (int i = 0; i < num_facets; ++i)
     {
-      auto phi_i = xt::view(phi, i, xt::all(), xt::all(), xt::all());
+      auto phi_i = xt::view(phi, i, xt::all(), xt::all());
       auto q_facet = xt::view(_qp_ref_facet, i, xt::all(), xt::all());
+      // std::cout << "i " << i << " q_facet: " << q_facet << "\n";
       element->evaluate_reference_basis(cell_tab, q_facet);
       phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
+      // std::cout << "phi_i: " << phi_i << "\n";
     }
+    // std::cout << "phi: " << phi << "\n";
 
     kernel_fn surface
         = [dphi0_c, phi, gdim, tdim, fdim,
@@ -383,22 +386,29 @@ public:
       xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
       xt::xtensor<double, 2> K = xt::zeros<double>({fdim, gdim});
       // TODO: In kernels hpp 4 is given as a const expr d. What does this mean?
-      std::array<std::size_t, 2> shape = {4, 3};
-      xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, 3 * 4, xt::no_ownership(), shape);
+      /// shape = {num dofs on surface element, gdim}
+      std::array<std::size_t, 2> shape = {3, gdim};
+      xt::xtensor<double, 2> coord
+          = xt::adapt(coordinate_dofs, 3 * gdim, xt::no_ownership(), shape);
       dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
-      double detJ = std::fabs(dolfinx_cuas::math::det(J));
+      double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
       // Get number of dofs per cell
       std::int32_t ndofs_cell = phi.shape(2);
       // Main loop
+      // std::cout << "phi2: " << phi << "\n";
       for (std::size_t q = 0; q < phi.shape(1); q++)
       {
         double w0 = _qw_ref_facet[q] * detJ;
+        // std::cout << "quadrature weight: " << _qw_ref_facet[q] << "det(J): " << detJ << "\n";
+
         for (int i = 0; i < ndofs_cell; i++)
         {
-          double w1 = w0 * phi(*entity_local_index, q, i, 0);
+          double w1 = w0 * phi(*entity_local_index, q, i);
+          // std::cout << "phi_i: " << phi(*entity_local_index, q, i, 0) << "\n";
+
           for (int j = 0; j < ndofs_cell; j++)
           {
-            A[i * ndofs_cell + j] += w1 * phi(*entity_local_index, q, j, 0);
+            A[i * ndofs_cell + j] += w1 * phi(*entity_local_index, q, j);
           }
         }
       }
