@@ -87,12 +87,12 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
       double d1[ndofs_cell];
       double d2[ndofs_cell];
 
-      // precompute J^-1 * dphi in temporary array d
+      // precompute J^-T * dphi in temporary array d
       for (int i = 0; i < ndofs_cell; i++)
       {
-        d0[i] = K(0, 0) * _dphi(q, i, 0) + K(0, 1) * _dphi(q, i, 1) + K(0, 2) * _dphi(q, i, 2);
-        d1[i] = K(1, 0) * _dphi(q, i, 0) + K(1, 1) * _dphi(q, i, 1) + K(1, 2) * _dphi(q, i, 2);
-        d2[i] = K(2, 0) * _dphi(q, i, 0) + K(2, 1) * _dphi(q, i, 1) + K(2, 2) * _dphi(q, i, 2);
+        d0[i] = K(0, 0) * _dphi(q, i, 0) + K(1, 0) * _dphi(q, i, 1) + K(2, 0) * _dphi(q, i, 2);
+        d1[i] = K(0, 1) * _dphi(q, i, 0) + K(1, 1) * _dphi(q, i, 1) + K(2, 1) * _dphi(q, i, 2);
+        d2[i] = K(0, 2) * _dphi(q, i, 0) + K(1, 2) * _dphi(q, i, 1) + K(2, 2) * _dphi(q, i, 2);
       }
 
       for (int i = 0; i < ndofs_cell; i++)

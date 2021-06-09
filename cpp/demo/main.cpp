@@ -29,6 +29,16 @@ int main(int argc, char* argv[])
   auto a = std::make_shared<fem::Form<PetscScalar>>(
       fem::create_form<PetscScalar>(*form_problem_a, {V, V}, {}, {{"kappa", kappa}}, {}));
 
+  // Matrix to be used with custom assembler
+  la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
+  MatZeroEntries(A.mat());
+
+  // Matrix to be used with custom DOLFINx/FFCx
+  la::PETScMatrix B = la::PETScMatrix(fem::create_matrix(*a), false);
+  MatZeroEntries(B.mat());
+
+  auto kernel = dolfinx_cuas::generate_kernel("Lagrange", "tetrahedron", Kernel::Stiffness, 1);
+
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();
   const std::int32_t ncells = mesh->topology().index_map(tdim)->size_local();
@@ -50,16 +60,6 @@ int main(int argc, char* argv[])
 
   auto cell_info = mesh->topology().get_cell_permutation_info();
 
-  auto kernel = dolfinx_cuas::generate_kernel("Lagrange", "tetrahedron", Kernel::Stiffness, 1);
-
-  // Matrix to be used with custom assembler
-  la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
-  MatZeroEntries(A.mat());
-  
-  // Matrix to be used with custom DOLFINx/FFCx
-  la::PETScMatrix B = la::PETScMatrix(fem::create_matrix(*a), false);
-  MatZeroEntries(B.mat());
-
   common::Timer t0("~Assemble Matrix Custom");
   dolfinx::fem::impl::assemble_cells<double>(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES),
                                              mesh->geometry(), active_cells, dofs0, bs0, dofs1, bs1,
@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
   MatNorm(A.mat(), NORM_FROBENIUS, &normA);
 
   double normB;
-  MatNorm(A.mat(), NORM_FROBENIUS, &normB);
+  MatNorm(B.mat(), NORM_FROBENIUS, &normB);
 
   assert(xt::isclose(normA, normB));
 
