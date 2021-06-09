@@ -369,12 +369,9 @@ public:
     {
       auto phi_i = xt::view(phi, i, xt::all(), xt::all());
       auto q_facet = xt::view(_qp_ref_facet, i, xt::all(), xt::all());
-      // std::cout << "i " << i << " q_facet: " << q_facet << "\n";
       element->evaluate_reference_basis(cell_tab, q_facet);
-      phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
-      // std::cout << "phi_i: " << phi_i << "\n";
+      phi_i = xt::view(cell_tab, xt::all(), xt::all(), 0);
     }
-    // std::cout << "phi: " << phi << "\n";
 
     kernel_fn surface
         = [dphi0_c, phi, gdim, tdim, fdim,
@@ -395,17 +392,13 @@ public:
       // Get number of dofs per cell
       std::int32_t ndofs_cell = phi.shape(2);
       // Main loop
-      // std::cout << "phi2: " << phi << "\n";
       for (std::size_t q = 0; q < phi.shape(1); q++)
       {
         double w0 = _qw_ref_facet[q] * detJ;
-        // std::cout << "quadrature weight: " << _qw_ref_facet[q] << "det(J): " << detJ << "\n";
 
         for (int i = 0; i < ndofs_cell; i++)
         {
           double w1 = w0 * phi(*entity_local_index, q, i);
-          // std::cout << "phi_i: " << phi(*entity_local_index, q, i, 0) << "\n";
-
           for (int j = 0; j < ndofs_cell; j++)
           {
             A[i * ndofs_cell + j] += w1 * phi(*entity_local_index, q, j);
