@@ -209,6 +209,9 @@ public:
     }
   }
 
+  // Return list of facets on side 0
+  std::vector<int32_t> facet_0() { return _facet_0; };
+
   /// Compute closest candidate_facet for each quadrature point in _qp_phys_"origin_meshtag"
   /// This is saved as an adjacency list _map_0_to_1 or _map_1_to_0
   void create_distance_map(int origin_meshtag)
