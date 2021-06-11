@@ -128,8 +128,9 @@ void compute_jacobian(const U& dphi, const V& coords, P& J)
   assert(J.shape(0) == coords.shape(1));
   assert(J.shape(1) == dphi.shape(0));
   assert(dphi.shape(1) == coords.shape(0));
-
+  std::cout << "all assertions pass \n";
   J = xt::transpose(xt::linalg::dot(dphi, coords));
+  std::cout << "yet the matrix multiplication fails somehow? \n";
 }
 
 } // namespace dolfinx_cuas::math

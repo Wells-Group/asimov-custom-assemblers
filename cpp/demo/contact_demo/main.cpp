@@ -81,6 +81,7 @@ int main(int argc, char* argv[])
   dolfinx::fem::impl::assemble_exterior_facets<double>(
       la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), *mesh, left_facets, dofs0, bs0, dofs1,
       bs1, bc0, bc1, kernel, coeffs, constants, cell_info, perms);
+  std::cout << "What on earth is going wrong? \n";
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();
