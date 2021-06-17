@@ -111,6 +111,7 @@ public:
     const std::uint32_t num_quadrature_pts = quadrature_points.shape(0);
     _qp_ref_facet = xt::xtensor<double, 3>({num_facets, num_quadrature_pts, ref_geom.shape(1)});
     _qw_ref_facet = std::vector<double>(weights);
+
     for (int i = 0; i < num_facets; ++i)
     {
       auto facet = facet_topology[i];
@@ -309,7 +310,7 @@ public:
       map = _map_1_to_0;
       q_phys_pt = &_qp_phys_1;
     }
-    // std::cout << "dist c++ \n";
+
     for (int i = 0; i < (*puppet_facets).size(); ++i)
     {
       auto links = map->links(i);
@@ -324,7 +325,6 @@ public:
         auto master_coords = xt::view(mesh_geometry, xt::keep(master_facet), xt::all());
 
         auto dist_vec = dolfinx::geometry::compute_distance_gjk(master_coords, point);
-        // std::cout << dist_vec << "\n";
       }
     }
   }
@@ -350,12 +350,7 @@ public:
         = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim);        // dolfinx facet cell type
     auto dolfinx_facet_str = dolfinx::mesh::to_string(dolfinx_facet); // facet cell type as string
     auto basix_facet = basix::cell::str_to_type(dolfinx_facet_str);   // basix facet cell type
-
-    // Connectivity to evaluate at quadrature points
-    mesh->topology_mutable().create_connectivity(fdim, tdim);
-    auto f_to_c = mesh->topology().connectivity(fdim, tdim);
-    mesh->topology_mutable().create_connectivity(tdim, fdim);
-    auto c_to_f = mesh->topology().connectivity(tdim, fdim);
+    auto facets = basix::cell::topology(basix_cell)[tdim - 1];
 
     // Create facet quadrature points
     auto quadrature_points
@@ -364,19 +359,31 @@ public:
     auto surface_element = basix::create_element("Lagrange", dolfinx_facet_str, degree);
     auto basix_element
         = basix::create_element("Lagrange", dolfinx::mesh::to_string(dolfinx_cell), degree);
-    auto c_tab = surface_element.tabulate(1, quadrature_points);
+
+    // tabulate on reference facet
+    auto f_tab = surface_element.tabulate(1, quadrature_points);
+    xt::xtensor<double, 2> dphi0_f
+        = xt::round(xt::view(f_tab, xt::range(1, tdim + 1), 0, xt::all(), 0));
+
+    // tabulate on reference cell
+    // not quite the right quadrature points if jacobian non-constant
+    auto qp_cell = xt::view(_qp_ref_facet, 0, xt::all(), xt::all());
+
+    auto c_tab = basix_element.tabulate(1, qp_cell);
     xt::xtensor<double, 2> dphi0_c
         = xt::round(xt::view(c_tab, xt::range(1, tdim + 1), 0, xt::all(), 0));
-    std::uint32_t num_facets = _qp_ref_facet.shape(0);
+
     std::uint32_t num_quadrature_pts = _qp_ref_facet.shape(1);
+    std::uint32_t num_facets = _qp_ref_facet.shape(0);
     std::shared_ptr<const dolfinx::fem::FiniteElement> element = _V->element();
     std::uint32_t num_local_dofs = element->space_dimension();
     xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, num_local_dofs});
     xt::xtensor<double, 4> dphi({num_facets, tdim, num_quadrature_pts, num_local_dofs});
     xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, num_local_dofs, 1});
     auto ref_jacobians = basix::cell::facet_jacobians(basix_cell);
-    std::cout << "shape of ref jacobians " << ref_jacobians.shape(0) << ", "
-              << ref_jacobians.shape(1) << ", " << ref_jacobians.shape(2) << "\n";
+    const xt::xtensor<double, 2> x = basix::cell::geometry(basix_cell);
+
+    // tabulate at quadrature points on facet
     for (int i = 0; i < num_facets; ++i)
     {
       auto phi_i = xt::view(phi, i, xt::all(), xt::all());
@@ -388,107 +395,72 @@ public:
     }
 
     kernel_fn surface
-        = [dphi0_c, phi, dphi, gdim, tdim, fdim, ref_jacobians, f_to_c, c_to_f,
+        = [facets, dphi0_f, dphi, gdim, tdim, fdim, dphi0_c,
            this](double* A, const double* c, const double* w, const double* coordinate_dofs,
                  const int* entity_local_index, const std::uint8_t* quadrature_permutation,
                  const std::uint32_t cell_permutation)
     {
-      std::cout << "I am here \n";
       // Compute Jacobian at each quadrature point: currently assumed to be constant...
-      xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
-      xt::xtensor<double, 2> K = xt::zeros<double>({fdim, gdim});
-      // xt::xtensor<double, 2> M = xt::zeros<double>({tdim, gdim});
+      xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
+      xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+      xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
+
       // TODO: In kernels hpp 4 is given as a const expr d. What does this mean?
       /// shape = {num dofs on surface element, gdim}
-      std::array<std::size_t, 2> shape = {3, gdim};
-      std::cout << "this should not break me\n";
+      std::array<std::size_t, 2> shape = {4, gdim};
       xt::xtensor<double, 2> coord
-          = xt::adapt(coordinate_dofs, 3 * gdim, xt::no_ownership(), shape);
-      std::cout << " and yet it does \n";
-      std::cout << dphi0_c << "\n";
-      std::cout << J << "\n";
-      std::cout << coord << "\n";
+          = xt::adapt(coordinate_dofs, 4 * gdim, xt::no_ownership(), shape);
+
+      dolfinx_cuas::math::compute_jacobian(
+          dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J_facet);
       dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
-      std::cout << "jacobian shape " << J.shape(0) << ", " << J.shape(1) << "\n";
-      double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
-      dolfinx_cuas::math::inv(J, K);
+      dolfinx_cuas::math::compute_inv(J, K);
 
       // Get number of dofs per cell
-      std::int32_t ndofs_cell = phi.shape(2);
+      std::int32_t ndofs_cell = dphi.shape(3);
 
-      // Get ref Jacobian
-      auto cells = f_to_c->links(*entity_local_index);
-      // since the facet is on the boundary it should only link to one cell
-      assert(cells.size() == 1);
-      auto cell = cells[0]; // extract cell
+      double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_facet));
 
-      // find local index of facet
-      auto facets = c_to_f->links(cell);
-      auto local_facet = std::find(facets.begin(), facets.end(), *entity_local_index);
-      const std::int32_t local_index = std::distance(facets.data(), local_facet);
-
-      auto ref_jacobian = xt::view(ref_jacobians, local_index, xt::all(), xt::all());
-      std::cout << "dimensions of ref Jac: " << ref_jacobian.shape(0) << ", "
-                << ref_jacobian.shape(1) << "\n";
-      std::cout << "gdim: " << gdim << ", fdim: " << fdim << "\n";
-      auto M = xt::linalg::dot(ref_jacobian, K);
-      std::cout << M << "\n";
-      // for (int i = 0; i < tdim; i++)
-      // {
-      //   for (int j = 0; j < gdim; j++)
-      //   {
-      //     for (int k = 0; k < fdim; k++)
-      //     {
-      //       M(i, j) += ref_jacobian(i, k) * K(k, j);
-      //     }
-      //   }
-      // }
-
-      xt::xtensor<double, 2> temp({tdim, ndofs_cell});
-      std::cout << "num quadrature points: " << phi.shape(1) << "\n";
+      xt::xtensor<double, 2> temp({gdim, ndofs_cell});
       // Main loop
-      for (std::size_t q = 0; q < phi.shape(1); q++)
+
+      for (std::size_t q = 0; q < dphi.shape(2); q++)
       {
-        double w0 = _qw_ref_facet[q] * detJ;
+        double w0 = _qw_ref_facet[q] * detJ; // * detJ / detJref;
 
         // precompute J^-T * dphi in temporary array temp
         for (int i = 0; i < ndofs_cell; i++)
         {
-          for (int j = 0; j < tdim; j++)
+
+          for (int j = 0; j < gdim; j++)
           {
             temp(j, i) = 0;
-            for (int k = 0; k < gdim; k++)
+            for (int k = 0; k < tdim; k++)
             {
-              std::cout << "q " << q << ", i " << i << ", j " << j << ", k " << k << "\n";
-              temp(j, i) += M(k, j) * dphi(q, j, i);
+              temp(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
             }
           }
-          // d0[i] = K(0, 0) * _dphi(q, i, 0) + K(1, 0) * _dphi(q, i, 1) + K(2, 0) * _dphi(q, i, 2);
-          // d1[i] = K(0, 1) * _dphi(q, i, 0) + K(1, 1) * _dphi(q, i, 1) + K(2, 1) * _dphi(q, i, 2);
-          // d2[i] = K(0, 2) * _dphi(q, i, 0) + K(1, 2) * _dphi(q, i, 1) + K(2, 2) * _dphi(q, i, 2);
         }
 
         for (int i = 0; i < ndofs_cell; i++)
         {
-          // double w1 = w0 * phi(*entity_local_index, q, i);
           for (int j = 0; j < ndofs_cell; j++)
           {
-            // A[i * ndofs_cell + j] += w1 * phi(*entity_local_index, q, j);
-            for (int k = 0; k < tdim; k++)
+
+            for (int k = 0; k < gdim; k++)
             {
               A[i * ndofs_cell + j] += temp(k, i) * temp(k, j) * w0;
             }
           }
         }
       }
-      std::cout << "The problem is further down in the code... \n";
     };
 
     return surface;
   }
 
 private:
-  int _quadrature_degree = 3;
+  int _quadrature_degree = 0;
   std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> _marker;
   int _surface_0;                                  // meshtag value for surface 0
   int _surface_1;                                  // meshtag value for surface 1

@@ -52,23 +52,6 @@ auto det(const Matrix& A)
                              + std::to_string(A.shape(1)) + " matrices.");
   }
 }
-} // namespace
-namespace dolfinx_cuas::math
-{
-
-// Computes the determinant of rectangular matrices
-// det(A^T * A) = det(A) * det(A)
-template <typename Matrix>
-double compute_determinant(Matrix& A)
-{
-  if (A.shape(0) == A.shape(1))
-    return det(A);
-  else
-  {
-    auto ATA = xt::linalg::dot(xt::transpose(A), A);
-    return std::sqrt(det(ATA));
-  }
-}
 
 /// Compute the inverse of a square matrix A and assign the result to a
 /// preallocated matrix B.
@@ -118,6 +101,42 @@ void inv(const U& A, V& B)
                              + std::to_string(A.shape(1)) + " matrices.");
   }
 }
+} // namespace
+namespace dolfinx_cuas::math
+{
+
+template <typename U, typename V>
+void compute_inv(const U& A, V& B)
+{
+  using value_type = typename U::value_type;
+  const int nrows = A.shape(0);
+  const int ncols = A.shape(1);
+  if (nrows == ncols)
+  {
+    inv(A, B);
+  }
+  else
+  {
+    auto ATA = xt::linalg::dot(xt::transpose(A), A);
+    xt::xtensor<value_type, 2> ATAinv = xt::zeros<value_type>({ncols, ncols});
+    inv(ATA, ATAinv);
+    B = xt::linalg::dot(ATAinv, xt::transpose(A));
+  }
+}
+
+// Computes the determinant of rectangular matrices
+// det(A^T * A) = det(A) * det(A)
+template <typename Matrix>
+double compute_determinant(Matrix& A)
+{
+  if (A.shape(0) == A.shape(1))
+    return det(A);
+  else
+  {
+    auto ATA = xt::linalg::dot(xt::transpose(A), A);
+    return std::sqrt(det(ATA));
+  }
+}
 
 template <typename U, typename V, typename P>
 void compute_jacobian(const U& dphi, const V& coords, P& J)
@@ -128,9 +147,7 @@ void compute_jacobian(const U& dphi, const V& coords, P& J)
   assert(J.shape(0) == coords.shape(1));
   assert(J.shape(1) == dphi.shape(0));
   assert(dphi.shape(1) == coords.shape(0));
-  std::cout << "all assertions pass \n";
   J = xt::transpose(xt::linalg::dot(dphi, coords));
-  std::cout << "yet the matrix multiplication fails somehow? \n";
 }
 
 } // namespace dolfinx_cuas::math

@@ -71,7 +71,7 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
 
     // Compute Jacobian, its inverse and the determinant
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
-    dolfinx_cuas::math::inv(J, K);
+    dolfinx_cuas::math::compute_inv(J, K);
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 
     // Get number of dofs per cell
