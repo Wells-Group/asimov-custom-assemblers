@@ -3,6 +3,7 @@
 #include <basix/quadrature.h>
 #include <dolfinx.h>
 #include <dolfinx/fem/petsc.h>
+#include <dolfinx/io/XDMFFile.h>
 #include <dolfinx/mesh/utils.h>
 #include <dolfinx_cuas/contact/Contact.hpp>
 #include <dolfinx_cuas/kernels.hpp>
@@ -14,28 +15,51 @@ int main(int argc, char* argv[])
 {
   common::subsystem::init_logging(argc, argv);
   common::subsystem::init_petsc(argc, argv);
+  int tag = 1;
 
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
-  std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {1, 1, 1},
-                                  mesh::CellType::tetrahedron, mesh::GhostMode::none));
+  //   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
+  //       generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {1, 1, 1},
+  //                                   mesh::CellType::tetrahedron, mesh::GhostMode::none));
+  auto xdmf = dolfinx::io::XDMFFile(mpi_comm, "mesh_3d.xdmf", "r");
 
+  auto cell_type = xdmf.read_cell_type("Grid");
+
+  //   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
+  //       xdmf.read_mesh(dolfinx::fem::CoordinateElement(cell_type.first, cell_type.second),
+  //                      mesh::GhostMode::none, "mesh"));
+  std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
+      xdmf.read_mesh(dolfinx::fem::CoordinateElement(cell_type.first, cell_type.second),
+                     mesh::GhostMode::none, "Grid"));
   mesh->topology().create_entity_permutations();
 
-  auto left_boundary
-      = [](auto& x) -> xt::xtensor<bool, 1> { return xt::isclose(xt::row(x, 0), 0.0); };
+  auto xdmf2 = dolfinx::io::XDMFFile(mpi_comm, "mesh_3d_facets.xdmf", "r");
+  //   std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> mt
+  //       = std::make_shared<dolfinx::mesh::MeshTags<std::int32_t>>(
+  //           xdmf.read_meshtags(mesh, "mesh_tags"));
+  std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> mt
+      = std::make_shared<dolfinx::mesh::MeshTags<std::int32_t>>(xdmf2.read_meshtags(mesh, "Grid"));
+  //   mesh->topology().create_entity_permutations();
 
-  std::vector<std::int32_t> left_facets
-      = dolfinx::mesh::locate_entities_boundary(*mesh, 2, left_boundary);
-  std::vector<std::int32_t> left_values(left_facets.size());
-  std::fill(left_values.begin(), left_values.end(), 1);
-  auto mt
-      = std::make_shared<dolfinx::mesh::MeshTags<std::int32_t>>(mesh, 2, left_facets, left_values);
+  //   auto left_boundary
+  //       = [](auto& x) -> xt::xtensor<bool, 1> { return xt::isclose(xt::row(x, 0), 0.0); };
 
+  //   std::vector<std::int32_t> left_facets
+  //       = dolfinx::mesh::locate_entities_boundary(*mesh, 2, left_boundary);
+  //   std::vector<std::int32_t> left_values(left_facets.size());
+  //   std::fill(left_values.begin(), left_values.end(), 1);
+  //   auto mt
+  //       = std::make_shared<dolfinx::mesh::MeshTags<std::int32_t>>(mesh, 2, left_facets,
+  //       left_values);
+
+  auto left_facets = mt->find(tag);
+
+  auto x_dofs = mesh->geometry().x();
+  auto coord = dolfinx::mesh::entities_to_geometry(*mesh, 2, left_facets, false);
   const std::shared_ptr<fem::FunctionSpace>& V
       = fem::create_functionspace(functionspace_form_problem_a, "u", mesh);
-  auto contact = dolfinx_cuas::contact::Contact(mt, 1, 1, V);
+  auto contact = dolfinx_cuas::contact::Contact(mt, tag, tag, V);
   contact.create_reference_facet_qp();
   auto kernel = contact.generate_surface_kernel(0);
 
@@ -66,7 +90,8 @@ int main(int argc, char* argv[])
 
   auto cell_info = mesh->topology().get_cell_permutation_info();
 
-  // auto kernel = dolfinx_cuas::generate_kernel("Lagrange", "tetrahedron", Kernel::Stiffness, 1);
+  // auto kernel = dolfinx_cuas::generate_kernel("Lagrange", "tetrahedron",
+  // Kernel::Stiffness, 1);
 
   // Matrix to be used with custom assembler
   la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
@@ -77,17 +102,14 @@ int main(int argc, char* argv[])
   MatZeroEntries(B.mat());
   const std::vector<std::uint8_t>& perms = mesh->topology().get_facet_permutations();
   common::Timer t0("~Assemble Matrix Custom");
-  std::cout << "hello. Can you hear me??\n";
   dolfinx::fem::impl::assemble_exterior_facets<double>(
       la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), *mesh, left_facets, dofs0, bs0, dofs1,
       bs1, bc0, bc1, kernel, coeffs, constants, cell_info, perms);
-  std::cout << "What on earth is going wrong? \n";
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();
 
   common::Timer t1("~Assemble Matrix DOLINFx/FFCx");
-  std::cout << "I'm so much better \n";
   dolfinx::fem::assemble_matrix(la::PETScMatrix::set_block_fn(B.mat(), ADD_VALUES), *a, {});
   MatAssemblyBegin(B.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
@@ -101,7 +123,7 @@ int main(int argc, char* argv[])
   std::cout << "norm A: " << normA << ", normB: " << normB << "\n";
   assert(xt::isclose(normA, normB));
 
-  //   dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
+  dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
 
   return 0;
 }
