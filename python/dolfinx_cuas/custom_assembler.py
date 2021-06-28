@@ -70,11 +70,11 @@ def assemble_matrix(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: 
     element = basix.create_element(family, ct, V.ufl_element().degree())
 
     # Extract data required for dof transformations
-    entity_transformations = Dict.empty(key_type=types.int64, value_type=types.float64[:, :])
-    for i, transformation in enumerate(element.entity_transformations()):
-        entity_transformations[i] = transformation
+    entity_transformations = Dict.empty(key_type=types.string, value_type=types.float64[:, :, :])
+    for key, value in element.entity_transformations().items():
+        entity_transformations[key] = value
     entity_dofs = Dict.empty(key_type=types.int64, value_type=types.int32[:])
-    for i, e_dofs in enumerate(element.entity_dofs):
+    for i, e_dofs in enumerate(element.num_entity_dofs):
         entity_dofs[i] = np.asarray(e_dofs, dtype=np.int32)
 
     mesh.topology.create_entity_permutations()

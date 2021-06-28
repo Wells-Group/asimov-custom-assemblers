@@ -53,17 +53,35 @@ int main(int argc, char* argv[])
   const int bs1 = dofmap1->bs();
   std::vector<bool> bc0;
   std::vector<bool> bc1;
+  std::shared_ptr<const fem::FiniteElement> element0 = a->function_spaces().at(0)->element();
+  std::shared_ptr<const fem::FiniteElement> element1 = a->function_spaces().at(1)->element();
+  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
+                           std::int32_t, int)>
+      apply_dof_transformation = element0->get_dof_transformation_function<double>();
+  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
+                           std::int32_t, int)>
+      apply_dof_transformation_to_transpose
+      = element1->get_dof_transformation_to_transpose_function<double>();
 
   // Pack constants and coefficients
   const std::vector<double> constants = dolfinx::fem::pack_constants(*a);
   const array2d<double> coeffs = dolfinx::fem::pack_coefficients(*a);
 
-  auto cell_info = mesh->topology().get_cell_permutation_info();
-
+  const bool needs_transformation_data = element0->needs_dof_transformations()
+                                         or element1->needs_dof_transformations()
+                                         or a->needs_facet_permutations();
+  xtl::span<const std::uint32_t> cell_info;
+  if (needs_transformation_data)
+  {
+    mesh->topology_mutable().create_entity_permutations();
+    cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
+  }
+  // auto cell_info = mesh->topology().get_cell_permutation_info();
   common::Timer t0("~Assemble Matrix Custom");
-  dolfinx::fem::impl::assemble_cells<double>(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES),
-                                             mesh->geometry(), active_cells, dofs0, bs0, dofs1, bs1,
-                                             bc0, bc1, kernel, coeffs, constants, cell_info);
+  dolfinx::fem::impl::assemble_cells<double>(
+      la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), mesh->geometry(), active_cells,
+      apply_dof_transformation, dofs0, bs0, apply_dof_transformation_to_transpose, dofs1, bs1, bc0,
+      bc1, kernel, coeffs, constants, cell_info);
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();
