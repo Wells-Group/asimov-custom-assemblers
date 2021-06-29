@@ -9,7 +9,7 @@ from numba.typed import Dict
 from .utils import compute_determinant, compute_inverse
 
 
-#@numba.njit(fastmath=True)
+@numba.njit(fastmath=True)
 def mass_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool, block_size: int, num_dofs_per_cell: int,
                 num_dofs_x: int, x_dofs: np.ndarray, x: np.ndarray, gdim: int, tdim: int,
                 q_p: np.ndarray, q_w: np.ndarray, c_tab: np.ndarray, phi: np.ndarray,
@@ -101,9 +101,6 @@ def mass_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool, bloc
                 Ai[blocks[b]] = kernel[i]
         # Add to csr matrix
         data[cell * entries_per_cell: (cell + 1) * entries_per_cell] = np.ravel(Ae)
-        np.set_printoptions(precision=9)
-        print("custom Ae ")
-        print(Ae)
 
 
 @numba.njit(fastmath=True)
