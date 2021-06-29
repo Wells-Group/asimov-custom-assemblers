@@ -4,6 +4,10 @@
 
 import numba
 import numpy as np
+from basix.numba_helpers import (apply_dof_transformation_hexahedron,
+                                 apply_dof_transformation_quadrilateral,
+                                 apply_dof_transformation_tetrahedron,
+                                 apply_dof_transformation_triangle)
 from numba.typed import Dict
 
 from .utils import compute_determinant, compute_inverse
@@ -65,6 +69,16 @@ def mass_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool, bloc
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
     num_q_points = q_w.size
+    if ct == "triangle":
+        apply_dof_trans = apply_dof_transformation_triangle
+    elif ct == "quadrilateral":
+        apply_dof_trans = apply_dof_transformation_quadrilateral
+    elif ct == "tetrahedron":
+        apply_dof_trans = apply_dof_transformation_tetrahedron
+    elif ct == "hexahedron":
+        apply_dof_trans = apply_dof_transformation_hexahedron
+    else:
+        assert(False)
     J_q = np.zeros((num_q_points, gdim, tdim), dtype=np.float64)
     detJ_q = np.zeros((num_q_points, 1), dtype=np.float64)
     dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
@@ -89,7 +103,14 @@ def mass_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool, bloc
                 compute_determinant(J_q[i], detJ)
                 detJ_q[i] = detJ[0]
 
-        phi_T = phi.T.copy()
+        if needs_transformations:
+            # Transpose phi before applying dof transformations (ndofs, nquadpoints)
+            phi_ = phi.T.copy()
+            apply_dof_trans(e_transformations, e_dofs, phi_, perm_info[cell])
+            # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
+            phi_T = phi_.copy()
+        else:
+            phi_T = phi.T.copy()
         phi_s = (phi_T.T * q_w) * np.abs(detJ_q)
         # Compute weighted basis functions at quadrature points
         # Compute Ae_(i,j) = sum_(s=1)^len(q_w) w_s phi_j(q_s) phi_i(q_s) |det(J(q_s))|
@@ -160,6 +181,17 @@ def stiffness_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool,
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
     num_q_points = q_w.size
+    if ct == "triangle":
+        apply_dof_trans = apply_dof_transformation_triangle
+    elif ct == "quadrilateral":
+        apply_dof_trans = apply_dof_transformation_quadrilateral
+    elif ct == "tetrahedron":
+        apply_dof_trans = apply_dof_transformation_tetrahedron
+    elif ct == "hexahedron":
+        apply_dof_trans = apply_dof_transformation_hexahedron
+    else:
+        assert(False)
+
     J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
     invJ = np.zeros((tdim, gdim), dtype=np.float64)
     detJ_q = np.zeros((q_w.size, 1), dtype=np.float64)
@@ -174,8 +206,16 @@ def stiffness_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool,
     Ae = np.zeros((block_size * num_dofs_per_cell, block_size * num_dofs_per_cell))
     blocks = [np.arange(b, block_size * num_dofs_per_cell + b, block_size) for b in range(block_size)]
     for cell in range(num_cells):
-        for i in range(tdim):
-            dphi_i[i, :, :] = dphi[i, :, :].T.copy()
+        if needs_transformations:
+            # FIXME: Can apply_dof_trans be applied to all dphidxi simultaneously?
+            for i in range(tdim):
+                # Reshape input as the transpose of the phi, i.e. (basis_function, quadrature_point)
+                dphidxi = dphi[i].T.copy()
+                apply_dof_trans(e_transformations, e_dofs, dphidxi, perm_info[cell])
+                dphi_i[i, :, :] = dphidxi
+        else:
+            for i in range(tdim):
+                dphi_i[i, :, :] = dphi[i, :, :].T.copy()
 
         geometry[:] = x[x_dofs[cell], :gdim]
 
@@ -272,6 +312,16 @@ def surface_kernel(data: np.array, ct: str, is_affine: bool, block_size: int, nu
     # Declaration of local structures
     geometry = np.zeros((num_dofs_x, gdim), dtype=np.float64)
     num_q_points = q_w.size
+    if ct == "triangle":
+        apply_dof_trans = apply_dof_transformation_triangle
+    elif ct == "quadrilateral":
+        apply_dof_trans = apply_dof_transformation_quadrilateral
+    elif ct == "tetrahedron":
+        apply_dof_trans = apply_dof_transformation_tetrahedron
+    elif ct == "hexahedron":
+        apply_dof_trans = apply_dof_transformation_hexahedron
+    else:
+        assert(False)
     J_q = np.zeros((num_q_points, gdim, tdim - 1), dtype=np.float64)
     detJ_q = np.zeros((num_q_points, 1), dtype=np.float64)
     dphi_c = np.zeros(c_tab[1:gdim + 1, 0, :, 0].shape, dtype=np.float64)
@@ -308,7 +358,14 @@ def surface_kernel(data: np.array, ct: str, is_affine: bool, block_size: int, nu
                 J_q[i] = geometry.T @ dphi_c.T
                 compute_determinant(J_q[i], detJ)
                 detJ_q[i] = detJ[0]
-        phi_T = phi[local_facet].T.copy()
+        if needs_transformations:
+            # Transpose phi before applying dof transformations (ndofs, nquadpoints)
+            phi_ = phi[local_facet].T.copy()
+            apply_dof_trans(e_transformations, e_dofs, phi_, perm_info[cell])
+            # Reshape output as the transpose of the phi, i.e. (basis_function, quadrature_point)
+            phi_T = phi_.copy()
+        else:
+            phi_T = phi[local_facet].T.copy()
         phi_s = (phi_T.T * q_w) * np.abs(detJ_q)
 
         # Compute weighted basis functions at quadrature points
