@@ -16,7 +16,7 @@ enum Kernel
 };
 
 using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
-                                     const int*, const std::uint8_t*, const std::uint32_t)>;
+                                     const int*, const std::uint8_t*)>;
 
 namespace dolfinx_cuas
 {
@@ -60,8 +60,7 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
   kernel_fn stiffness
       = [dphi0_c, _dphi, phi, weights](double* A, const double* c, const double* w,
                                        const double* coordinate_dofs, const int* entity_local_index,
-                                       const std::uint8_t* quadrature_permutation,
-                                       const std::uint32_t cell_permutation)
+                                       const std::uint8_t* quadrature_permutation)
   {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
@@ -106,8 +105,7 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
   };
 
   kernel_fn mass = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                       const int* entity_local_index, const std::uint8_t* quadrature_permutation,
-                       const std::uint32_t cell_permutation)
+                       const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
