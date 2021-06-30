@@ -14,12 +14,18 @@
 #include <xtl/xspan.hpp>
 
 using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
-                                     const int*, const std::uint8_t*, const std::uint32_t)>;
+                                     const int*, const std::uint8_t*)>;
 
 namespace dolfinx_cuas
 {
 namespace contact
 {
+enum Kernel
+{
+  Mass,
+  Stiffness,
+  Contact_Jac
+};
 class Contact
 {
 public:
@@ -329,8 +335,9 @@ public:
     }
   }
 
-  kernel_fn generate_surface_kernel(
-      int origin_meshtag) //, double gamma, double theta, std::vector<double> n_2)
+  kernel_fn
+  generate_surface_kernel(int origin_meshtag,
+                          Kernel type) //, double gamma, double theta, std::vector<double> n_2)
   {
     // Starting with implementing the following term in Jacobian:
     // u*v*ds
@@ -376,13 +383,13 @@ public:
     std::uint32_t num_quadrature_pts = _qp_ref_facet.shape(1);
     std::uint32_t num_facets = _qp_ref_facet.shape(0);
     std::shared_ptr<const dolfinx::fem::FiniteElement> element = _V->element();
-    std::uint32_t num_local_dofs = element->space_dimension();
+    int bs = element->block_size();
+    std::uint32_t num_local_dofs = element->space_dimension() / bs;
     xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, num_local_dofs});
     xt::xtensor<double, 4> dphi({num_facets, tdim, num_quadrature_pts, num_local_dofs});
-    xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, num_local_dofs, 1});
+    xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, num_local_dofs, bs});
     auto ref_jacobians = basix::cell::facet_jacobians(basix_cell);
     const xt::xtensor<double, 2> x = basix::cell::geometry(basix_cell);
-
     // tabulate at quadrature points on facet
     for (int i = 0; i < num_facets; ++i)
     {
@@ -394,11 +401,46 @@ public:
       dphi_i = xt::view(cell_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
     }
 
-    kernel_fn surface
-        = [facets, dphi0_f, dphi, gdim, tdim, fdim, dphi0_c,
+    kernel_fn mass = [facets, dphi0_f, phi, gdim, tdim, fdim, bs, this](
+                         double* A, const double* c, const double* w, const double* coordinate_dofs,
+                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+    {
+      // Compute Jacobian at each quadrature point
+      xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
+      // TODO: In kernels hpp 4 is given as a const expr d. What does this mean?
+      /// shape = {num dofs on surface element, gdim}
+      std::array<std::size_t, 2> shape = {4, gdim};
+      xt::xtensor<double, 2> coord
+          = xt::adapt(coordinate_dofs, 4 * gdim, xt::no_ownership(), shape);
+      dolfinx_cuas::math::compute_jacobian(
+          dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J);
+      double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+      // Get number of dofs per cell
+      std::int32_t ndofs_cell = phi.shape(2);
+      // Main loop
+      for (std::size_t q = 0; q < phi.shape(1); q++)
+      {
+        double w0 = _qw_ref_facet[q] * detJ;
+
+        for (int i = 0; i < ndofs_cell; i++)
+        {
+          double w1 = w0 * phi(*entity_local_index, q, i);
+          for (int j = 0; j < ndofs_cell; j++)
+          {
+            double value = w1 * phi(*entity_local_index, q, j);
+            for (int k = 0; k < bs; k++)
+            {
+              A[(k + i * bs) * (ndofs_cell * bs) + k + j * bs] += value;
+            }
+          }
+        }
+      }
+    };
+
+    kernel_fn stiffness
+        = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c,
            this](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                 const int* entity_local_index, const std::uint8_t* quadrature_permutation,
-                 const std::uint32_t cell_permutation)
+                 const int* entity_local_index, const std::uint8_t* quadrature_permutation)
     {
       // Compute Jacobian at each quadrature point: currently assumed to be constant...
       xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
@@ -426,7 +468,7 @@ public:
 
       for (std::size_t q = 0; q < dphi.shape(2); q++)
       {
-        double w0 = _qw_ref_facet[q] * detJ; // * detJ / detJref;
+        double w0 = _qw_ref_facet[q] * detJ; //
 
         // precompute J^-T * dphi in temporary array temp
         for (int i = 0; i < ndofs_cell; i++)
@@ -446,21 +488,33 @@ public:
         {
           for (int j = 0; j < ndofs_cell; j++)
           {
-
+            double value = 0;
             for (int k = 0; k < gdim; k++)
             {
-              A[i * ndofs_cell + j] += temp(k, i) * temp(k, j) * w0;
+              value += temp(k, i) * temp(k, j) * w0;
+            }
+            for (int k = 0; k < bs; k++)
+            {
+              A[(k + i * bs) * (ndofs_cell * bs) + k + j * bs] += value;
             }
           }
         }
       }
     };
 
-    return surface;
+    switch (type)
+    {
+    case Kernel::Mass:
+      return mass;
+    case Kernel::Stiffness:
+      return stiffness;
+    default:
+      throw std::runtime_error("unrecognized kernel");
+    }
   }
 
 private:
-  int _quadrature_degree = 0;
+  int _quadrature_degree = 3;
   std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> _marker;
   int _surface_0;                                  // meshtag value for surface 0
   int _surface_1;                                  // meshtag value for surface 1

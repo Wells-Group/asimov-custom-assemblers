@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
       = fem::create_functionspace(functionspace_form_problem_a, "u", mesh);
   auto contact = dolfinx_cuas::contact::Contact(mt, tag, tag, V);
   contact.create_reference_facet_qp();
-  auto kernel = contact.generate_surface_kernel(0);
+  auto kernel = contact.generate_surface_kernel(0, dolfinx_cuas::contact::Kernel::Stiffness);
 
   // Define variational forms
   auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
@@ -83,12 +83,29 @@ int main(int argc, char* argv[])
   const int bs1 = dofmap1->bs();
   std::vector<bool> bc0;
   std::vector<bool> bc1;
+  std::shared_ptr<const fem::FiniteElement> element0 = a->function_spaces().at(0)->element();
+  std::shared_ptr<const fem::FiniteElement> element1 = a->function_spaces().at(1)->element();
+  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
+                           std::int32_t, int)>
+      apply_dof_transformation = element0->get_dof_transformation_function<double>();
+  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
+                           std::int32_t, int)>
+      apply_dof_transformation_to_transpose
+      = element1->get_dof_transformation_to_transpose_function<double>();
 
   // Pack constants and coefficients
   const std::vector<double> constants = dolfinx::fem::pack_constants(*a);
   const array2d<double> coeffs = dolfinx::fem::pack_coefficients(*a);
 
-  auto cell_info = mesh->topology().get_cell_permutation_info();
+  const bool needs_transformation_data = element0->needs_dof_transformations()
+                                         or element1->needs_dof_transformations()
+                                         or a->needs_facet_permutations();
+  xtl::span<const std::uint32_t> cell_info;
+  if (needs_transformation_data)
+  {
+    mesh->topology_mutable().create_entity_permutations();
+    cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
+  }
 
   // auto kernel = dolfinx_cuas::generate_kernel("Lagrange", "tetrahedron",
   // Kernel::Stiffness, 1);
@@ -103,8 +120,9 @@ int main(int argc, char* argv[])
   const std::vector<std::uint8_t>& perms = mesh->topology().get_facet_permutations();
   common::Timer t0("~Assemble Matrix Custom");
   dolfinx::fem::impl::assemble_exterior_facets<double>(
-      la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), *mesh, left_facets, dofs0, bs0, dofs1,
-      bs1, bc0, bc1, kernel, coeffs, constants, cell_info, perms);
+      la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), *mesh, left_facets,
+      apply_dof_transformation, dofs0, bs0, apply_dof_transformation_to_transpose, dofs1, bs1, bc0,
+      bc1, kernel, coeffs, constants, cell_info, perms);
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();
