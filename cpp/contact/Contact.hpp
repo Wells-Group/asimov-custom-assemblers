@@ -502,12 +502,88 @@ public:
       }
     };
 
+    kernel_fn contact_jac
+        = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c,
+           this](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                 const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+    {
+      assert(bs == tdim);
+      // Compute Jacobian at each quadrature point: currently assumed to be constant...
+      xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
+      xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+      xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
+
+      // TODO: In kernels hpp 4 is given as a const expr d. What does this mean?
+      /// shape = {num dofs on surface element, gdim}
+      std::array<std::size_t, 2> shape = {4, gdim};
+      xt::xtensor<double, 2> coord
+          = xt::adapt(coordinate_dofs, 4 * gdim, xt::no_ownership(), shape);
+
+      dolfinx_cuas::math::compute_jacobian(
+          dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J_facet);
+      dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+      dolfinx_cuas::math::compute_inv(J, K);
+
+      // Get number of dofs per cell
+      std::int32_t ndofs_cell = dphi.shape(3);
+
+      double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_facet));
+
+      xt::xtensor<double, 2> temp({gdim, ndofs_cell});
+      // Main loop
+
+      for (std::size_t q = 0; q < dphi.shape(2); q++)
+      {
+        double w0 = _qw_ref_facet[q] * detJ; //
+
+        // precompute J^-T * dphi in temporary array temp
+        for (int i = 0; i < ndofs_cell; i++)
+        {
+
+          for (int j = 0; j < gdim; j++)
+          {
+            temp(j, i) = 0;
+            for (int k = 0; k < tdim; k++)
+            {
+              temp(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
+            }
+          }
+        }
+        // This currently corresponds to the term sym(grad(u)):sym(grad(v)) (see
+        // https://www.overleaf.com/2212919918tbbqtnmnrynf for details)
+        for (int i = 0; i < ndofs_cell; i++)
+        {
+          for (int j = 0; j < ndofs_cell; j++)
+          {
+            double value = 0;
+            for (int k = 0; k < gdim; k++)
+            {
+              value += temp(k, i) * temp(k, j) * w0;
+            }
+            for (int k = 0; k < bs; k++)
+            {
+              for (int l = 0; l < bs; l++)
+              {
+                if (k == l)
+                {
+                  A[(k + i * bs) * (ndofs_cell * bs) + k + j * bs] += 0.5 * value;
+                }
+                A[(k + i * bs) * (ndofs_cell * bs) + l + j * bs]
+                    += 0.5 * temp(k, i) * temp(l, j) * w0;
+              }
+            }
+          }
+        }
+      }
+    };
     switch (type)
     {
     case Kernel::Mass:
       return mass;
     case Kernel::Stiffness:
       return stiffness;
+    case Kernel::Contact_Jac:
+      return contact_jac;
     default:
       throw std::runtime_error("unrecognized kernel");
     }

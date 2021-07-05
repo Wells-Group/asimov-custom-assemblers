@@ -10,4 +10,6 @@ u = TrialFunction(V)
 v = TestFunction(V)
 f = Coefficient(V)
 kappa = Constant(mesh)
-a = kappa * inner(grad(u),grad(v)) * ds(1)
+def epsilon(v):
+    return sym(grad(v))
+a = kappa * inner(epsilon(u),epsilon(v)) * ds(1)

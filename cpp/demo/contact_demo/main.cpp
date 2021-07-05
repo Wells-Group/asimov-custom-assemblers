@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
       = fem::create_functionspace(functionspace_form_problem_a, "u", mesh);
   auto contact = dolfinx_cuas::contact::Contact(mt, tag, tag, V);
   contact.create_reference_facet_qp();
-  auto kernel = contact.generate_surface_kernel(0, dolfinx_cuas::contact::Kernel::Stiffness);
+  auto kernel = contact.generate_surface_kernel(0, dolfinx_cuas::contact::Kernel::Contact_Jac);
 
   // Define variational forms
   auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
