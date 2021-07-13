@@ -1,3 +1,6 @@
+#pragma once
+
+#include "../kernels.hpp"
 #include "../math.hpp"
 #include <basix/cell.h>
 #include <basix/finite-element.h>
@@ -13,19 +16,11 @@
 #include <xtensor/xindex_view.hpp>
 #include <xtl/xspan.hpp>
 
-using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
-                                     const int*, const std::uint8_t*)>;
-
 namespace dolfinx_cuas
 {
 namespace contact
 {
-enum Kernel
-{
-  Mass,
-  Stiffness,
-  Contact_Jac
-};
+
 class Contact
 {
 public:
@@ -335,9 +330,9 @@ public:
     }
   }
 
-  kernel_fn
-  generate_surface_kernel(int origin_meshtag,
-                          Kernel type) //, double gamma, double theta, std::vector<double> n_2)
+  kernel_fn generate_surface_kernel(
+      int origin_meshtag,
+      dolfinx_cuas::Kernel type) //, double gamma, double theta, std::vector<double> n_2)
   {
     // Starting with implementing the following term in Jacobian:
     // u*v*ds
@@ -578,11 +573,11 @@ public:
     };
     switch (type)
     {
-    case Kernel::Mass:
+    case dolfinx_cuas::Kernel::Mass:
       return mass;
-    case Kernel::Stiffness:
+    case dolfinx_cuas::Kernel::Stiffness:
       return stiffness;
-    case Kernel::Contact_Jac:
+    case dolfinx_cuas::Kernel::Contact_Jac:
       return contact_jac;
     default:
       throw std::runtime_error("unrecognized kernel");

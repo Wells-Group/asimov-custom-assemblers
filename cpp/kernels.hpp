@@ -5,29 +5,28 @@
 
 #include "math.hpp"
 
-constexpr std::int32_t gdim = 3;
-constexpr std::int32_t tdim = 3;
-constexpr std::int32_t d = 4;
-
-enum Kernel
-{
-  Mass,
-  Stiffness
-};
-
 using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
                                      const int*, const std::uint8_t*)>;
 
 namespace dolfinx_cuas
 {
+enum Kernel
+{
+  Mass,
+  Stiffness,
+  Contact_Jac
+};
 
-kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int P)
+kernel_fn generate_kernel(std::string family, std::string cell, dolfinx_cuas::Kernel type, int P)
 {
 
+  constexpr std::int32_t gdim = 3;
+  constexpr std::int32_t tdim = 3;
+  constexpr std::int32_t d = 4;
   int quad_degree = 0;
-  if (type == Kernel::Stiffness)
+  if (type == dolfinx_cuas::Kernel::Stiffness)
     quad_degree = (P - 1) + (P - 1);
-  else if (type == Kernel::Mass)
+  else if (type == dolfinx_cuas::Kernel::Mass)
     quad_degree = 2 * P;
 
   auto [points, weight]
@@ -134,9 +133,9 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
 
   switch (type)
   {
-  case Kernel::Mass:
+  case dolfinx_cuas::Kernel::Mass:
     return mass;
-  case Kernel::Stiffness:
+  case dolfinx_cuas::Kernel::Stiffness:
     return stiffness;
   default:
     throw std::runtime_error("unrecognized kernel");

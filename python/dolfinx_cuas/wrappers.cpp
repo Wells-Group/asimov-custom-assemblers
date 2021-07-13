@@ -5,6 +5,7 @@
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 #include "array.h"
 #include <dolfinx/mesh/MeshTags.h>
+#include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/contact/Contact.hpp>
 #include <iostream>
 #include <pybind11/functional.h>
@@ -41,5 +42,12 @@ PYBIND11_MODULE(cpp, m)
       .def("map_0_to_1", &dolfinx_cuas::contact::Contact::map_0_to_1)
       .def("map_1_to_0", &dolfinx_cuas::contact::Contact::map_1_to_0)
       .def("facet_0", &dolfinx_cuas::contact::Contact::facet_0)
-      .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1);
+      .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1)
+      .def("generate_surface_kernel", &dolfinx_cuas::contact::Contact::generate_surface_kernel);
+  m.def("assemble_exterior_facets", &dolfinx_cuas::assemble_exterior_facets);
+  m.def("assemble_cells", &dolfinx_cuas::assemble_cells);
+  py::enum_<dolfinx_cuas::Kernel>(m, "Kernel")
+      .value("Mass", dolfinx_cuas::Kernel::Mass)
+      .value("Stiffness", dolfinx_cuas::Kernel::Stiffness)
+      .value("Contact_Jac", dolfinx_cuas::Kernel::Contact_Jac);
 }
