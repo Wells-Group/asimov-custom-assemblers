@@ -26,7 +26,6 @@ namespace dolfinx_cuas
 {
 namespace contact
 {
-
 class Contact
 {
 public:
