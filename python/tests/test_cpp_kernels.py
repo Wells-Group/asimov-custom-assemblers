@@ -11,7 +11,7 @@ from petsc4py import PETSc
 kt = dolfinx_cuas.cpp.Kernel
 
 
-def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-16):
+def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-13):
     ai, aj, av = A.getValuesCSR()
     A_sp = scipy.sparse.csr_matrix((av, aj, ai))
     bi, bj, bv = B.getValuesCSR()
@@ -25,11 +25,16 @@ def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-16):
     assert diff.max() <= atol
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness, kt.Contact_Jac])
-def test_sum_grad(kernel_type):
-    N = 1
-    # mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
-    mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N)
+# @pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness, kt.Contact_Jac])
+@pytest.mark.parametrize("dim", [2])
+@pytest.mark.parametrize("kernel_type", [kt.Contact_Jac])
+def test_sum_grad(dim, kernel_type):
+    if dim == 2:
+        N = 10
+        mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N)
+    else:
+        N = 5
+        mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
 
     V = dolfinx.VectorFunctionSpace(mesh, ("CG", 1))
 
@@ -37,7 +42,6 @@ def test_sum_grad(kernel_type):
                                                    lambda x: np.logical_or(np.isclose(x[0], 0.0),
                                                                            np.isclose(x[0], 1.0)))
 
-    facets = facets[0:1]
     values = np.ones(len(facets), dtype=np.int32)
     ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
 
@@ -51,7 +55,7 @@ def test_sum_grad(kernel_type):
         a = ufl.inner(u, v) * ds(1)
     elif kernel_type == kt.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ds(1)
-    elif kernel_type == kt.ContactJac:
+    elif kernel_type == kt.Contact_Jac:
         a = ufl.inner(epsilon(u), epsilon(v)) * ds(1)
     else:
         raise RuntimeError("Unknown kernel")

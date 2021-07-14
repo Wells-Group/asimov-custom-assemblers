@@ -345,8 +345,8 @@ public:
     // auto degree = mesh->geometry().cmap()._element->degree;
     int degree = 1; // element degree
 
-    auto dolfinx_cell = mesh->topology().cell_type(); // doffinx cell type
-    auto basix_cell
+    const dolfinx::mesh::CellType dolfinx_cell = mesh->topology().cell_type();
+    const basix::cell::type basix_cell
         = basix::cell::str_to_type(dolfinx::mesh::to_string(dolfinx_cell)); // basix cell type
     auto dolfinx_facet
         = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim);        // dolfinx facet cell type
@@ -358,10 +358,11 @@ public:
     auto quadrature_points
         = basix::quadrature::make_quadrature("default", basix_facet, _quadrature_degree).first;
 
-    auto surface_element = basix::create_element("Lagrange", dolfinx_facet_str, degree);
-    auto basix_element
+    basix::FiniteElement surface_element
+        = basix::create_element("Lagrange", dolfinx_facet_str, degree);
+    basix::FiniteElement basix_element
         = basix::create_element("Lagrange", dolfinx::mesh::to_string(dolfinx_cell), degree);
-
+    const int num_coordinate_dofs = basix_element.dim();
     // tabulate on reference facet
     auto f_tab = surface_element.tabulate(1, quadrature_points);
     xt::xtensor<double, 2> dphi0_f
@@ -397,17 +398,17 @@ public:
     }
 
     auto q_weights = _qw_ref_facet;
-    kernel_fn mass = [facets, dphi0_f, phi, gdim, tdim, fdim, bs, q_weights](
+    kernel_fn mass = [facets, dphi0_f, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs](
                          double* A, const double* c, const double* w, const double* coordinate_dofs,
                          const int* entity_local_index, const std::uint8_t* quadrature_permutation)
     {
       // Compute Jacobian at each quadrature point
       xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
-      // TODO: In kernels hpp 4 is given as a const expr d. What does this mean?
-      /// shape = {num dofs on surface element, gdim}
-      std::array<std::size_t, 2> shape = {4, gdim};
+
+      // NOTE: DOLFINx has 3D input coordinate dofs
+      std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
       xt::xtensor<double, 2> coord
-          = xt::adapt(coordinate_dofs, 4 * gdim, xt::no_ownership(), shape);
+          = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
       dolfinx_cuas::math::compute_jacobian(
           dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J);
       double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
@@ -432,22 +433,21 @@ public:
         }
       }
     };
+
     kernel_fn stiffness
-        = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c,
-           q_weights](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                      const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+        = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c, q_weights, num_coordinate_dofs](
+              double* A, const double* c, const double* w, const double* coordinate_dofs,
+              const int* entity_local_index, const std::uint8_t* quadrature_permutation)
     {
       // Compute Jacobian at each quadrature point: currently assumed to be constant...
       xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
       xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
       xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
 
-      // TODO: In kernels hpp 4 is given as a const expr d. What does this mean?
-      /// shape = {num dofs on surface element, gdim}
-      std::array<std::size_t, 2> shape = {4, gdim};
+      // NOTE: DOLFINx has 3D input coordinate dofs
+      std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
       xt::xtensor<double, 2> coord
-          = xt::adapt(coordinate_dofs, 4 * gdim, xt::no_ownership(), shape);
-
+          = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
       dolfinx_cuas::math::compute_jacobian(
           dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J_facet);
       dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
@@ -498,9 +498,9 @@ public:
     };
 
     kernel_fn contact_jac
-        = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c,
-           q_weights](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                      const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+        = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c, q_weights, num_coordinate_dofs](
+              double* A, const double* c, const double* w, const double* coordinate_dofs,
+              const int* entity_local_index, const std::uint8_t* quadrature_permutation)
     {
       assert(bs == tdim);
       // Compute Jacobian at each quadrature point: currently assumed to be constant...
@@ -508,11 +508,10 @@ public:
       xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
       xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
 
-      // TODO: In kernels hpp 4 is given as a const expr d. What does this mean?
-      /// shape = {num dofs on surface element, gdim}
-      std::array<std::size_t, 2> shape = {4, gdim};
+      // NOTE: DOlFINx assumes 3D coordinate dofs input
+      std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
       xt::xtensor<double, 2> coord
-          = xt::adapt(coordinate_dofs, 4 * gdim, xt::no_ownership(), shape);
+          = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
 
       dolfinx_cuas::math::compute_jacobian(
           dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J_facet);
