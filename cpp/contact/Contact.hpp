@@ -396,7 +396,8 @@ public:
       dphi_i = xt::view(cell_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
     }
 
-    kernel_fn mass = [facets, dphi0_f, phi, gdim, tdim, fdim, bs, this](
+    auto q_weights = _qw_ref_facet;
+    kernel_fn mass = [facets, dphi0_f, phi, gdim, tdim, fdim, bs, q_weights](
                          double* A, const double* c, const double* w, const double* coordinate_dofs,
                          const int* entity_local_index, const std::uint8_t* quadrature_permutation)
     {
@@ -415,7 +416,7 @@ public:
       // Main loop
       for (std::size_t q = 0; q < phi.shape(1); q++)
       {
-        double w0 = _qw_ref_facet[q] * detJ;
+        double w0 = q_weights[q] * detJ;
 
         for (int i = 0; i < ndofs_cell; i++)
         {
@@ -431,11 +432,10 @@ public:
         }
       }
     };
-
     kernel_fn stiffness
         = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c,
-           this](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                 const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+           q_weights](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                      const int* entity_local_index, const std::uint8_t* quadrature_permutation)
     {
       // Compute Jacobian at each quadrature point: currently assumed to be constant...
       xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
@@ -463,7 +463,7 @@ public:
 
       for (std::size_t q = 0; q < dphi.shape(2); q++)
       {
-        double w0 = _qw_ref_facet[q] * detJ; //
+        double w0 = q_weights[q] * detJ; //
 
         // precompute J^-T * dphi in temporary array temp
         for (int i = 0; i < ndofs_cell; i++)
@@ -499,8 +499,8 @@ public:
 
     kernel_fn contact_jac
         = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c,
-           this](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                 const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+           q_weights](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                      const int* entity_local_index, const std::uint8_t* quadrature_permutation)
     {
       assert(bs == tdim);
       // Compute Jacobian at each quadrature point: currently assumed to be constant...
@@ -516,9 +516,9 @@ public:
 
       dolfinx_cuas::math::compute_jacobian(
           dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J_facet);
+
       dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
       dolfinx_cuas::math::compute_inv(J, K);
-
       // Get number of dofs per cell
       std::int32_t ndofs_cell = dphi.shape(3);
 
@@ -526,10 +526,9 @@ public:
 
       xt::xtensor<double, 2> temp({gdim, ndofs_cell});
       // Main loop
-
       for (std::size_t q = 0; q < dphi.shape(2); q++)
       {
-        double w0 = _qw_ref_facet[q] * detJ; //
+        double w0 = q_weights[q] * detJ; //
 
         // precompute J^-T * dphi in temporary array temp
         for (int i = 0; i < ndofs_cell; i++)

@@ -1,3 +1,4 @@
+#pragma once
 
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/assembler.h>
