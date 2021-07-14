@@ -1,6 +1,6 @@
 // Copyright (C) 2021 Jørgen S. Dokken
 //
-// This file is part of DOLFINX_MPC
+// This file is part of DOLFINX_CUAS
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -26,7 +26,7 @@ namespace py = pybind11;
 PYBIND11_MODULE(cpp, m)
 {
   // Create module for C++ wrappers
-  m.doc() = "DOLFINX Custom Assemblers Python interfacess";
+  m.doc() = "DOLFINX Custom Assemblers Python interface";
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
 #else

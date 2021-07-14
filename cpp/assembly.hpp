@@ -1,3 +1,9 @@
+// Copyright (C) 2021 Jørgen S. Dokken
+//
+// This file is part of DOLFINX_CUAS
+//
+// SPDX-License-Identifier:    LGPL-3.0-or-later
+
 #pragma once
 
 #include <dolfinx/fem/Form.h>

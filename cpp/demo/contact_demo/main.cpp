@@ -1,3 +1,9 @@
+// Copyright (C) 2021 Igor A. Baratta, Sarah Roggendorf
+//
+// This file is part of DOLFINX_CUAS
+//
+// SPDX-License-Identifier:    LGPL-3.0-or-later
+
 #include "problem.h"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>

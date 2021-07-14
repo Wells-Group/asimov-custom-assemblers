@@ -1,3 +1,9 @@
+// Copyright (C) 2021 Jørgen S. Dokken
+//
+// This file is part of DOLFINX_CUAS
+//
+// SPDX-License-Identifier:    LGPL-3.0-or-later
+
 #pragma once
 
 #include "../kernels.hpp"
@@ -548,21 +554,19 @@ public:
         {
           for (int j = 0; j < ndofs_cell; j++)
           {
+            // Compute sum_t dphi^j/dx_t dphi^i/dx_t
             double value = 0;
-            for (int k = 0; k < gdim; k++)
+            for (int t = 0; t < gdim; t++)
+              value += 0.5 * w0 * temp(t, i) * temp(t, j);
+
+            for (int k = 0; k < bs; ++k)
             {
-              value += temp(k, i) * temp(k, j) * w0;
-            }
-            for (int k = 0; k < bs; k++)
-            {
-              for (int l = 0; l < bs; l++)
+              A[(k + i * bs) * (ndofs_cell * bs) + (j * bs + k)] += value;
+              for (int l = 0; l < bs; ++l)
               {
-                if (k == l)
-                {
-                  A[(k + i * bs) * (ndofs_cell * bs) + k + j * bs] += 0.5 * value;
-                }
-                A[(k + i * bs) * (ndofs_cell * bs) + l + j * bs]
-                    += 0.5 * temp(k, i) * temp(l, j) * w0;
+                // Add dphi^j/dx_k dphi^i/dx_l
+                A[(k + i * bs) * (ndofs_cell * bs) + (j * bs + l)]
+                    += 0.5 * w0 * temp(l, i) * temp(k, j);
               }
             }
           }
