@@ -54,6 +54,9 @@ PYBIND11_MODULE(cpp, m)
            [](dolfinx_cuas::contact::Contact self, int tag, dolfinx_cuas::Kernel type)
            { return cuas_wrappers::KernelWrapper(self.generate_surface_kernel(tag, type)); })
       .def("create_reference_facet_qp", &dolfinx_cuas::contact::Contact::create_reference_facet_qp);
+
+  m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p)
+        { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p)); });
   m.def("assemble_exterior_facets",
         [](Mat A, std::shared_ptr<const dolfinx::fem::Form<PetscScalar>> a,
            const py::array_t<std::int32_t, py::array::c_style>& active_facets,
