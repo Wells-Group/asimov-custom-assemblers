@@ -77,10 +77,9 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
       for (std::int32_t i = 0; i < ndofs_cell; i++)
         _dphi(q, i, k) = dphi(k, q, i);
 
-  kernel_fn stiffness = [dphi0_c, _dphi, phi, weights](double* A, const double* c, const double* w,
-                                                       const double* coordinate_dofs,
-                                                       const int* entity_local_index,
-                                                       const std::uint8_t* quadrature_permutation) {
+  kernel_fn stiffness = [=](double* A, const double* c, const double* w,
+                            const double* coordinate_dofs, const int* entity_local_index,
+                            const std::uint8_t* quadrature_permutation) {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
