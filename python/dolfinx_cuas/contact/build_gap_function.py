@@ -76,6 +76,7 @@ def facet_master_puppet_relation(mesh, puppet_facets, candidate_facets, quadratu
             q_cell[i] = phi_s @ coords
 
     puppet_to_master = {}
+    print("dist python")
     for facet in puppet_facets:
         if quadrature_degree is None:
             # For each vertex on facet, find closest entity on the other interface
@@ -84,6 +85,8 @@ def facet_master_puppet_relation(mesh, puppet_facets, candidate_facets, quadratu
             m_facets = []
             for geometry_index in vertex_x:
                 point = mesh_geometry[geometry_index].reshape(3,)
+                print("point")
+                print(point)
                 # Find initial search radius
                 potential_facet, R_init = dolfinx.geometry.compute_closest_entity(master_midpoint_tree, point, mesh)
                 # Find mesh entity
@@ -118,8 +121,10 @@ def facet_master_puppet_relation(mesh, puppet_facets, candidate_facets, quadratu
                 # Compute distance from quadrature point to closest facet
                 master_facet_geometry = dolfinx.cpp.mesh.entities_to_geometry(mesh, fdim, [master_facet], False)
                 master_coords = mesh_geometry[master_facet_geometry][0]
+                # print(master_coords.shape)
+                # print(point.shape)
                 dist_vec = dolfinx.geometry.compute_distance_gjk(master_coords, point)
-                print(point, point + dist_vec)
+                print(dist_vec)
                 o_facets.append(master_facet)
 
             puppet_to_master[facet] = np.unique(o_facets)

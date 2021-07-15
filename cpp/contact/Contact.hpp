@@ -1,3 +1,13 @@
+// Copyright (C) 2021 Jørgen S. Dokken and Sarah Roggendorf
+//
+// This file is part of DOLFINx_CUAS
+//
+// SPDX-License-Identifier:    LGPL-3.0-or-later
+
+#pragma once
+
+#include "../kernels.hpp"
+#include "../math.hpp"
 #include <basix/cell.h>
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
@@ -7,10 +17,11 @@
 #include <dolfinx/graph/AdjacencyList.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/mesh/MeshTags.h>
+#include <dolfinx_cuas/utils.hpp>
 #include <iostream>
 #include <xtensor-blas/xlinalg.hpp>
+#include <xtensor/xindex_view.hpp>
 #include <xtl/xspan.hpp>
-
 namespace dolfinx_cuas
 {
 namespace contact
@@ -23,8 +34,8 @@ public:
   /// @param[in] surface_0 Value of the meshtag marking the first surface
   /// @param[in] surface_1 Value of the meshtag marking the first surface
   Contact(std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> marker, int surface_0,
-          int surface_1)
-      : _marker(marker), _surface_0(surface_0), _surface_1(surface_1)
+          int surface_1, std::shared_ptr<dolfinx::fem::FunctionSpace> V)
+      : _marker(marker), _surface_0(surface_0), _surface_1(surface_1), _V(V)
   {
     // Extract facets in _surface_0 and _surface_1. Store in _facet_1 and _facet_2
     for (int i = 0; i < _marker->indices().size(); ++i)
@@ -50,7 +61,8 @@ public:
   {
     return _map_1_to_0;
   }
-
+  const std::vector<int32_t>& facet_0() const { return _facet_0; }
+  const std::vector<int32_t>& facet_1() const { return _facet_1; }
   // Return meshtag value for surface_0
   const int surface_0() const { return _surface_0; }
   // Return mestag value for suface_1
@@ -61,84 +73,27 @@ public:
   // Return meshtags
   std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> meshtags() const { return _marker; }
 
-  /// Compute the push forward of the quadrature points on the reference facet
-  /// to the reference cell.
-  /// This creates and fills _qp_ref_facet
-  void create_reference_facet_qp()
-  {
-    // Mesh info
-    auto mesh = _marker->mesh();             // mesh
-    const int gdim = mesh->geometry().dim(); // geometrical dimension
-    const int tdim = mesh->topology().dim(); // topological dimension
-    const int fdim = tdim - 1;               // topological dimesnion of facet
-    // FIXME: Need basix element public in mesh
-    // auto degree = mesh->geometry().cmap()._element->degree;
-    int degree = 1; // element degree
-
-    auto dolfinx_cell = mesh->topology().cell_type(); // doffinx cell type
-    auto basix_cell
-        = basix::cell::str_to_type(dolfinx::mesh::to_string(dolfinx_cell)); // basix cell type
-    auto dolfinx_facet
-        = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim);        // dolfinx facet cell type
-    auto dolfinx_facet_str = dolfinx::mesh::to_string(dolfinx_facet); // facet cell type as string
-    auto basix_facet = basix::cell::str_to_type(dolfinx_facet_str);   // basix facet cell type
-
-    // Connectivity to evaluate at vertices
-    mesh->topology_mutable().create_connectivity(fdim, 0);
-    auto f_to_v = mesh->topology().connectivity(fdim, 0);
-
-    // Create reference topology and geometry
-    auto facet_topology = basix::cell::topology(basix_cell)[fdim];
-    auto ref_geom = basix::cell::geometry(basix_cell);
-
-    // Create facet quadrature points
-    auto quadrature_points
-        = basix::quadrature::make_quadrature("default", basix_facet, _quadrature_degree).first;
-
-    // Create basix surface element and tabulate basis functions
-    auto surface_element = basix::create_element("Lagrange", dolfinx_facet_str, degree);
-    auto c_tab = surface_element.tabulate(0, quadrature_points);
-    xt::xtensor<double, 2> phi_s = xt::view(c_tab, 0, xt::all(), xt::all(), 0);
-
-    // Push forward quadrature points on reference facet to reference cell
-    const std::uint32_t num_facets = facet_topology.size();
-    const std::uint32_t num_quadrature_pts = quadrature_points.shape(0);
-    _qp_ref_facet = xt::xtensor<double, 3>({num_facets, num_quadrature_pts, ref_geom.shape(1)});
-    for (int i = 0; i < num_facets; ++i)
-    {
-      auto facet = facet_topology[i];
-      auto coords = xt::view(ref_geom, xt::keep(facet), xt::all());
-      auto q_facet = xt::view(_qp_ref_facet, i, xt::all(), xt::all());
-      q_facet = xt::linalg::dot(phi_s, coords);
-    }
-  }
-  /// Tabulatethe basis function at the quadrature points _qp_ref_facet
+  /// Tabulate the basis function at the quadrature points _qp_ref_facet
   /// creates and fills _phi_ref_facets
-  void tabulate_on_ref_cell()
+  xt::xtensor<double, 3> tabulate_on_ref_cell(basix::FiniteElement element)
   {
-    // Create coordinate element
-    // FIXME: For higher order geometry need basix element public in mesh
-    // auto degree = mesh->geometry().cmap()._element->degree;
-    int degree = 1;
-    auto dolfinx_cell = _marker->mesh()->topology().cell_type();
-    auto coordinate_element
-        = basix::create_element("Lagrange", dolfinx::mesh::to_string(dolfinx_cell), degree);
 
     // Create _phi_ref_facets
     std::uint32_t num_facets = _qp_ref_facet.shape(0);
     std::uint32_t num_quadrature_pts = _qp_ref_facet.shape(1);
-    std::uint32_t num_local_dofs = coordinate_element.dim();
-    _phi_ref_facets = xt::xtensor<double, 3>({num_facets, num_quadrature_pts, num_local_dofs});
+    std::uint32_t num_local_dofs = element.dim();
+    xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, num_local_dofs});
 
     // Tabulate basis functions at quadrature points _qp_ref_facet for each facet of the referenec
     // cell. Fill _phi_ref_facets
     for (int i = 0; i < num_facets; ++i)
     {
-      auto phi_i = xt::view(_phi_ref_facets, i, xt::all(), xt::all());
+      auto phi_i = xt::view(phi, i, xt::all(), xt::all());
       auto q_facet = xt::view(_qp_ref_facet, i, xt::all(), xt::all());
-      auto cell_tab = coordinate_element.tabulate(0, q_facet);
+      auto cell_tab = element.tabulate(0, q_facet);
       phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
     }
+    return phi;
   }
 
   /// Compute push forward of quadrature points _qp_ref_facet to the physical facet for
@@ -208,17 +163,24 @@ public:
     }
   }
 
-  // Return list of facets on side 0
-  std::vector<int32_t> facet_0() { return _facet_0; };
-
   /// Compute closest candidate_facet for each quadrature point in _qp_phys_"origin_meshtag"
   /// This is saved as an adjacency list _map_0_to_1 or _map_1_to_0
   void create_distance_map(int origin_meshtag)
   {
     // Create _qp_ref_facet (quadrature points on reference facet)
-    create_reference_facet_qp();
-    // Tabulate basis function on reference cell (_phi_ref_facets)
-    tabulate_on_ref_cell();
+    auto facet_quadrature = create_reference_facet_qp(_marker->mesh(), _quadrature_degree);
+    _qp_ref_facet = facet_quadrature.first;
+    _qw_ref_facet = facet_quadrature.second;
+
+    // Tabulate basis function on reference cell (_phi_ref_facets)// Create coordinate element
+    // FIXME: For higher order geometry need basix element public in mesh
+    // auto degree = mesh->geometry().cmap()._element->degree;
+    int degree = 1;
+    auto dolfinx_cell = _marker->mesh()->topology().cell_type();
+    auto coordinate_element
+        = basix::create_element("Lagrange", dolfinx::mesh::to_string(dolfinx_cell), degree);
+
+    _phi_ref_facets = tabulate_on_ref_cell(coordinate_element);
     // Compute quadrature points on physical facet _qp_phys_"origin_meshtag"
     create_q_phys(origin_meshtag);
 
@@ -277,13 +239,58 @@ public:
       _map_0_to_1 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
     else
       _map_1_to_0 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
+
+    evaluate(origin_meshtag);
+  }
+
+  void evaluate(int origin_meshtag)
+  {
+    // Mesh info
+    auto mesh = _marker->mesh();             // mesh
+    const int gdim = mesh->geometry().dim(); // geometrical dimension
+    const int tdim = mesh->topology().dim();
+    const int fdim = tdim - 1;
+    auto mesh_geometry = mesh->geometry().x();
+    std::vector<int32_t>* puppet_facets;
+    std::shared_ptr<dolfinx::graph::AdjacencyList<std::int32_t>> map;
+    xt::xtensor<double, 3>* q_phys_pt;
+    if (origin_meshtag == 0)
+    {
+      puppet_facets = &_facet_0;
+      map = _map_0_to_1;
+      q_phys_pt = &_qp_phys_0;
+    }
+    else
+    {
+      puppet_facets = &_facet_1;
+      map = _map_1_to_0;
+      q_phys_pt = &_qp_phys_1;
+    }
+
+    for (int i = 0; i < (*puppet_facets).size(); ++i)
+    {
+      auto links = map->links(i);
+      auto master_facet_geometry = dolfinx::mesh::entities_to_geometry(*mesh, fdim, links, false);
+
+      for (int j = 0; j < map->num_links(i); ++j)
+      {
+        xt::xtensor<double, 2> point = {{0, 0, 0}};
+        for (int k = 0; k < gdim; k++)
+          point(0, k) = (*q_phys_pt)(i, j, k);
+        auto master_facet = xt::view(master_facet_geometry, j, xt::all());
+        auto master_coords = xt::view(mesh_geometry, xt::keep(master_facet), xt::all());
+
+        auto dist_vec = dolfinx::geometry::compute_distance_gjk(master_coords, point);
+      }
+    }
   }
 
 private:
   int _quadrature_degree = 3;
   std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> _marker;
-  int _surface_0; // meshtag value for surface 0
-  int _surface_1; // meshtag value for surface 1
+  int _surface_0;                                  // meshtag value for surface 0
+  int _surface_1;                                  // meshtag value for surface 1
+  std::shared_ptr<dolfinx::fem::FunctionSpace> _V; // Function space
 
   // Adjacency list of closest facet on surface_1 for every quadrature point in _qp_phys_0
   // (quadrature points on every facet of surface_0)
@@ -297,6 +304,8 @@ private:
   xt::xtensor<double, 3> _qp_phys_1;
   // quadrature points on reference facet
   xt::xtensor<double, 3> _qp_ref_facet;
+  // quadrature weights
+  std::vector<double> _qw_ref_facet;
   // quadrature points on facets of reference cell
   xt::xtensor<double, 3> _phi_ref_facets;
   // facets in surface 0

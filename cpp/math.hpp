@@ -1,16 +1,15 @@
 // Copyright (C) 2021 Igor Baratta
 //
-// This file is part of DOLFINx (https://www.fenicsproject.org)
+// This file is part of DOLFINx_CUAS
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
 #pragma once
 
 #include <cmath>
-
-namespace dolfinx_cuas::math
+#include <xtensor-blas/xlinalg.hpp>
+namespace
 {
-
 /// Kahan’s method to compute x = ad − bc with fused multiply-adds.
 /// The absolute error is bounded by 1.5 ulps, units of least precision.
 template <typename T>
@@ -21,7 +20,6 @@ inline T difference_of_products(T a, T b, T c, T d) noexcept
   T diff = std::fma(a, d, -w);
   return (diff + err);
 }
-
 /// Compute the determinant of a small matrix (1x1, 2x2, or 3x3).
 /// Tailored for use in computations using the Jacobian.
 template <typename Matrix>
@@ -103,6 +101,42 @@ void inv(const U& A, V& B)
                              + std::to_string(A.shape(1)) + " matrices.");
   }
 }
+} // namespace
+namespace dolfinx_cuas::math
+{
+
+template <typename U, typename V>
+void compute_inv(const U& A, V& B)
+{
+  using value_type = typename U::value_type;
+  const int nrows = A.shape(0);
+  const int ncols = A.shape(1);
+  if (nrows == ncols)
+  {
+    inv(A, B);
+  }
+  else
+  {
+    auto ATA = xt::linalg::dot(xt::transpose(A), A);
+    xt::xtensor<value_type, 2> ATAinv = xt::zeros<value_type>({ncols, ncols});
+    inv(ATA, ATAinv);
+    B = xt::linalg::dot(ATAinv, xt::transpose(A));
+  }
+}
+
+// Computes the determinant of rectangular matrices
+// det(A^T * A) = det(A) * det(A)
+template <typename Matrix>
+double compute_determinant(Matrix& A)
+{
+  if (A.shape(0) == A.shape(1))
+    return det(A);
+  else
+  {
+    auto ATA = xt::linalg::dot(xt::transpose(A), A);
+    return std::sqrt(det(ATA));
+  }
+}
 
 template <typename U, typename V, typename P>
 void compute_jacobian(const U& dphi, const V& coords, P& J)
@@ -113,7 +147,6 @@ void compute_jacobian(const U& dphi, const V& coords, P& J)
   assert(J.shape(0) == coords.shape(1));
   assert(J.shape(1) == dphi.shape(0));
   assert(dphi.shape(1) == coords.shape(0));
-
   J = xt::transpose(xt::linalg::dot(dphi, coords));
 }
 

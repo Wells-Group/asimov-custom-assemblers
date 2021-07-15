@@ -1,3 +1,11 @@
+// Copyright (C) 2021 Jørgen S. Dokken, Igor A. Baratta, Sarah Roggendorf
+//
+// This file is part of DOLFINx_CUAS
+//
+// SPDX-License-Identifier:    LGPL-3.0-or-later
+
+#pragma once
+
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <string>
@@ -5,29 +13,39 @@
 
 #include "math.hpp"
 
-constexpr std::int32_t gdim = 3;
-constexpr std::int32_t tdim = 3;
-constexpr std::int32_t d = 4;
-
-enum Kernel
-{
-  Mass,
-  Stiffness
-};
-
 using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
                                      const int*, const std::uint8_t*)>;
 
 namespace dolfinx_cuas
 {
-
-kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int P)
+enum Kernel
 {
+  Mass,
+  Stiffness,
+  SymGrad
+};
+}
+
+namespace
+{
+/// Create integration kernel for Pth order Lagrange elements
+/// @param[in] type The kernel type (Mass or Stiffness)
+/// @return The integration kernel
+template <int P>
+kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
+{
+  // Problem specific parameters
+  std::string family = "Lagrange";
+  std::string cell = "tetrahedron";
+  constexpr std::int32_t gdim = 3;
+  constexpr std::int32_t tdim = 3;
+  constexpr std::int32_t d = 4;
+  constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
   int quad_degree = 0;
-  if (type == Kernel::Stiffness)
+  if (type == dolfinx_cuas::Kernel::Stiffness)
     quad_degree = (P - 1) + (P - 1);
-  else if (type == Kernel::Mass)
+  else if (type == dolfinx_cuas::Kernel::Mass)
     quad_degree = 2 * P;
 
   auto [points, weight]
@@ -46,7 +64,8 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
 
   xt::xtensor<double, 2> dphi0_c
       = xt::round(xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0));
-  std::int32_t ndofs_cell = phi.shape(1);
+
+  assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
 
   // Stiffness Matrix using quadrature formulation
   // =====================================================================================
@@ -70,8 +89,8 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
 
     // Compute Jacobian, its inverse and the determinant
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
-    dolfinx_cuas::math::inv(J, K);
-    double detJ = std::fabs(dolfinx_cuas::math::det(J));
+    dolfinx_cuas::math::compute_inv(J, K);
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 
     // Get number of dofs per cell
     std::int32_t ndofs_cell = phi.shape(1);
@@ -114,7 +133,7 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
 
     // Compute Jacobian, its inverse and the determinant
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
-    double detJ = std::fabs(dolfinx_cuas::math::det(J));
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 
     // Get number of dofs per cell
     std::int32_t ndofs_cell = phi.shape(1);
@@ -134,12 +153,38 @@ kernel_fn generate_kernel(std::string family, std::string cell, Kernel type, int
 
   switch (type)
   {
-  case Kernel::Mass:
+  case dolfinx_cuas::Kernel::Mass:
     return mass;
-  case Kernel::Stiffness:
+  case dolfinx_cuas::Kernel::Stiffness:
     return stiffness;
   default:
     throw std::runtime_error("unrecognized kernel");
+  }
+}
+} // namespace
+namespace dolfinx_cuas
+{
+
+/// Create integration kernel for Pth order Lagrange elements
+/// @param[in] type The kernel type (Mass or Stiffness)
+/// @param[in] P Degree of the element
+/// @return The integration kernel
+kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P)
+{
+  switch (P)
+  {
+  case 1:
+    return generate_tet_kernel<1>(type);
+  case 2:
+    return generate_tet_kernel<2>(type);
+  case 3:
+    return generate_tet_kernel<3>(type);
+  case 4:
+    return generate_tet_kernel<4>(type);
+  case 5:
+    return generate_tet_kernel<5>(type);
+  default:
+    throw std::runtime_error("Custom kernel only supported up to 5th order");
   }
 }
 } // namespace dolfinx_cuas
