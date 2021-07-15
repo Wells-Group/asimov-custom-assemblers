@@ -29,7 +29,7 @@ def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-13):
     assert diff.max() <= atol
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness, kt.Contact_Jac])
+@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness, kt.SymGrad])
 @pytest.mark.parametrize("dim", [2, 3])
 def test_surface_kernels(dim, kernel_type):
     N = 30 if dim == 2 else 10
@@ -51,13 +51,13 @@ def test_surface_kernels(dim, kernel_type):
         a = ufl.inner(u, v) * ds(1)
     elif kernel_type == kt.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ds(1)
-    elif kernel_type == kt.Contact_Jac:
+    elif kernel_type == kt.SymGrad:
         def epsilon(v):
             return ufl.sym(ufl.grad(v))
         a = ufl.inner(epsilon(u), epsilon(v)) * ds(1)
     else:
         raise RuntimeError("Unknown kernel")
-
+    quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
     a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
@@ -70,8 +70,8 @@ def test_surface_kernels(dim, kernel_type):
 
     # Custom assembly
     B = dolfinx.fem.create_matrix(a)
-    contact = dolfinx_cuas.cpp.Contact(ft, 1, 1, V._cpp_object)
-    kernel = contact.generate_surface_kernel(0, kernel_type)  # NOTE Add quadrature degree as input
+
+    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
     B.zeroEntries()
     dolfinx_cuas.cpp.assemble_exterior_facets(B, a._cpp_object, ft.indices, kernel)
     B.assemble()

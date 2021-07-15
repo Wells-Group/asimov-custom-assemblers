@@ -12,7 +12,7 @@
 #include <dolfinx/io/XDMFFile.h>
 #include <dolfinx/mesh/utils.h>
 #include <dolfinx_cuas/assembly.hpp>
-#include <dolfinx_cuas/contact/Contact.hpp>
+#include <dolfinx_cuas/surface_kernels.hpp>
 #include <xtensor/xio.hpp>
 
 using namespace dolfinx;
@@ -65,9 +65,7 @@ int main(int argc, char* argv[])
   auto coord = dolfinx::mesh::entities_to_geometry(*mesh, 2, left_facets, false);
   const std::shared_ptr<fem::FunctionSpace>& V
       = fem::create_functionspace(functionspace_form_problem_a, "u", mesh);
-  auto contact = dolfinx_cuas::contact::Contact(mt, tag, tag, V);
-  contact.create_reference_facet_qp();
-  auto kernel = contact.generate_surface_kernel(0, dolfinx_cuas::Kernel::Contact_Jac);
+  auto kernel = dolfinx_cuas::generate_surface_kernel(V, dolfinx_cuas::Kernel::SymGrad, 1);
 
   // Define variational forms
   auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);

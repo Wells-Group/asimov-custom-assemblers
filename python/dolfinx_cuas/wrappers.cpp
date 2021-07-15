@@ -11,6 +11,7 @@
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/contact/Contact.hpp>
+#include <dolfinx_cuas/surface_kernels.hpp>
 #include <dolfinx_cuas/utils.hpp>
 #include <iostream>
 #include <pybind11/functional.h>
@@ -49,10 +50,14 @@ PYBIND11_MODULE(cpp, m)
       .def("map_0_to_1", &dolfinx_cuas::contact::Contact::map_0_to_1)
       .def("map_1_to_0", &dolfinx_cuas::contact::Contact::map_1_to_0)
       .def("facet_0", &dolfinx_cuas::contact::Contact::facet_0)
-      .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1)
-      .def("generate_surface_kernel",
-           [](dolfinx_cuas::contact::Contact self, int tag, dolfinx_cuas::Kernel type)
-           { return cuas_wrappers::KernelWrapper(self.generate_surface_kernel(tag, type)); });
+      .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1);
+  m.def("generate_surface_kernel",
+        [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
+           int quadrature_degree)
+        {
+          return cuas_wrappers::KernelWrapper(
+              dolfinx_cuas::generate_surface_kernel(V, type, quadrature_degree));
+        });
   m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p)
         { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p)); });
   m.def("assemble_exterior_facets",
@@ -78,5 +83,5 @@ PYBIND11_MODULE(cpp, m)
   py::enum_<dolfinx_cuas::Kernel>(m, "Kernel")
       .value("Mass", dolfinx_cuas::Kernel::Mass)
       .value("Stiffness", dolfinx_cuas::Kernel::Stiffness)
-      .value("Contact_Jac", dolfinx_cuas::Kernel::Contact_Jac);
+      .value("SymGrad", dolfinx_cuas::Kernel::SymGrad);
 }
