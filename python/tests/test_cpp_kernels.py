@@ -71,8 +71,7 @@ def test_surface_kernels(dim, kernel_type):
     # Custom assembly
     B = dolfinx.fem.create_matrix(a)
     contact = dolfinx_cuas.cpp.Contact(ft, 1, 1, V._cpp_object)
-    contact.create_reference_facet_qp()
-    kernel = contact.generate_surface_kernel(0, kernel_type)
+    kernel = contact.generate_surface_kernel(0, kernel_type)  # NOTE Add quadrature degree as input
     B.zeroEntries()
     dolfinx_cuas.cpp.assemble_exterior_facets(B, a._cpp_object, ft.indices, kernel)
     B.assemble()

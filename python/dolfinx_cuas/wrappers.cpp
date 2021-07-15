@@ -1,6 +1,6 @@
 // Copyright (C) 2021 Jørgen S. Dokken
 //
-// This file is part of DOLFINX_CUAS
+// This file is part of DOLFINx_CUAS
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -11,13 +11,13 @@
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/contact/Contact.hpp>
+#include <dolfinx_cuas/utils.hpp>
 #include <iostream>
 #include <pybind11/functional.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <xtl/xspan.hpp>
-
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
@@ -52,9 +52,7 @@ PYBIND11_MODULE(cpp, m)
       .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1)
       .def("generate_surface_kernel",
            [](dolfinx_cuas::contact::Contact self, int tag, dolfinx_cuas::Kernel type)
-           { return cuas_wrappers::KernelWrapper(self.generate_surface_kernel(tag, type)); })
-      .def("create_reference_facet_qp", &dolfinx_cuas::contact::Contact::create_reference_facet_qp);
-
+           { return cuas_wrappers::KernelWrapper(self.generate_surface_kernel(tag, type)); });
   m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p)
         { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p)); });
   m.def("assemble_exterior_facets",

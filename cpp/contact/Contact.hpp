@@ -1,6 +1,6 @@
-// Copyright (C) 2021 Jørgen S. Dokken
+// Copyright (C) 2021 Jørgen S. Dokken and Sarah Roggendorf
 //
-// This file is part of DOLFINX_CUAS
+// This file is part of DOLFINx_CUAS
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -17,11 +17,11 @@
 #include <dolfinx/graph/AdjacencyList.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/mesh/MeshTags.h>
+#include <dolfinx_cuas/utils.hpp>
 #include <iostream>
 #include <xtensor-blas/xlinalg.hpp>
 #include <xtensor/xindex_view.hpp>
 #include <xtl/xspan.hpp>
-
 namespace dolfinx_cuas
 {
 namespace contact
@@ -73,60 +73,7 @@ public:
   // Return meshtags
   std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> meshtags() const { return _marker; }
 
-  /// Compute the push forward of the quadrature points on the reference facet
-  /// to the reference cell.
-  /// This creates and fills _qp_ref_facet
-  void create_reference_facet_qp()
-  {
-    // Mesh info
-    auto mesh = _marker->mesh();             // mesh
-    const int gdim = mesh->geometry().dim(); // geometrical dimension
-    const int tdim = mesh->topology().dim(); // topological dimension
-    const int fdim = tdim - 1;               // topological dimesnion of facet
-    // FIXME: Need basix element public in mesh
-    // auto degree = mesh->geometry().cmap()._element->degree;
-    int degree = 1; // element degree
-
-    auto dolfinx_cell = mesh->topology().cell_type(); // doffinx cell type
-    auto basix_cell
-        = basix::cell::str_to_type(dolfinx::mesh::to_string(dolfinx_cell)); // basix cell type
-    auto dolfinx_facet
-        = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim);        // dolfinx facet cell type
-    auto dolfinx_facet_str = dolfinx::mesh::to_string(dolfinx_facet); // facet cell type as string
-    auto basix_facet = basix::cell::str_to_type(dolfinx_facet_str);   // basix facet cell type
-
-    // Connectivity to evaluate at vertices
-    mesh->topology_mutable().create_connectivity(fdim, 0);
-    auto f_to_v = mesh->topology().connectivity(fdim, 0);
-
-    // Create reference topology and geometry
-    auto facet_topology = basix::cell::topology(basix_cell)[fdim];
-    auto ref_geom = basix::cell::geometry(basix_cell);
-
-    // Create facet quadrature points
-    auto [quadrature_points, weights]
-        = basix::quadrature::make_quadrature("default", basix_facet, _quadrature_degree);
-
-    // Create basix surface element and tabulate basis functions
-    auto surface_element = basix::create_element("Lagrange", dolfinx_facet_str, degree);
-    auto c_tab = surface_element.tabulate(0, quadrature_points);
-    xt::xtensor<double, 2> phi_s = xt::view(c_tab, 0, xt::all(), xt::all(), 0);
-
-    // Push forward quadrature points on reference facet to reference cell
-    const std::uint32_t num_facets = facet_topology.size();
-    const std::uint32_t num_quadrature_pts = quadrature_points.shape(0);
-    _qp_ref_facet = xt::xtensor<double, 3>({num_facets, num_quadrature_pts, ref_geom.shape(1)});
-    _qw_ref_facet = std::vector<double>(weights);
-
-    for (int i = 0; i < num_facets; ++i)
-    {
-      auto facet = facet_topology[i];
-      auto coords = xt::view(ref_geom, xt::keep(facet), xt::all());
-      auto q_facet = xt::view(_qp_ref_facet, i, xt::all(), xt::all());
-      q_facet = xt::linalg::dot(phi_s, coords);
-    }
-  }
-  /// Tabulatethe basis function at the quadrature points _qp_ref_facet
+  /// Tabulate the basis function at the quadrature points _qp_ref_facet
   /// creates and fills _phi_ref_facets
   xt::xtensor<double, 3> tabulate_on_ref_cell(basix::FiniteElement element)
   {
@@ -221,7 +168,10 @@ public:
   void create_distance_map(int origin_meshtag)
   {
     // Create _qp_ref_facet (quadrature points on reference facet)
-    create_reference_facet_qp();
+    auto facet_quadrature = create_reference_facet_qp(_marker->mesh(), _quadrature_degree);
+    _qp_ref_facet = facet_quadrature.first;
+    _qw_ref_facet = facet_quadrature.second;
+
     // Tabulate basis function on reference cell (_phi_ref_facets)// Create coordinate element
     // FIXME: For higher order geometry need basix element public in mesh
     // auto degree = mesh->geometry().cmap()._element->degree;
@@ -339,6 +289,12 @@ public:
       int origin_meshtag,
       dolfinx_cuas::Kernel type) //, double gamma, double theta, std::vector<double> n_2)
   {
+
+    // Create _qp_ref_facet (quadrature points on reference facet)
+    auto facet_quadrature = create_reference_facet_qp(_marker->mesh(), _quadrature_degree);
+    _qp_ref_facet = facet_quadrature.first;
+    _qw_ref_facet = facet_quadrature.second;
+
     // Starting with implementing the following term in Jacobian:
     // u*v*ds
     // Mesh info
@@ -347,7 +303,7 @@ public:
     const int tdim = mesh->topology().dim(); // topological dimension
     const int fdim = tdim - 1;               // topological dimesnion of facet
     // FIXME: Need basix element public in mesh
-    // auto degree = mesh->geometry().cmap()._element->degree;
+    // int degree = mesh->geometry().cmap().degree();
     int degree = 1; // element degree
 
     const dolfinx::mesh::CellType dolfinx_cell = mesh->topology().cell_type();
