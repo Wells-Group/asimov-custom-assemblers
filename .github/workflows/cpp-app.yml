@@ -67,7 +67,6 @@ jobs:
           cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer cpp/
           ninja -C build-dir install
           cd cpp/demo/
-          ffcx problem.ufl
           cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer .
           ninja -C build-dir
           ./build-dir/custom-assembler
