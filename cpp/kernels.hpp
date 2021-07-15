@@ -46,7 +46,7 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   int quad_degree = 0;
   if (type == dolfinx_cuas::Kernel::Stiffness)
     quad_degree = (P - 1) + (P - 1);
-  else if (type == dolfinx_cuas::Kernel::Mass)
+  else if (type == dolfinx_cuas::Kernel::Mass or type == dolfinx_cuas::Kernel::MassTensor)
     quad_degree = 2 * P;
 
   auto [points, weight]
@@ -155,7 +155,7 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
       for (int j = 0; j < ndofs_cell; j++)
         A0(i, j) += weights[q] * phi(q, i) * phi(q, j);
 
-  kernel_fn mass_tensor = [=](double* A, const double* c, const double* w,
+  kernel_fn masstensor = [=](double* A, const double* c, const double* w,
                               const double* coordinate_dofs, const int* entity_local_index,
                               const std::uint8_t* quadrature_permutation) {
     // Get geometrical data
@@ -177,7 +177,7 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   case dolfinx_cuas::Kernel::Mass:
     return mass;
   case dolfinx_cuas::Kernel::MassTensor:
-    return mass_tensor;
+    return masstensor;
   case dolfinx_cuas::Kernel::Stiffness:
     return stiffness;
   default:

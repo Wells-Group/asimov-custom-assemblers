@@ -1,5 +1,5 @@
 cell_type = tetrahedron
-degree = 2
+degree = 1
 
 element = FiniteElement("Lagrange", cell_type, degree)
 mesh = Mesh(VectorElement("Lagrange", cell_type, 1))
