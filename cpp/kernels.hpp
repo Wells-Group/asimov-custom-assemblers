@@ -22,13 +22,24 @@ enum Kernel
   Stiffness,
   Contact_Jac
 };
+}
 
-kernel_fn generate_kernel(std::string family, std::string cell, dolfinx_cuas::Kernel type, int P)
+namespace
 {
-
+/// Create integration kernel for Pth order Lagrange elements
+/// @param[in] type The kernel type (Mass or Stiffness)
+/// @return The integration kernel
+template <int P>
+kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
+{
+  // Problem specific parameters
+  std::string family = "Lagrange";
+  std::string cell = "tetrahedron";
   constexpr std::int32_t gdim = 3;
   constexpr std::int32_t tdim = 3;
   constexpr std::int32_t d = 4;
+  constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
+
   int quad_degree = 0;
   if (type == dolfinx_cuas::Kernel::Stiffness)
     quad_degree = (P - 1) + (P - 1);
@@ -51,7 +62,8 @@ kernel_fn generate_kernel(std::string family, std::string cell, dolfinx_cuas::Ke
 
   xt::xtensor<double, 2> dphi0_c
       = xt::round(xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0));
-  std::int32_t ndofs_cell = phi.shape(1);
+
+  assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
 
   // Stiffness Matrix using quadrature formulation
   // =====================================================================================
@@ -145,6 +157,32 @@ kernel_fn generate_kernel(std::string family, std::string cell, dolfinx_cuas::Ke
     return stiffness;
   default:
     throw std::runtime_error("unrecognized kernel");
+  }
+}
+} // namespace
+namespace dolfinx_cuas
+{
+
+/// Create integration kernel for Pth order Lagrange elements
+/// @param[in] type The kernel type (Mass or Stiffness)
+/// @param[in] P Degree of the element
+/// @return The integration kernel
+kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P)
+{
+  switch (P)
+  {
+  case 1:
+    return generate_tet_kernel<1>(type);
+  case 2:
+    return generate_tet_kernel<2>(type);
+  case 3:
+    return generate_tet_kernel<3>(type);
+  case 4:
+    return generate_tet_kernel<4>(type);
+  case 5:
+    return generate_tet_kernel<5>(type);
+  default:
+    throw std::runtime_error("Custom kernel only supported up to 5th order");
   }
 }
 } // namespace dolfinx_cuas

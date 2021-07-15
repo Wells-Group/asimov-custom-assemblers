@@ -45,8 +45,7 @@ int main(int argc, char* argv[])
   la::PETScMatrix B = la::PETScMatrix(fem::create_matrix(*a), false);
   MatZeroEntries(B.mat());
 
-  auto kernel = dolfinx_cuas::generate_kernel("Lagrange", "tetrahedron",
-                                              dolfinx_cuas::Kernel::Stiffness, 1);
+  auto kernel = dolfinx_cuas::generate_kernel(dolfinx_cuas::Kernel::Stiffness, 1);
 
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();
