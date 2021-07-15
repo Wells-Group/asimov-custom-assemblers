@@ -72,7 +72,6 @@ int main(int argc, char* argv[])
   MatNorm(B.mat(), NORM_FROBENIUS, &normB);
 
   assert(xt::isclose(normA, normB));
-  std::cout << "Norm A " << normA << " Norm B " << normB << "\n";
   dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
 
   return 0;
