@@ -19,238 +19,251 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
                                   dolfinx_cuas::Kernel type, int quadrature_degree)
 {
 
-  // Creacte _qp_ref_facet (quadrature points on reference facet)
   auto mesh = V->mesh();
-  auto [qp_ref_facet, qw_ref_facet] = create_reference_facet_qp(mesh, quadrature_degree);
 
-  // Starting with implementing the following term in Jacobian:
-  // u*v*ds
-  // Mesh info
+  // Get mesh info
   const int gdim = mesh->geometry().dim(); // geometrical dimension
   const int tdim = mesh->topology().dim(); // topological dimension
-  const int fdim = tdim - 1;               // topological dimesnion of facet
+  const int fdim = tdim - 1;               // topological dimension of facet
 
-  // FIXME: Need basix element public in mesh
-  // int degree = mesh->geometry().cmap().degree();
-  int degree = 1; // element degree
-
-  const dolfinx::mesh::CellType dolfinx_cell = mesh->topology().cell_type();
-  const basix::cell::type basix_cell
-      = basix::cell::str_to_type(dolfinx::mesh::to_string(dolfinx_cell)); // basix cell type
-  auto dolfinx_facet
-      = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim);        // dolfinx facet cell type
-  auto dolfinx_facet_str = dolfinx::mesh::to_string(dolfinx_facet); // facet cell type as string
-  auto basix_facet = basix::cell::str_to_type(dolfinx_facet_str);   // basix facet cell type
-  auto facets = basix::cell::topology(basix_cell)[tdim - 1];
-
-  // Create facet quadrature points
-  auto quadrature_points
-      = basix::quadrature::make_quadrature("default", basix_facet, quadrature_degree).first;
-
-  basix::FiniteElement surface_element
-      = basix::create_element("Lagrange", dolfinx_facet_str, degree);
-  basix::FiniteElement basix_element
-      = basix::create_element("Lagrange", dolfinx::mesh::to_string(dolfinx_cell), degree);
+  // Create coordinate elements (for facet and cell)
+  const basix::FiniteElement surface_element = mesh_to_basix_element(mesh, fdim);
+  const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
   const int num_coordinate_dofs = basix_element.dim();
-  // tabulate on reference facet
-  auto f_tab = surface_element.tabulate(1, quadrature_points);
-  xt::xtensor<double, 2> dphi0_f
-      = xt::round(xt::view(f_tab, xt::range(1, tdim + 1), 0, xt::all(), 0));
 
-  // tabulate on reference cell
-  // not quite the right quadrature points if jacobian non-constant
-  auto qp_cell = xt::view(qp_ref_facet, 0, xt::all(), xt::all());
+  // Create quadrature points on reference facet
+  const basix::cell::type basix_facet = surface_element.cell_type();
+  auto [qp_ref_facet, qw_ref_facet]
+      = basix::quadrature::make_quadrature("default", basix_facet, quadrature_degree);
 
-  auto c_tab = basix_element.tabulate(1, qp_cell);
-  xt::xtensor<double, 2> dphi0_c
-      = xt::round(xt::view(c_tab, xt::range(1, tdim + 1), 0, xt::all(), 0));
+  // Tabulate coordinate elemetn of reference facet (used to compute Jacobian on facet)
+  // and push forward quadrature points
+  auto f_tab = surface_element.tabulate(1, qp_ref_facet);
+  xt::xtensor<double, 2> phi_f = xt::view(f_tab, 0, xt::all(), xt::all(), 0);
+  xt::xtensor<double, 3> dphi_f
+      = xt::round(xt::view(f_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0));
 
-  std::uint32_t num_quadrature_pts = qp_ref_facet.shape(1);
-  std::uint32_t num_facets = qp_ref_facet.shape(0);
+  // Structures required for pushing forward quadrature points
+  auto facets
+      = basix::cell::topology(basix_element.cell_type())[tdim - 1]; // Topology of basix facets
+  const xt::xtensor<double, 2> x
+      = basix::cell::geometry(basix_element.cell_type()); // Geometry of basix cell
+  const std::uint32_t num_facets = facets.size();
+  const std::uint32_t num_quadrature_pts = qp_ref_facet.shape(0);
+
+  // Structures needed for basis function tabulation
+  // phi and grad(phi) at quadrature points
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
   int bs = element->block_size();
   std::uint32_t num_local_dofs = element->space_dimension() / bs;
   xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, num_local_dofs});
   xt::xtensor<double, 4> dphi({num_facets, tdim, num_quadrature_pts, num_local_dofs});
   xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, num_local_dofs, bs});
-  auto ref_jacobians = basix::cell::facet_jacobians(basix_cell);
-  const xt::xtensor<double, 2> x = basix::cell::geometry(basix_cell);
-  // tabulate at quadrature points on facet
+
+  // Structure needed for jacobian of cell basis function
+  xt::xtensor<double, 4> dphi_c({num_facets, tdim, num_quadrature_pts, basix_element.dim()});
+
   for (int i = 0; i < num_facets; ++i)
   {
+    // Push quadrature points forward
+    auto facet = facets[i];
+    auto coords = xt::view(x, xt::keep(facet), xt::all());
+    auto q_facet = xt::linalg::dot(phi_f, coords);
+
+    // Tabulate at quadrature points on facet
     auto phi_i = xt::view(phi, i, xt::all(), xt::all());
     auto dphi_i = xt::view(dphi, i, xt::all(), xt::all(), xt::all());
-    auto q_facet = xt::view(qp_ref_facet, i, xt::all(), xt::all());
     element->tabulate(cell_tab, q_facet, 1);
     phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
     dphi_i = xt::view(cell_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
+
+    // Tabulate coordinate element of reference cell
+    auto c_tab = basix_element.tabulate(1, q_facet);
+    auto dphi_ci = xt::view(dphi_c, i, xt::all(), xt::all(), xt::all());
+    dphi_ci = xt::round(xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0));
   }
 
+  // FIXME: When are reference jacobians needed?
+  // auto ref_jacobians = basix::cell::facet_jacobians(basix_element.cell_type());
+  // Define kernels
   auto q_weights = qw_ref_facet;
-  kernel_fn mass = [facets, dphi0_f, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs](
+  kernel_fn mass = [facets, dphi_f, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs](
                        double* A, const double* c, const double* w, const double* coordinate_dofs,
                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    // Compute Jacobian at each quadrature point
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
-
+    // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx has 3D input coordinate dofs
     std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
     xt::xtensor<double, 2> coord
         = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
+
+    // Compute Jacobian and determinant at each quadrature point
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
+
+    // FIXME: Assumed constant, i.e. only works for simplices
+    xt::xtensor<double, 2> dphi0_f = xt::view(dphi_f, xt::all(), 0, xt::all());
     dolfinx_cuas::math::compute_jacobian(dphi0_f,
                                          xt::view(coord, xt::keep(facets[*entity_local_index])), J);
+
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+
     // Get number of dofs per cell
+    // FIXME: Should be templated
     std::int32_t ndofs_cell = phi.shape(2);
-    // Main loop
+
+    // Loop over quadrature points
     for (std::size_t q = 0; q < phi.shape(1); q++)
     {
-      double w0 = q_weights[q] * detJ;
+      // Scale at each quadrature point
+      const double w0 = q_weights[q] * detJ;
 
       for (int i = 0; i < ndofs_cell; i++)
       {
+        // Compute a weighted phi_i(p_q),  i.e. phi_i(p_q) det(J) w_q
         double w1 = w0 * phi(*entity_local_index, q, i);
         for (int j = 0; j < ndofs_cell; j++)
         {
-          double value = w1 * phi(*entity_local_index, q, j);
+          // Compute phi_j(p_q) phi_i(p_q) det(J) w_q (block invariant)
+          const double integrand = w1 * phi(*entity_local_index, q, j);
+
+          // Insert over block size in matrix
           for (int k = 0; k < bs; k++)
-          {
-            A[(k + i * bs) * (ndofs_cell * bs) + k + j * bs] += value;
-          }
+            A[(k + i * bs) * (ndofs_cell * bs) + k + j * bs] += integrand;
         }
       }
     }
   };
 
+  // FIXME: Template over gdim and tdim?
   kernel_fn stiffness
-      = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c, q_weights, num_coordinate_dofs](
+      = [facets, dphi_f, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs](
             double* A, const double* c, const double* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    // Compute Jacobian at each quadrature point: currently assumed to be constant...
+    // Reshape coordinate dofs to two dimensional array
+    // NOTE: DOLFINx has 3D input coordinate dofs
+    std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
+    xt::xtensor<double, 2> coord
+        = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
+
+    // Compute Jacobian, inverse Jacobian and determinant
     xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
 
-    // NOTE: DOLFINx has 3D input coordinate dofs
-    std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
-    xt::xtensor<double, 2> coord
-        = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
+    // NOTE: Currently assumed to be constant, thus would only work on affine geometries
+    xt::xtensor<double, 2> dphi0_f = xt::view(dphi_f, xt::all(), 0, xt::all());
     dolfinx_cuas::math::compute_jacobian(
         dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J_facet);
+    auto dphi0_c = xt::view(dphi_c, size_t(*entity_local_index), xt::all(), 0, xt::all());
+
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     dolfinx_cuas::math::compute_inv(J, K);
 
-    // Get number of dofs per cell
-    std::int32_t ndofs_cell = dphi.shape(3);
-
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_facet));
 
-    xt::xtensor<double, 2> temp({gdim, ndofs_cell});
-    // Main loop
+    // Get number of dofs per cell.
+    // FIXME: This should be templated
+    std::int32_t ndofs_cell = dphi.shape(3);
 
+    // Temporary variable for grad(phi) on physical cell
+    xt::xtensor<double, 2> dphi_phys({gdim, ndofs_cell});
+
+    // Loop over quadrature points.
     for (std::size_t q = 0; q < dphi.shape(2); q++)
     {
-      double w0 = q_weights[q] * detJ; //
+      // Scale for integral. NOTE: for non-simplices detJ is detJ[q]
+      const double w0 = q_weights[q] * detJ;
 
-      // precompute J^-T * dphi in temporary array temp
+      // Precompute J^-T * dphi
+      std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
       for (int i = 0; i < ndofs_cell; i++)
-      {
-
         for (int j = 0; j < gdim; j++)
-        {
-          temp(j, i) = 0;
           for (int k = 0; k < tdim; k++)
-          {
-            temp(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
-          }
-        }
-      }
+            dphi_phys(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
 
       for (int i = 0; i < ndofs_cell; i++)
-      {
         for (int j = 0; j < ndofs_cell; j++)
         {
-          double value = 0;
+          // Compute dphi_i/dx_k dphi_j/dx_k (block invariant)
+          double block_invariant_contr = 0;
           for (int k = 0; k < gdim; k++)
-          {
-            value += temp(k, i) * temp(k, j) * w0;
-          }
+            block_invariant_contr += dphi_phys(k, i) * dphi_phys(k, j);
+          block_invariant_contr *= w0;
+          // Insert into local matrix (repeated over block size)
           for (int k = 0; k < bs; k++)
-          {
-            A[(k + i * bs) * (ndofs_cell * bs) + k + j * bs] += value;
-          }
+            A[(k + i * bs) * (ndofs_cell * bs) + k + j * bs] += block_invariant_contr;
         }
-      }
     }
   };
 
-  kernel_fn contact_jac
-      = [facets, dphi0_f, dphi, gdim, tdim, fdim, bs, dphi0_c, q_weights, num_coordinate_dofs](
+  kernel_fn sym_grad
+      = [facets, dphi_f, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs](
             double* A, const double* c, const double* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == tdim);
-    // Compute Jacobian at each quadrature point: currently assumed to be constant...
-    xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
 
-    // NOTE: DOlFINx assumes 3D coordinate dofs input
+    // Reshape coordinate dofs to two dimensional array
+    // NOTE: DOLFINx assumes 3D coordinate dofs input
     std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
     xt::xtensor<double, 2> coord
         = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
 
+    // Compute Jacobian, inverse Jacobian and determinant
+    xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
+    // NOTE: Currently assumed to be constant, thus would only work on affine geometries
+    auto dphi0_f = xt::view(dphi_f, xt::all(), 0, xt::all());
     dolfinx_cuas::math::compute_jacobian(
         dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J_facet);
-
+    auto dphi0_c = xt::view(dphi_c, size_t(*entity_local_index), xt::all(), 0, xt::all());
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     dolfinx_cuas::math::compute_inv(J, K);
-    // Get number of dofs per cell
-    std::int32_t ndofs_cell = dphi.shape(3);
-
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_facet));
 
-    xt::xtensor<double, 2> temp({gdim, ndofs_cell});
-    // Main loop
+    // Get number of dofs per cell
+    // FIXME: Should be templated
+    std::int32_t ndofs_cell = dphi.shape(3);
+
+    // Temporary variable for grad(phi) on physical cell
+    xt::xtensor<double, 2> dphi_phys({gdim, ndofs_cell});
+
+    // Loop over quadrature points
     for (std::size_t q = 0; q < dphi.shape(2); q++)
     {
-      double w0 = q_weights[q] * detJ; //
+      // Create for integral. NOTE: for non-simplices detJ is detJ[q]
+      const double w0 = q_weights[q] * detJ;
 
-      // precompute J^-T * dphi in temporary array temp
+      // Precompute J^-T * dphi
+      std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
       for (int i = 0; i < ndofs_cell; i++)
-      {
-
         for (int j = 0; j < gdim; j++)
-        {
-          temp(j, i) = 0;
           for (int k = 0; k < tdim; k++)
-          {
-            temp(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
-          }
-        }
-      }
-      // This currently corresponds to the term sym(grad(u)):sym(grad(v)) (see
+            dphi_phys(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
+
+      // This corresponds to the term sym(grad(u)):sym(grad(v)) (see
       // https://www.overleaf.com/2212919918tbbqtnmnrynf for details)
       for (int i = 0; i < ndofs_cell; i++)
       {
         for (int j = 0; j < ndofs_cell; j++)
         {
           // Compute sum_t dphi^j/dx_t dphi^i/dx_t
-          double value = 0;
+          // Component is invarient of block size
+          double block_invariant_cont = 0;
           for (int t = 0; t < gdim; t++)
-            value += 0.5 * w0 * temp(t, i) * temp(t, j);
+            block_invariant_cont += dphi_phys(t, i) * dphi_phys(t, j);
+          block_invariant_cont *= 0.5 * w0;
 
           for (int k = 0; k < bs; ++k)
           {
-            A[(k + i * bs) * (ndofs_cell * bs) + (j * bs + k)] += value;
+            const size_t row = (k + i * bs) * (ndofs_cell * bs);
+            A[row + j * bs + k] += block_invariant_cont;
+
+            // Add dphi^j/dx_k dphi^i/dx_l
             for (int l = 0; l < bs; ++l)
-            {
-              // Add dphi^j/dx_k dphi^i/dx_l
-              A[(k + i * bs) * (ndofs_cell * bs) + (j * bs + l)]
-                  += 0.5 * w0 * temp(l, i) * temp(k, j);
-            }
+              A[row + j * bs + l] += 0.5 * w0 * dphi_phys(l, i) * dphi_phys(k, j);
           }
         }
       }
@@ -263,9 +276,9 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   case dolfinx_cuas::Kernel::Stiffness:
     return stiffness;
   case dolfinx_cuas::Kernel::SymGrad:
-    return contact_jac;
+    return sym_grad;
   default:
-    throw std::runtime_error("unrecognized kernel");
+    throw std::runtime_error("Unrecognized kernel");
   }
 }
 

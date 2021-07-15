@@ -84,7 +84,7 @@ def test_surface_kernels(dim, kernel_type):
 @pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_volume_kernels(kernel_type, P):
-    N = 1
+    N = 4
     mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
 
     # Define variational form
@@ -112,7 +112,6 @@ def test_volume_kernels(kernel_type, P):
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
-    print(active_cells)
     B = dolfinx.fem.create_matrix(a)
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P)
     B.zeroEntries()
