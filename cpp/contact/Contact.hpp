@@ -61,8 +61,8 @@ public:
   {
     return _map_1_to_0;
   }
-  const std::vector<int32_t> facet_0() const { return _facet_0; }
-  const std::vector<int32_t> facet_1() const { return _facet_1; }
+  const std::vector<int32_t>& facet_0() const { return _facet_0; }
+  const std::vector<int32_t>& facet_1() const { return _facet_1; }
   // Return meshtag value for surface_0
   const int surface_0() const { return _surface_0; }
   // Return mestag value for suface_1
