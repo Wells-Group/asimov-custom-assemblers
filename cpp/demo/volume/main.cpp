@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
-#include "problem.h"
+#include "volume.h"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <dolfinx.h>
@@ -30,12 +30,12 @@ int main(int argc, char* argv[])
   mesh->topology().create_entity_permutations();
 
   const std::shared_ptr<fem::FunctionSpace>& V
-      = fem::create_functionspace(functionspace_form_problem_a, "u", mesh);
+      = fem::create_functionspace(functionspace_form_volume_a, "u", mesh);
 
   // Define variational forms
   auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
   auto a = std::make_shared<fem::Form<PetscScalar>>(
-      fem::create_form<PetscScalar>(*form_problem_a, {V, V}, {}, {{"kappa", kappa}}, {}));
+      fem::create_form<PetscScalar>(*form_volume_a, {V, V}, {}, {{"kappa", kappa}}, {}));
 
   // Matrix to be used with custom assembler
   la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
@@ -45,7 +45,8 @@ int main(int argc, char* argv[])
   la::PETScMatrix B = la::PETScMatrix(fem::create_matrix(*a), false);
   MatZeroEntries(B.mat());
 
-  auto kernel = dolfinx_cuas::generate_kernel(dolfinx_cuas::Kernel::Stiffness, 1);
+  // Generate Kernel
+  auto kernel = dolfinx_cuas::generate_kernel(dolfinx_cuas::Kernel::Mass, 2);
 
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();
@@ -65,13 +66,20 @@ int main(int argc, char* argv[])
   MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
   t1.stop();
 
-  double normA;
-  MatNorm(A.mat(), NORM_FROBENIUS, &normA);
+  MatInfo info;
+  MatGetInfo(A.mat(), MAT_LOCAL, &info);
 
-  double normB;
-  MatNorm(B.mat(), NORM_FROBENIUS, &normB);
+  double* A_array;
+  MatSeqAIJGetArray(A.mat(), &A_array);
+  auto _A = xt::adapt(A_array, info.nz_allocated, xt::no_ownership(),
+                      std::vector<std::size_t>{std::size_t(info.nz_allocated)});
 
-  assert(xt::isclose(normA, normB));
+  double* B_array;
+  MatSeqAIJGetArray(B.mat(), &B_array);
+  auto _B = xt::adapt(B_array, info.nz_allocated, xt::no_ownership(),
+                      std::vector<std::size_t>{std::size_t(info.nz_allocated)});
+
+  assert(xt::allclose(_A, _B));
   dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
 
   return 0;
