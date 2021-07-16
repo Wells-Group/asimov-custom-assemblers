@@ -244,7 +244,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
             dphi_phys(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
 
       // This corresponds to the term sym(grad(u)):sym(grad(v)) (see
-      // https://www.overleaf.com/2212919918tbbqtnmnrynf for details)
+      // https://www.overleaf.com/read/wnvkgjfnhkrx for details)
       for (int i = 0; i < ndofs_cell; i++)
       {
         for (int j = 0; j < ndofs_cell; j++)
