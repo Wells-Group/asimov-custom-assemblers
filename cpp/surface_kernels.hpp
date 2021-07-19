@@ -160,7 +160,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     dolfinx_cuas::math::compute_inv(J, K);
 
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_facet));
+    double detJ_f = std::fabs(dolfinx_cuas::math::compute_determinant(J_facet));
 
     // Get number of dofs per cell.
     // FIXME: This should be templated
@@ -173,13 +173,13 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     for (std::size_t q = 0; q < dphi.shape(2); q++)
     {
       // Scale for integral. NOTE: for non-simplices detJ is detJ[q]
-      const double w0 = q_weights[q] * detJ;
+      const double w0 = q_weights[q] * detJ_f;
 
       // Precompute J^-T * dphi
       std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
       for (int i = 0; i < ndofs_cell; i++)
-        for (int j = 0; j < gdim; j++)
-          for (int k = 0; k < tdim; k++)
+        for (int k = 0; k < tdim; k++)
+          for (int j = 0; j < gdim; j++)
             dphi_phys(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
 
       for (int i = 0; i < ndofs_cell; i++)
