@@ -11,6 +11,7 @@
 #include <dolfinx/fem/petsc.h>
 #include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/kernels.hpp>
+#include <dolfinx_cuas/utils.hpp>
 
 #include <xtensor/xio.hpp>
 
@@ -66,20 +67,8 @@ int main(int argc, char* argv[])
   MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
   t1.stop();
 
-  MatInfo info;
-  MatGetInfo(A.mat(), MAT_LOCAL, &info);
+  assert(dolfinx_cuas::allclose(A.mat(), B.mat()));
 
-  double* A_array;
-  MatSeqAIJGetArray(A.mat(), &A_array);
-  auto _A = xt::adapt(A_array, info.nz_allocated, xt::no_ownership(),
-                      std::vector<std::size_t>{std::size_t(info.nz_allocated)});
-
-  double* B_array;
-  MatSeqAIJGetArray(B.mat(), &B_array);
-  auto _B = xt::adapt(B_array, info.nz_allocated, xt::no_ownership(),
-                      std::vector<std::size_t>{std::size_t(info.nz_allocated)});
-
-  assert(xt::allclose(_A, _B));
   dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
 
   return 0;
