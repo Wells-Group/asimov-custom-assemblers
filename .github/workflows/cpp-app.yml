@@ -69,4 +69,4 @@ jobs:
           cd cpp/demo/volume
           cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer .
           ninja -C build-dir
-          ./build-dir/custom-assembler
+          ./build-dir/volume
