@@ -21,6 +21,7 @@ namespace dolfinx_cuas
 enum Kernel
 {
   Mass,
+  MassTensor,
   Stiffness,
   SymGrad
 };
@@ -45,7 +46,7 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   int quad_degree = 0;
   if (type == dolfinx_cuas::Kernel::Stiffness)
     quad_degree = (P - 1) + (P - 1);
-  else if (type == dolfinx_cuas::Kernel::Mass)
+  else if (type == dolfinx_cuas::Kernel::Mass or type == dolfinx_cuas::Kernel::MassTensor)
     quad_degree = 2 * P;
 
   auto [points, weight]
@@ -76,11 +77,9 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
       for (std::int32_t i = 0; i < ndofs_cell; i++)
         _dphi(q, i, k) = dphi(k, q, i);
 
-  kernel_fn stiffness
-      = [dphi0_c, _dphi, phi, weights](double* A, const double* c, const double* w,
-                                       const double* coordinate_dofs, const int* entity_local_index,
-                                       const std::uint8_t* quadrature_permutation)
-  {
+  kernel_fn stiffness = [=](double* A, const double* c, const double* w,
+                            const double* coordinate_dofs, const int* entity_local_index,
+                            const std::uint8_t* quadrature_permutation) {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
@@ -91,9 +90,6 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     dolfinx_cuas::math::compute_inv(J, K);
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
-
-    // Get number of dofs per cell
-    std::int32_t ndofs_cell = phi.shape(1);
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
@@ -123,9 +119,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     }
   };
 
+  // Mass Matrix using quadrature formulation
+  // =====================================================================================
   kernel_fn mass = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                       const int* entity_local_index, const std::uint8_t* quadrature_permutation)
-  {
+                       const int* entity_local_index, const std::uint8_t* quadrature_permutation) {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     std::array<std::size_t, 2> shape = {d, gdim};
@@ -134,9 +131,6 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     // Compute Jacobian, its inverse and the determinant
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
-
-    // Get number of dofs per cell
-    std::int32_t ndofs_cell = phi.shape(1);
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
@@ -151,10 +145,39 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     }
   };
 
+  // Mass Matrix using tensor contraction formulation
+  // =====================================================================================
+
+  // Pre-compute local matrix for reference element
+  xt::xtensor<double, 2> A0 = xt::zeros<double>({ndofs_cell, ndofs_cell});
+  for (std::size_t q = 0; q < weights.size(); q++)
+    for (int i = 0; i < ndofs_cell; i++)
+      for (int j = 0; j < ndofs_cell; j++)
+        A0(i, j) += weights[q] * phi(q, i) * phi(q, j);
+
+  kernel_fn masstensor = [=](double* A, const double* c, const double* w,
+                              const double* coordinate_dofs, const int* entity_local_index,
+                              const std::uint8_t* quadrature_permutation) {
+    // Get geometrical data
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    std::array<std::size_t, 2> shape = {d, gdim};
+    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+
+    // Compute Jacobian, its inverse and the determinant
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+
+    for (int i = 0; i < ndofs_cell; i++)
+      for (int j = 0; j < ndofs_cell; j++)
+        A[i * ndofs_cell + j] += detJ * A0.unchecked(i, j);
+  };
+
   switch (type)
   {
   case dolfinx_cuas::Kernel::Mass:
     return mass;
+  case dolfinx_cuas::Kernel::MassTensor:
+    return masstensor;
   case dolfinx_cuas::Kernel::Stiffness:
     return stiffness;
   default:

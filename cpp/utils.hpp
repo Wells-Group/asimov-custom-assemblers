@@ -10,6 +10,7 @@
 #include <basix/cell.h>
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
+#include <dolfinx/fem/petsc.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <xtensor-blas/xlinalg.hpp>
 
@@ -95,6 +96,33 @@ create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int q
     q_facet = xt::linalg::dot(phi_s, coords);
   }
   return {qp_ref_facet, quadrature.second};
+}
+
+/// Returns true if two PETSc matrices are element-wise equal within a tolerance.
+/// @param[in] A PETSc Matrix to compare
+/// @param[in] B PETSc Matrix to compare
+bool allclose(Mat A, Mat B)
+{
+  MatInfo A_info;
+  MatGetInfo(A, MAT_LOCAL, &A_info);
+
+  MatInfo B_info;
+  MatGetInfo(B, MAT_LOCAL, &B_info);
+
+  if (B_info.nz_allocated != A_info.nz_allocated)
+    return false;
+
+  double* A_array;
+  MatSeqAIJGetArray(A, &A_array);
+  auto _A = xt::adapt(A_array, A_info.nz_allocated, xt::no_ownership(),
+                      std::vector<std::size_t>{std::size_t(A_info.nz_allocated)});
+
+  double* B_array;
+  MatSeqAIJGetArray(B, &B_array);
+  auto _B = xt::adapt(B_array, B_info.nz_allocated, xt::no_ownership(),
+                      std::vector<std::size_t>{std::size_t(B_info.nz_allocated)});
+
+  return xt::allclose(_A, _B);
 }
 
 } // namespace dolfinx_cuas
