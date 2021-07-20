@@ -40,8 +40,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   // and push forward quadrature points
   auto f_tab = surface_element.tabulate(1, qp_ref_facet);
   xt::xtensor<double, 2> phi_f = xt::view(f_tab, 0, xt::all(), xt::all(), 0);
-  xt::xtensor<double, 3> dphi_f
-      = xt::round(xt::view(f_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0));
+  xt::xtensor<double, 3> dphi_f = xt::view(f_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
 
   // Structures required for pushing forward quadrature points
   auto facets
@@ -80,7 +79,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     // Tabulate coordinate element of reference cell
     auto c_tab = basix_element.tabulate(1, q_facet);
     auto dphi_ci = xt::view(dphi_c, i, xt::all(), xt::all(), xt::all());
-    dphi_ci = xt::round(xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0));
+    dphi_ci = xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
   }
 
   // FIXME: When are reference jacobians needed?
