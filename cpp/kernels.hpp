@@ -70,7 +70,7 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   xt::xtensor<double, 4> coordinate_basis = coordinate_element.tabulate(1, points);
 
   xt::xtensor<double, 2> dphi0_c
-      = xt::round(xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0));
+      = xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
 
   assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
 

@@ -15,7 +15,7 @@ from petsc4py import PETSc
 kt = dolfinx_cuas.cpp.Kernel
 
 
-def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-13):
+def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-12):
     """
     Helper for comparing two PETSc matrices
     """
