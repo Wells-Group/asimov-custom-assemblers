@@ -44,11 +44,14 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
+  // NOTE: These assumptions are only fine for simplices
   int quad_degree = 0;
   if (type == dolfinx_cuas::Kernel::Stiffness)
     quad_degree = (P - 1) + (P - 1);
   else if (type == dolfinx_cuas::Kernel::Mass or type == dolfinx_cuas::Kernel::MassTensor)
     quad_degree = 2 * P;
+  else if (type == dolfinx_cuas::Kernel::TrEps)
+    quad_degree = (P - 1) + (P - 1);
 
   auto [points, weight]
       = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell), quad_degree);

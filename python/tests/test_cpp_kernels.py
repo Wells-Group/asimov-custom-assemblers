@@ -24,6 +24,7 @@ def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-13):
     A_sp = scipy.sparse.csr_matrix((av, aj, ai), shape=A.getSize())
     bi, bj, bv = B.getValuesCSR()
     B_sp = scipy.sparse.csr_matrix((bv, bj, bi), shape=B.getSize())
+
     # Compare matrices
     diff = np.abs(A_sp - B_sp)
     assert diff.max() <= atol
@@ -135,20 +136,60 @@ def test_surface_kernels(dim, kernel_type):
     compare_matrices(A, B)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness, kt.TrEps])
+@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_volume_kernels(kernel_type, P):
     N = 4
     mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
     # Define variational form
-    if kernel_type == kt.TrEps:
-        V = dolfinx.VectorFunctionSpace(mesh, ("CG", P))
+    V = dolfinx.FunctionSpace(mesh, ("CG", P))
+    bs = V.dofmap.index_map_bs
+
+    u = ufl.TrialFunction(V)
+    v = ufl.TestFunction(V)
+    dx = ufl.Measure("dx", domain=mesh)
+    if kernel_type == kt.Mass:
+        a = ufl.inner(u, v) * dx
+    elif kernel_type == kt.Stiffness:
+        a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
     else:
-        V = dolfinx.FunctionSpace(mesh, ("CG", P))
+        raise RuntimeError("Unknown kernel")
+
+    # Compile UFL form
+    cffi_options = ["-Ofast", "-march=native"]
+    a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = dolfinx.fem.create_matrix(a)
+
+    # Normal assembly
+    A.zeroEntries()
+    dolfinx.fem.assemble_matrix(A, a)
+    A.assemble()
+
+    # Custom assembly
+    num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    active_cells = np.arange(num_local_cells, dtype=np.int32)
+    B = dolfinx.fem.create_matrix(a)
+    kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs)
+    B.zeroEntries()
+    dolfinx_cuas.cpp.assemble_cells(B, a._cpp_object, active_cells, kernel)
+    B.assemble()
+
+    # Compare matrices, first norm, then entries
+    assert np.isclose(A.norm(), B.norm())
+    compare_matrices(A, B)
+
+
+@pytest.mark.parametrize("kernel_type", [kt.TrEps])
+@pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
+def test_vector_cell_kernel(kernel_type, P):
+    N = 1
+    mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    V = dolfinx.VectorFunctionSpace(mesh, ("CG", P))
     bs = V.dofmap.index_map_bs
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
+
     if kernel_type == kt.Mass:
         a = ufl.inner(u, v) * dx
     elif kernel_type == kt.Stiffness:
