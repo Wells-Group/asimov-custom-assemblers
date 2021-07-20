@@ -252,19 +252,24 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 
     // Temporary variable for grad(phi) on physical cell
-    xt::xtensor<double, 2> dphi_phys({bs, ndofs_cell});
+    xt::xtensor<double, 2> dphi_phys({ndofs_cell, bs});
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
-      double w0 = weights[q] * detJ;
-
+      const double w0 = weights[q] * detJ;
       // Precompute J^-T * dphi
       std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
       for (int i = 0; i < ndofs_cell; i++)
+      {
         for (int j = 0; j < bs; j++)
+        {
+          double acc = 0;
           for (int k = 0; k < tdim; k++)
-            dphi_phys(j, i) += K(k, j) * _dphi(q, i, k);
+            acc += K(k, j) * _dphi(q, i, k);
+          dphi_phys(i, j) += acc;
+        }
+      }
 
       // Add contributions to local matrix
       for (int i = 0; i < ndofs_cell; i++)
@@ -274,7 +279,7 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
           // Compute block invariant term from sigma(u):eps(v)
           double block_invariant = 0;
           for (int s = 0; s < bs; s++)
-            block_invariant += dphi_phys(s, i) * dphi_phys(s, j);
+            block_invariant += dphi_phys(i, s) * dphi_phys(j, s);
           block_invariant *= w0;
 
           for (int k = 0; k < bs; ++k)
@@ -285,7 +290,7 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
             A[row + j * bs + k] += block_invariant;
 
             for (int l = 0; l < bs; ++l)
-              A[row + j * bs + l] += dphi_phys(l, i) * dphi_phys(k, j) * w0;
+              A[row + j * bs + l] += dphi_phys(i, l) * dphi_phys(j, k) * w0;
           }
         }
       }

@@ -182,7 +182,7 @@ def test_volume_kernels(kernel_type, P):
 @pytest.mark.parametrize("kernel_type", [kt.TrEps, kt.SymGrad])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_cell_kernel(kernel_type, P):
-    N = 4
+    N = 5
     mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
     V = dolfinx.VectorFunctionSpace(mesh, ("CG", P))
     bs = V.dofmap.index_map_bs
