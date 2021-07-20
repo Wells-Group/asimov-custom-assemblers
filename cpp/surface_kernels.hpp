@@ -134,6 +134,55 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     }
   };
 
+  kernel_fn mass_nonaffine
+      = [facets, dphi_f, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs](
+            double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
+    // Reshape coordinate dofs to two dimensional array
+    // NOTE: DOLFINx has 3D input coordinate dofs
+    std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
+    xt::xtensor<double, 2> coord
+        = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
+
+    // // Compute Jacobian and determinant at each quadrature point
+    // xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
+
+    // Get number of dofs per cell
+    // FIXME: Should be templated
+    std::int32_t ndofs_cell = phi.shape(2);
+
+    // Loop over quadrature points
+    for (std::size_t q = 0; q < phi.shape(1); q++)
+    {
+      // Compute Jacobian and determinant at each quadrature point
+      xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
+
+      xt::xtensor<double, 2> dphi0_f = xt::view(dphi_f, xt::all(), q, xt::all());
+      dolfinx_cuas::math::compute_jacobian(
+          dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J);
+
+      double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+      std::cout << "det J " << detJ << "\n";
+      // Scale at each quadrature point
+      const double w0 = q_weights[q] * detJ;
+
+      for (int i = 0; i < ndofs_cell; i++)
+      {
+        // Compute a weighted phi_i(p_q),  i.e. phi_i(p_q) det(J) w_q
+        double w1 = w0 * phi(*entity_local_index, q, i);
+        for (int j = 0; j < ndofs_cell; j++)
+        {
+          // Compute phi_j(p_q) phi_i(p_q) det(J) w_q (block invariant)
+          const double integrand = w1 * phi(*entity_local_index, q, j);
+
+          // Insert over block size in matrix
+          for (int k = 0; k < bs; k++)
+            A[(k + i * bs) * (ndofs_cell * bs) + k + j * bs] += integrand;
+        }
+      }
+    }
+  };
   // FIXME: Template over gdim and tdim?
   kernel_fn stiffness
       = [facets, dphi_f, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs](
@@ -272,7 +321,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   switch (type)
   {
   case dolfinx_cuas::Kernel::Mass:
-    return mass;
+    return mass_nonaffine;
   case dolfinx_cuas::Kernel::Stiffness:
     return stiffness;
   case dolfinx_cuas::Kernel::SymGrad:
