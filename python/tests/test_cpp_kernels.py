@@ -21,9 +21,9 @@ def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-13):
     """
     # Create scipy CSR matrices
     ai, aj, av = A.getValuesCSR()
-    A_sp = scipy.sparse.csr_matrix((av, aj, ai))
+    A_sp = scipy.sparse.csr_matrix((av, aj, ai), shape=A.getSize())
     bi, bj, bv = B.getValuesCSR()
-    B_sp = scipy.sparse.csr_matrix((bv, bj, bi))
+    B_sp = scipy.sparse.csr_matrix((bv, bj, bi), shape=B.getSize())
     # Compare matrices
     diff = np.abs(A_sp - B_sp)
     assert diff.max() <= atol
@@ -135,14 +135,17 @@ def test_surface_kernels(dim, kernel_type):
     compare_matrices(A, B)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness])
+@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness, kt.TrEps])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_volume_kernels(kernel_type, P):
     N = 4
     mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
-
     # Define variational form
-    V = dolfinx.FunctionSpace(mesh, ("CG", P))
+    if kernel_type == kt.TrEps:
+        V = dolfinx.VectorFunctionSpace(mesh, ("CG", P))
+    else:
+        V = dolfinx.FunctionSpace(mesh, ("CG", P))
+    bs = V.dofmap.index_map_bs
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
@@ -150,6 +153,10 @@ def test_volume_kernels(kernel_type, P):
         a = ufl.inner(u, v) * dx
     elif kernel_type == kt.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
+    elif kernel_type == kt.TrEps:
+        def epsilon(v):
+            return ufl.sym(ufl.grad(v))
+        a = ufl.inner(ufl.tr(epsilon(u)) * ufl.Identity(len(u)), epsilon(v)) * dx
     else:
         raise RuntimeError("Unknown kernel")
 
@@ -167,7 +174,7 @@ def test_volume_kernels(kernel_type, P):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P)
+    kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs)
     B.zeroEntries()
     dolfinx_cuas.cpp.assemble_cells(B, a._cpp_object, active_cells, kernel)
     B.assemble()
