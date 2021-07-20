@@ -179,10 +179,10 @@ def test_volume_kernels(kernel_type, P):
     compare_matrices(A, B)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.TrEps])
+@pytest.mark.parametrize("kernel_type", [kt.TrEps, kt.SymGrad])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_cell_kernel(kernel_type, P):
-    N = 1
+    N = 4
     mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
     V = dolfinx.VectorFunctionSpace(mesh, ("CG", P))
     bs = V.dofmap.index_map_bs
@@ -190,14 +190,17 @@ def test_vector_cell_kernel(kernel_type, P):
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
 
+    def epsilon(v):
+        return ufl.sym(ufl.grad(v))
+
     if kernel_type == kt.Mass:
         a = ufl.inner(u, v) * dx
     elif kernel_type == kt.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
     elif kernel_type == kt.TrEps:
-        def epsilon(v):
-            return ufl.sym(ufl.grad(v))
         a = ufl.inner(ufl.tr(epsilon(u)) * ufl.Identity(len(u)), epsilon(v)) * dx
+    elif kernel_type == kt.SymGrad:
+        a = 2 * ufl.inner(epsilon(u), epsilon(v)) * dx
     else:
         raise RuntimeError("Unknown kernel")
 

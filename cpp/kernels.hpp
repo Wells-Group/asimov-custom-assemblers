@@ -52,6 +52,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     quad_degree = 2 * P;
   else if (type == dolfinx_cuas::Kernel::TrEps)
     quad_degree = (P - 1) + (P - 1);
+  else if (type == dolfinx_cuas::Kernel::SymGrad)
+    quad_degree = (P - 1) + (P - 1);
 
   auto [points, weight]
       = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell), quad_degree);
@@ -222,8 +224,68 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
 
             for (int l = 0; l < bs; ++l)
             {
+              // Add term from tr(eps(u))I: eps(v)
               A[row + j * bs + l] += dphi_phys(k, i) * dphi_phys(l, j) * w0;
             }
+          }
+        }
+      }
+    }
+  };
+
+  // sym(grad(eps(u))):eps(v) dx
+  //========================================================================================
+  kernel_fn sym_grad_eps
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
+    assert(bs == 3);
+    // Get geometrical data
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
+    std::array<std::size_t, 2> shape = {d, gdim};
+    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+
+    // Compute Jacobian, its inverse and the determinant
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    dolfinx_cuas::math::compute_inv(J, K);
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+
+    // Temporary variable for grad(phi) on physical cell
+    xt::xtensor<double, 2> dphi_phys({bs, ndofs_cell});
+
+    // Main loop
+    for (std::size_t q = 0; q < weights.size(); q++)
+    {
+      double w0 = weights[q] * detJ;
+
+      // Precompute J^-T * dphi
+      std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
+      for (int i = 0; i < ndofs_cell; i++)
+        for (int j = 0; j < bs; j++)
+          for (int k = 0; k < tdim; k++)
+            dphi_phys(j, i) += K(k, j) * _dphi(q, i, k);
+
+      // Add contributions to local matrix
+      for (int i = 0; i < ndofs_cell; i++)
+      {
+        for (int j = 0; j < ndofs_cell; j++)
+        {
+          // Compute block invariant term from sigma(u):eps(v)
+          double block_invariant = 0;
+          for (int s = 0; s < bs; s++)
+            block_invariant += dphi_phys(s, i) * dphi_phys(s, j);
+          block_invariant *= w0;
+
+          for (int k = 0; k < bs; ++k)
+          {
+            const size_t row = (k + i * bs) * (ndofs_cell * bs);
+
+            // Add block invariant term from sigma(u):eps(v)
+            A[row + j * bs + k] += block_invariant;
+
+            for (int l = 0; l < bs; ++l)
+              A[row + j * bs + l] += dphi_phys(l, i) * dphi_phys(k, j) * w0;
           }
         }
       }
@@ -240,6 +302,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     return stiffness;
   case dolfinx_cuas::Kernel::TrEps:
     return tr_eps;
+  case dolfinx_cuas::Kernel::SymGrad:
+    return sym_grad_eps;
   default:
     throw std::runtime_error("unrecognized kernel");
   }
