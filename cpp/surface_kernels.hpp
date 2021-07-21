@@ -38,9 +38,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
 
   // Tabulate coordinate elemetn of reference facet (used to compute Jacobian on facet)
   // and push forward quadrature points
-  auto f_tab = surface_element.tabulate(1, qp_ref_facet);
+  auto f_tab = surface_element.tabulate(0, qp_ref_facet);
   xt::xtensor<double, 2> phi_f = xt::view(f_tab, 0, xt::all(), xt::all(), 0);
-  xt::xtensor<double, 3> dphi_f = xt::view(f_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
 
   // Structures required for pushing forward quadrature points
   auto facets
@@ -82,29 +81,39 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     dphi_ci = xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
   }
 
-  // FIXME: When are reference jacobians needed?
-  // auto ref_jacobians = basix::cell::facet_jacobians(basix_element.cell_type());
+  // As reference facet and reference cell are affine, we do not need to compute this per
+  // quadrature point
+  auto ref_jacobians = basix::cell::facet_jacobians(basix_element.cell_type());
+
   // Define kernels
   auto q_weights = qw_ref_facet;
-  kernel_fn mass = [facets, dphi_f, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs](
-                       double* A, const double* c, const double* w, const double* coordinate_dofs,
-                       const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  kernel_fn mass
+      = [facets, dphi_c, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs,
+         ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx has 3D input coordinate dofs
     std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
+
+    // FIXME: These array should be views (when compute_jacobian doesn't use xtensor)
     xt::xtensor<double, 2> coord
         = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
 
+    // Extract the first derivative of the coordinate element (cell) of degrees of freedom on the
+    // facet
+    xt::xtensor<double, 2> dphi0_c
+        = xt::view(dphi_c, size_t(*entity_local_index), xt::all(), 0,
+                   xt::all()); // FIXME: Assumed constant, i.e. only works for simplices
+
     // Compute Jacobian and determinant at each quadrature point
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
 
-    // FIXME: Assumed constant, i.e. only works for simplices
-    xt::xtensor<double, 2> dphi0_f = xt::view(dphi_f, xt::all(), 0, xt::all());
-    dolfinx_cuas::math::compute_jacobian(dphi0_f,
-                                         xt::view(coord, xt::keep(facets[*entity_local_index])), J);
-
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+    // Compute det(J_C J_f) as it is the mapping to the reference facet
+    xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, *entity_local_index, xt::all(), xt::all());
+    xt::xtensor<double, 2> J_tot = xt::linalg::dot(J, J_f);
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
 
     // Get number of dofs per cell
     // FIXME: Should be templated
@@ -135,9 +144,9 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
 
   // FIXME: Template over gdim and tdim?
   kernel_fn stiffness
-      = [facets, dphi_f, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs](
-            double* A, const double* c, const double* w, const double* coordinate_dofs,
-            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [facets, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs,
+         ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx has 3D input coordinate dofs
@@ -145,21 +154,22 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     xt::xtensor<double, 2> coord
         = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
 
-    // Compute Jacobian, inverse Jacobian and determinant
-    xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
+    // Extract the first derivative of the coordinate element (cell) of degrees of freedom on the
+    // facet
+    xt::xtensor<double, 2> dphi0_c
+        = xt::view(dphi_c, size_t(*entity_local_index), xt::all(), 0,
+                   xt::all()); // FIXME: Assumed constant, i.e. only works for simplices
+
+    // Compute Jacobian and inverse of cell mapping at each quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
-
-    // NOTE: Currently assumed to be constant, thus would only work on affine geometries
-    xt::xtensor<double, 2> dphi0_f = xt::view(dphi_f, xt::all(), 0, xt::all());
-    dolfinx_cuas::math::compute_jacobian(
-        dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J_facet);
-    auto dphi0_c = xt::view(dphi_c, size_t(*entity_local_index), xt::all(), 0, xt::all());
-
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     dolfinx_cuas::math::compute_inv(J, K);
 
-    double detJ_f = std::fabs(dolfinx_cuas::math::compute_determinant(J_facet));
+    // Compute det(J_C J_f) as it is the mapping to the reference facet
+    xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, *entity_local_index, xt::all(), xt::all());
+    xt::xtensor<double, 2> J_tot = xt::linalg::dot(J, J_f);
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
 
     // Get number of dofs per cell.
     // FIXME: This should be templated
@@ -172,7 +182,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     for (std::size_t q = 0; q < dphi.shape(2); q++)
     {
       // Scale for integral. NOTE: for non-simplices detJ is detJ[q]
-      const double w0 = q_weights[q] * detJ_f;
+      const double w0 = q_weights[q] * detJ;
 
       // Precompute J^-T * dphi
       std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
@@ -197,9 +207,9 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   };
 
   kernel_fn sym_grad
-      = [facets, dphi_f, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs](
-            double* A, const double* c, const double* w, const double* coordinate_dofs,
-            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [facets, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs,
+         ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == tdim);
 
@@ -209,18 +219,22 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     xt::xtensor<double, 2> coord
         = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
 
-    // Compute Jacobian, inverse Jacobian and determinant
-    xt::xtensor<double, 2> J_facet = xt::zeros<double>({gdim, fdim});
+    // Extract the first derivative of the coordinate element(cell) of degrees of freedom on the
+    // facet
+    xt::xtensor<double, 2> dphi0_c
+        = xt::view(dphi_c, size_t(*entity_local_index), xt::all(), 0,
+                   xt::all()); // FIXME: Assumed constant, i.e. only works for simplices
+
+    // Compute Jacobian and inverse of cell mapping at each quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
-    // NOTE: Currently assumed to be constant, thus would only work on affine geometries
-    auto dphi0_f = xt::view(dphi_f, xt::all(), 0, xt::all());
-    dolfinx_cuas::math::compute_jacobian(
-        dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J_facet);
-    auto dphi0_c = xt::view(dphi_c, size_t(*entity_local_index), xt::all(), 0, xt::all());
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     dolfinx_cuas::math::compute_inv(J, K);
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_facet));
+
+    // Compute det(J_C J_f) as it is the mapping to the reference facet
+    xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, *entity_local_index, xt::all(), xt::all());
+    xt::xtensor<double, 2> J_tot = xt::linalg::dot(J, J_f);
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
 
     // Get number of dofs per cell
     // FIXME: Should be templated
