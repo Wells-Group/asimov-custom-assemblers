@@ -40,9 +40,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   // and push forward quadrature points
   auto f_tab = surface_element.tabulate(1, qp_ref_facet);
   xt::xtensor<double, 2> phi_f = xt::view(f_tab, 0, xt::all(), xt::all(), 0);
-  xt::xtensor<double, 3> dphi_f
-      = xt::round(xt::view(f_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0));
-
+  xt::xtensor<double, 3> dphi_f = xt::view(f_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
   // Structures required for pushing forward quadrature points
   auto facets
       = basix::cell::topology(basix_element.cell_type())[tdim - 1]; // Topology of basix facets
@@ -163,7 +161,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
           dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J);
 
       double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
-      std::cout << "det J " << detJ << "\n";
+
       // Scale at each quadrature point
       const double w0 = q_weights[q] * detJ;
 
@@ -321,11 +319,13 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   switch (type)
   {
   case dolfinx_cuas::Kernel::Mass:
-    return mass_nonaffine;
+    return mass;
   case dolfinx_cuas::Kernel::Stiffness:
     return stiffness;
   case dolfinx_cuas::Kernel::SymGrad:
     return sym_grad;
+  case dolfinx_cuas::Kernel::MassNonAffine:
+    return mass_nonaffine;
   default:
     throw std::runtime_error("Unrecognized kernel");
   }

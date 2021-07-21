@@ -82,6 +82,7 @@ PYBIND11_MODULE(cpp, m)
         });
   py::enum_<dolfinx_cuas::Kernel>(m, "Kernel")
       .value("Mass", dolfinx_cuas::Kernel::Mass)
+      .value("MassNonAffine", dolfinx_cuas::Kernel::MassNonAffine)
       .value("Stiffness", dolfinx_cuas::Kernel::Stiffness)
       .value("SymGrad", dolfinx_cuas::Kernel::SymGrad);
 }
