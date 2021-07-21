@@ -22,6 +22,7 @@ enum Kernel
 {
   Mass,
   MassTensor,
+  MassNonAffine,
   Stiffness,
   SymGrad,
   TrEps
