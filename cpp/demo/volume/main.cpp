@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
   MatZeroEntries(B.mat());
 
   // Generate Kernel
-  auto kernel = dolfinx_cuas::generate_kernel(dolfinx_cuas::Kernel::MassTensor, 1, 3);
+  auto kernel = dolfinx_cuas::generate_kernel(dolfinx_cuas::Kernel::MassTensor, 1, 1);
 
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();
