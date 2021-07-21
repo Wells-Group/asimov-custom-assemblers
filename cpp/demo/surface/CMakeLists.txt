@@ -14,7 +14,14 @@ find_package(Basix REQUIRED)
 find_package(xtensor REQUIRED)
 find_package(xtensor-blas REQUIRED)
 
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/problem.c
+  COMMAND ffcx ${CMAKE_CURRENT_SOURCE_DIR}/problem.ufl -o ${CMAKE_CURRENT_SOURCE_DIR}
+  DEPENDS problem.ufl
+)
+
 add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/problem.c)
+
 
 
 target_link_directories(${PROJECT_NAME} PRIVATE dolfinx_cuas)

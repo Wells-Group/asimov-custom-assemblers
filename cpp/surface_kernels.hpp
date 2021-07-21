@@ -251,8 +251,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
           // Compute sum_t dphi^j/dx_t dphi^i/dx_t
           // Component is invarient of block size
           double block_invariant_cont = 0;
-          for (int t = 0; t < gdim; t++)
-            block_invariant_cont += dphi_phys(t, i) * dphi_phys(t, j);
+          for (int s = 0; s < gdim; s++)
+            block_invariant_cont += dphi_phys(s, i) * dphi_phys(s, j);
           block_invariant_cont *= 0.5 * w0;
 
           for (int k = 0; k < bs; ++k)
