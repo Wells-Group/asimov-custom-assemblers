@@ -24,7 +24,8 @@ enum Kernel
   MassTensor,
   MassNonAffine,
   Stiffness,
-  SymGrad
+  SymGrad,
+  TrEps
 };
 }
 
@@ -33,7 +34,7 @@ namespace
 /// Create integration kernel for Pth order Lagrange elements
 /// @param[in] type The kernel type (Mass or Stiffness)
 /// @return The integration kernel
-template <int P>
+template <int P, int bs>
 kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
 {
   // Problem specific parameters
@@ -44,11 +45,16 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
+  // NOTE: These assumptions are only fine for simplices
   int quad_degree = 0;
   if (type == dolfinx_cuas::Kernel::Stiffness)
     quad_degree = (P - 1) + (P - 1);
   else if (type == dolfinx_cuas::Kernel::Mass or type == dolfinx_cuas::Kernel::MassTensor)
     quad_degree = 2 * P;
+  else if (type == dolfinx_cuas::Kernel::TrEps)
+    quad_degree = (P - 1) + (P - 1);
+  else if (type == dolfinx_cuas::Kernel::SymGrad)
+    quad_degree = (P - 1) + (P - 1);
 
   auto [points, weight]
       = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell), quad_degree);
@@ -65,7 +71,7 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   xt::xtensor<double, 4> coordinate_basis = coordinate_element.tabulate(1, points);
 
   xt::xtensor<double, 2> dphi0_c
-      = xt::round(xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0));
+      = xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
 
   assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
 
@@ -176,6 +182,122 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
         A[i * ndofs_cell + j] += detJ * A0.unchecked(i, j);
   };
 
+  // Tr(eps(u))I:eps(v) dx
+  //========================================================================================
+  kernel_fn tr_eps = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
+    assert(bs == 3);
+    // Get geometrical data
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
+    std::array<std::size_t, 2> shape = {d, gdim};
+    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+
+    // Compute Jacobian, its inverse and the determinant
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    dolfinx_cuas::math::compute_inv(J, K);
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+
+    // Temporary variable for grad(phi) on physical cell
+    xt::xtensor<double, 2> dphi_phys({bs, ndofs_cell});
+
+    // Main loop
+    for (std::size_t q = 0; q < weights.size(); q++)
+    {
+      double w0 = weights[q] * detJ;
+
+      // Precompute J^-T * dphi
+      std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
+      for (int i = 0; i < ndofs_cell; i++)
+        for (int j = 0; j < bs; j++)
+          for (int k = 0; k < tdim; k++)
+            dphi_phys(j, i) += K(k, j) * _dphi(q, i, k);
+
+      // Add contributions to local matrix
+      for (int i = 0; i < ndofs_cell; i++)
+      {
+        for (int j = 0; j < ndofs_cell; j++)
+        {
+          for (int k = 0; k < bs; ++k)
+          {
+            const size_t row = (k + i * bs) * (ndofs_cell * bs);
+
+            for (int l = 0; l < bs; ++l)
+            {
+              // Add term from tr(eps(u))I: eps(v)
+              A[row + j * bs + l] += dphi_phys(k, i) * dphi_phys(l, j) * w0;
+            }
+          }
+        }
+      }
+    }
+  };
+
+  // sym(grad(eps(u))):eps(v) dx
+  //========================================================================================
+  kernel_fn sym_grad_eps
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
+    assert(bs == 3);
+    // Get geometrical data
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
+    std::array<std::size_t, 2> shape = {d, gdim};
+    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+
+    // Compute Jacobian, its inverse and the determinant
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    dolfinx_cuas::math::compute_inv(J, K);
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+
+    // Temporary variable for grad(phi) on physical cell
+    xt::xtensor<double, 2> dphi_phys({ndofs_cell, bs});
+
+    // Main loop
+    for (std::size_t q = 0; q < weights.size(); q++)
+    {
+      const double w0 = weights[q] * detJ;
+      // Precompute J^-T * dphi
+      std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
+      for (int i = 0; i < ndofs_cell; i++)
+      {
+        for (int j = 0; j < bs; j++)
+        {
+          double acc = 0;
+          for (int k = 0; k < tdim; k++)
+            acc += K(k, j) * _dphi(q, i, k);
+          dphi_phys(i, j) += acc;
+        }
+      }
+
+      // Add contributions to local matrix
+      for (int i = 0; i < ndofs_cell; i++)
+      {
+        for (int j = 0; j < ndofs_cell; j++)
+        {
+          // Compute block invariant term from sigma(u):eps(v)
+          double block_invariant = 0;
+          for (int s = 0; s < bs; s++)
+            block_invariant += dphi_phys(i, s) * dphi_phys(j, s);
+          block_invariant *= w0;
+
+          for (int k = 0; k < bs; ++k)
+          {
+            const size_t row = (k + i * bs) * (ndofs_cell * bs);
+
+            // Add block invariant term from sigma(u):eps(v)
+            A[row + j * bs + k] += block_invariant;
+
+            for (int l = 0; l < bs; ++l)
+              A[row + j * bs + l] += dphi_phys(i, l) * dphi_phys(j, k) * w0;
+          }
+        }
+      }
+    }
+  };
+
   switch (type)
   {
   case dolfinx_cuas::Kernel::Mass:
@@ -184,6 +306,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     return masstensor;
   case dolfinx_cuas::Kernel::Stiffness:
     return stiffness;
+  case dolfinx_cuas::Kernel::TrEps:
+    return tr_eps;
+  case dolfinx_cuas::Kernel::SymGrad:
+    return sym_grad_eps;
   default:
     throw std::runtime_error("unrecognized kernel");
   }
@@ -195,21 +321,72 @@ namespace dolfinx_cuas
 /// Create integration kernel for Pth order Lagrange elements
 /// @param[in] type The kernel type (Mass or Stiffness)
 /// @param[in] P Degree of the element
+/// @param[in] bs The block size
 /// @return The integration kernel
-kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P)
+kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs)
 {
   switch (P)
   {
   case 1:
-    return generate_tet_kernel<1>(type);
+    switch (bs)
+    {
+    case 1:
+      return generate_tet_kernel<1, 1>(type);
+    case 2:
+      return generate_tet_kernel<1, 2>(type);
+    case 3:
+      return generate_tet_kernel<1, 3>(type);
+    default:
+      throw std::runtime_error("Can only have block size from 1 to 3.");
+    }
   case 2:
-    return generate_tet_kernel<2>(type);
+    switch (bs)
+    {
+    case 1:
+      return generate_tet_kernel<2, 1>(type);
+    case 2:
+      return generate_tet_kernel<2, 2>(type);
+    case 3:
+      return generate_tet_kernel<2, 3>(type);
+    default:
+      throw std::runtime_error("Can only have block size from 1 to 3.");
+    }
   case 3:
-    return generate_tet_kernel<3>(type);
+    switch (bs)
+    {
+    case 1:
+      return generate_tet_kernel<3, 1>(type);
+    case 2:
+      return generate_tet_kernel<3, 2>(type);
+    case 3:
+      return generate_tet_kernel<3, 3>(type);
+    default:
+      throw std::runtime_error("Can only have block size from 1 to 3.");
+    }
   case 4:
-    return generate_tet_kernel<4>(type);
+    switch (bs)
+    {
+    case 1:
+      return generate_tet_kernel<4, 1>(type);
+    case 2:
+      return generate_tet_kernel<4, 2>(type);
+    case 3:
+      return generate_tet_kernel<4, 3>(type);
+    default:
+      throw std::runtime_error("Can only have block size from 1 to 3.");
+    }
   case 5:
-    return generate_tet_kernel<5>(type);
+    switch (bs)
+    {
+    case 1:
+      return generate_tet_kernel<5, 1>(type);
+    case 2:
+      return generate_tet_kernel<5, 2>(type);
+    case 3:
+      return generate_tet_kernel<5, 3>(type);
+    default:
+      throw std::runtime_error("Can only have block size from 1 to 3.");
+    }
   default:
     throw std::runtime_error("Custom kernel only supported up to 5th order");
   }

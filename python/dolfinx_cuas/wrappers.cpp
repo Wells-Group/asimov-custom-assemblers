@@ -58,8 +58,8 @@ PYBIND11_MODULE(cpp, m)
           return cuas_wrappers::KernelWrapper(
               dolfinx_cuas::generate_surface_kernel(V, type, quadrature_degree));
         });
-  m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p)
-        { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p)); });
+  m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p, int bs)
+        { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p, bs)); });
   m.def("assemble_exterior_facets",
         [](Mat A, std::shared_ptr<const dolfinx::fem::Form<PetscScalar>> a,
            const py::array_t<std::int32_t, py::array::c_style>& active_facets,
@@ -84,5 +84,6 @@ PYBIND11_MODULE(cpp, m)
       .value("Mass", dolfinx_cuas::Kernel::Mass)
       .value("MassNonAffine", dolfinx_cuas::Kernel::MassNonAffine)
       .value("Stiffness", dolfinx_cuas::Kernel::Stiffness)
-      .value("SymGrad", dolfinx_cuas::Kernel::SymGrad);
+      .value("SymGrad", dolfinx_cuas::Kernel::SymGrad)
+      .value("TrEps", dolfinx_cuas::Kernel::TrEps);
 }
