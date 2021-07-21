@@ -143,9 +143,9 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   };
 
   kernel_fn mass_nonaffine
-      = [facets, dphi_f, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs](
-            double* A, const double* c, const double* w, const double* coordinate_dofs,
-            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [facets, phi, dphi_c, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs,
+         ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx has 3D input coordinate dofs
@@ -155,6 +155,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
 
     // Compute Jacobian and determinant at each quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
+    xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, *entity_local_index, xt::all(), xt::all());
 
     // Get number of dofs per cell
     // FIXME: Should be templated
@@ -164,11 +165,15 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     for (std::size_t q = 0; q < phi.shape(1); q++)
     {
 
-      xt::xtensor<double, 2> dphi0_f = xt::view(dphi_f, xt::all(), q, xt::all());
-      dolfinx_cuas::math::compute_jacobian(
-          dphi0_f, xt::view(coord, xt::keep(facets[*entity_local_index])), J);
+      // Extract the first derivative of the coordinate element (cell) of degrees of freedom on the
+      // facet
+      xt::xtensor<double, 2> dphi_c_q
+          = xt::view(dphi_c, size_t(*entity_local_index), xt::all(), q, xt::all());
+      dolfinx_cuas::math::compute_jacobian(dphi_c_q, coord, J);
 
-      double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+      // Compute det(J_C J_f) as it is the mapping to the reference facet
+      xt::xtensor<double, 2> J_tot = xt::linalg::dot(J, J_f);
+      double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
 
       // Scale at each quadrature point
       const double w0 = q_weights[q] * detJ;
