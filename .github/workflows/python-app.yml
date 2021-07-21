@@ -85,3 +85,4 @@ jobs:
           cd python/demos
           python3 mass_matrix.py
           python3 stiffness_matrix.py
+          python3 surface_hexahedron --degree=2 --vector
