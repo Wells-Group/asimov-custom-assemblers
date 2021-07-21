@@ -144,8 +144,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     xt::xtensor<double, 2> coord
         = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
 
-    // // Compute Jacobian and determinant at each quadrature point
-    // xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
+    // Compute Jacobian and determinant at each quadrature point
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
 
     // Get number of dofs per cell
     // FIXME: Should be templated
@@ -154,8 +154,6 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     // Loop over quadrature points
     for (std::size_t q = 0; q < phi.shape(1); q++)
     {
-      // Compute Jacobian and determinant at each quadrature point
-      xt::xtensor<double, 2> J = xt::zeros<double>({gdim, fdim});
 
       xt::xtensor<double, 2> dphi0_f = xt::view(dphi_f, xt::all(), q, xt::all());
       dolfinx_cuas::math::compute_jacobian(
