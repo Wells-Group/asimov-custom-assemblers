@@ -3,8 +3,6 @@
 # SPDX-License-Identifier:   LGPL-3.0-or-later
 
 import argparse
-import time
-
 import dolfinx
 import dolfinx_cuas
 import dolfinx.io
