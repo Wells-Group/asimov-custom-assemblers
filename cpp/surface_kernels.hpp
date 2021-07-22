@@ -92,7 +92,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
          ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    size_t facet_index = size_t(*entity_local_index);
+    std::size_t facet_index = size_t(*entity_local_index);
 
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx has 3D input coordinate dofs
@@ -149,7 +149,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
          ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    size_t facet_index = size_t(*entity_local_index);
+    std::size_t facet_index = size_t(*entity_local_index);
 
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx has 3D input coordinate dofs
@@ -203,7 +203,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
          ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    size_t facet_index = size_t(*entity_local_index);
+    std::size_t facet_index = size_t(*entity_local_index);
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx has 3D input coordinate dofs
     std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
@@ -268,7 +268,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == tdim);
-    size_t facet_index = size_t(*entity_local_index);
+    std::size_t facet_index = size_t(*entity_local_index);
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx assumes 3D coordinate dofs input
     std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
@@ -327,7 +327,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
 
           for (int k = 0; k < bs; ++k)
           {
-            const size_t row = (k + i * bs) * (ndofs_cell * bs);
+            const std::size_t row = (k + i * bs) * (ndofs_cell * bs);
             A[row + j * bs + k] += block_invariant_cont;
 
             // Add dphi^j/dx_k dphi^i/dx_l
