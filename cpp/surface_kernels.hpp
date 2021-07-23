@@ -33,11 +33,13 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
 
   // Create quadrature points on reference facet
   const basix::cell::type basix_facet = surface_element.cell_type();
-  auto [qp_ref_facet, q_weights]
+  auto quadrature_data
       = basix::quadrature::make_quadrature("default", basix_facet, quadrature_degree);
+  auto qp_ref_facet = quadrature_data.first;
+  auto q_weights = quadrature_data.second;
 
-  // Tabulate coordinate elemetn of reference facet (used to compute Jacobian on facet)
-  // and push forward quadrature points
+  // Tabulate coordinate elemetn of reference facet (used to compute Jacobian on
+  // facet) and push forward quadrature points
   auto f_tab = surface_element.tabulate(0, qp_ref_facet);
   xt::xtensor<double, 2> phi_f = xt::view(f_tab, 0, xt::all(), xt::all(), 0);
 
