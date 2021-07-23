@@ -181,7 +181,7 @@ def test_normal_kernels(dim, kernel_type):
     B.assemble()
 
     # Compare matrices, first norm, then entries
-    # assert np.isclose(A.norm(), B.norm())
+    assert np.isclose(A.norm(), B.norm())
     compare_matrices(A, B)
 
 
