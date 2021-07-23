@@ -33,7 +33,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
 
   // Create quadrature points on reference facet
   const basix::cell::type basix_facet = surface_element.cell_type();
-  auto [qp_ref_facet, qw_ref_facet]
+  auto [qp_ref_facet, q_weights]
       = basix::quadrature::make_quadrature("default", basix_facet, quadrature_degree);
 
   // Tabulate coordinate elemetn of reference facet (used to compute Jacobian on facet)
@@ -86,12 +86,11 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   auto ref_jacobians = basix::cell::facet_jacobians(basix_element.cell_type());
 
   // Get facet normals on reference cell
-  auto facet_normals = basix::cell::facet_normals(basix_element.cell_type());
+  auto facet_normals = basix::cell::facet_outward_normals(basix_element.cell_type());
 
   // Define kernels
-  auto q_weights = qw_ref_facet;
   kernel_fn mass
-      = [facets, dphi_c, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs,
+      = [dphi_c, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs,
          ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
@@ -148,7 +147,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   };
 
   kernel_fn mass_nonaffine
-      = [facets, phi, dphi_c, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs,
+      = [phi, dphi_c, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs,
          ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
@@ -202,7 +201,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   };
   // FIXME: Template over gdim and tdim?
   kernel_fn stiffness
-      = [facets, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs,
+      = [dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs,
          ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
@@ -266,7 +265,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   };
 
   kernel_fn sym_grad
-      = [facets, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs,
+      = [dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs,
          ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
@@ -342,7 +341,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     }
   };
   kernel_fn normal
-      = [facets, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs, ref_jacobians,
+      = [dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs, ref_jacobians,
          facet_normals](double* A, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {

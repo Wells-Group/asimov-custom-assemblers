@@ -159,8 +159,7 @@ def test_normal_kernels(dim, kernel_type):
 
     # Define variational form
     V = dolfinx.VectorFunctionSpace(mesh, ("CG", 1))
-    from IPython import embed
-    embed()
+
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
