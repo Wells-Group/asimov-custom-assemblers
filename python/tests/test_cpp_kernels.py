@@ -136,6 +136,65 @@ def test_surface_kernels(dim, kernel_type):
     compare_matrices(A, B)
 
 
+@pytest.mark.parametrize("kernel_type", [kt.Normal])
+@pytest.mark.parametrize("dim", [2])  # , 3])
+def test_normal_kernels(dim, kernel_type):
+    # N = 1  # 30 if dim == 2 else 10
+    # mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+
+    gdim = 2
+    shape = "triangle"
+    degree = 1
+    cell = ufl.Cell(shape, geometric_dimension=gdim)
+    domain = ufl.Mesh(ufl.VectorElement("Lagrange", cell, degree))
+
+    x = np.array([[0.0, 0.0], [2, 0], [0, 1.5]])
+    cells = np.array([[0, 1, 2]], dtype=np.int32)
+    mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
+    mesh.topology.create_connectivity_all()
+    facets = np.arange(mesh.topology.index_map(mesh.topology.dim - 1).size_local, dtype=np.int32)
+    values = np.ones(len(facets), dtype=np.int32)
+    # Find facets on boundary to integrate over2)
+    ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+
+    # Define variational form
+    V = dolfinx.VectorFunctionSpace(mesh, ("CG", 1))
+    from IPython import embed
+    embed()
+    u = ufl.TrialFunction(V)
+    v = ufl.TestFunction(V)
+    ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
+
+    n = ufl.FacetNormal(mesh)
+
+    def epsilon(v):
+        return ufl.sym(ufl.grad(v))
+
+    a = ufl.inner(epsilon(u) * n, v) * ds(1)
+    quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
+    # Compile UFL form
+    cffi_options = ["-Ofast", "-march=native"]
+    a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = dolfinx.fem.create_matrix(a)
+
+    # Normal assembly
+    A.zeroEntries()
+    dolfinx.fem.assemble_matrix(A, a)
+    A.assemble()
+
+    # Custom assembly
+    B = dolfinx.fem.create_matrix(a)
+
+    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
+    B.zeroEntries()
+    dolfinx_cuas.cpp.assemble_exterior_facets(B, a._cpp_object, ft.indices, kernel)
+    B.assemble()
+
+    # Compare matrices, first norm, then entries
+    assert np.isclose(A.norm(), B.norm())
+    compare_matrices(A, B)
+
+
 @pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_volume_kernels(kernel_type, P):

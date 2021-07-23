@@ -85,6 +85,9 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   // quadrature point
   auto ref_jacobians = basix::cell::facet_jacobians(basix_element.cell_type());
 
+  // Get facet normals on reference cell
+  auto facet_normals = basix::cell::facet_normals(basix_element.cell_type());
+
   // Define kernels
   auto q_weights = qw_ref_facet;
   kernel_fn mass
@@ -338,6 +341,93 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
       }
     }
   };
+  kernel_fn normal
+      = [facets, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs, ref_jacobians,
+         facet_normals](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
+    assert(bs == tdim);
+    std::size_t facet_index = size_t(*entity_local_index);
+    // Reshape coordinate dofs to two dimensional array
+    // NOTE: DOLFINx assumes 3D coordinate dofs input
+    std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
+    xt::xtensor<double, 2> coord
+        = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
+
+    // Extract the first derivative of the coordinate element(cell) of degrees of freedom on
+    // the facet
+    xt::xtensor<double, 2> dphi0_c
+        = xt::view(dphi_c, facet_index, xt::all(), 0,
+                   xt::all()); // FIXME: Assumed constant, i.e. only works for simplices
+
+    // Compute Jacobian and inverse of cell mapping at each quadrature point
+    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    dolfinx_cuas::math::compute_inv(J, K);
+
+    // Compute normal of physical facet using a normalized covariant Piola transform
+    // n_phys = J^{-T} n_ref / ||J^{-T} n_ref||
+    // See for instance DOI: 10.1137/08073901X
+    xt::xarray<double> n_phys = xt::zeros<double>({gdim});
+    auto facet_normal = xt::row(facet_normals, facet_index);
+    for (std::size_t i = 0; i < gdim; i++)
+      for (std::size_t j = 0; j < tdim; j++)
+        n_phys[i] += K(j, i) * facet_normal[j];
+    n_phys /= xt::linalg::norm(n_phys);
+
+    // Compute det(J_C J_f) as it is the mapping to the reference facet
+    xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
+    xt::xtensor<double, 2> J_tot = xt::linalg::dot(J, J_f);
+    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
+
+    // Get number of dofs per cell
+    // FIXME: Should be templated
+    std::int32_t ndofs_cell = dphi.shape(3);
+
+    // Temporary variable for grad(phi) on physical cell
+    xt::xtensor<double, 2> dphi_phys({gdim, ndofs_cell});
+
+    // Loop over quadrature points
+    for (std::size_t q = 0; q < dphi.shape(2); q++)
+    {
+      // Create for integral. NOTE: for non-simplices detJ is detJ[q]
+      const double w0 = q_weights[q] * detJ;
+
+      // Precompute J^-T * dphi
+      std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
+      for (int i = 0; i < ndofs_cell; i++)
+        for (int j = 0; j < gdim; j++)
+          for (int k = 0; k < tdim; k++)
+            dphi_phys(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
+
+      // This corresponds to the term sym(grad(u)):sym(grad(v)) (see
+      // https://www.overleaf.com/read/wnvkgjfnhkrx for details)
+      for (int i = 0; i < ndofs_cell; i++)
+      {
+        for (int j = 0; j < ndofs_cell; j++)
+        {
+          // Compute sum_t dphi^j/dx_t dphi^i/dx_t
+          // Component is invarient of block size
+          double block_invariant_cont = 0;
+          for (int s = 0; s < gdim; s++)
+            block_invariant_cont += dphi_phys(s, i) * dphi_phys(s, j);
+          block_invariant_cont *= 0.5 * w0;
+
+          for (int k = 0; k < bs; ++k)
+          {
+            const std::size_t row = (k + i * bs) * (ndofs_cell * bs);
+            A[row + j * bs + k] += block_invariant_cont;
+
+            // Add dphi^j/dx_k dphi^i/dx_l
+            for (int l = 0; l < bs; ++l)
+              A[row + j * bs + l] += 0.5 * w0 * dphi_phys(l, i) * dphi_phys(k, j);
+          }
+        }
+      }
+    }
+  };
+
   switch (type)
   {
   case dolfinx_cuas::Kernel::Mass:
@@ -348,6 +438,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     return sym_grad;
   case dolfinx_cuas::Kernel::MassNonAffine:
     return mass_nonaffine;
+  case dolfinx_cuas::Kernel::Normal:
+    return normal;
   default:
     throw std::runtime_error("Unrecognized kernel");
   }
