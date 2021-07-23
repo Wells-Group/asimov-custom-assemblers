@@ -228,8 +228,8 @@ def test_volume_kernels(kernel_type, P):
     compare_matrices(A, B)
 
 
-@ pytest.mark.parametrize("kernel_type", [kt.TrEps, kt.SymGrad])
-@ pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("kernel_type", [kt.TrEps, kt.SymGrad])
+@pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_cell_kernel(kernel_type, P):
     N = 5
     mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
@@ -277,19 +277,30 @@ def test_vector_cell_kernel(kernel_type, P):
     compare_matrices(A, B)
 
 
-@ pytest.mark.parametrize("vector", [True, False])
-@ pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
-def test_surface_non_affine(P, vector):
-    x = np.array([[0, 0, 0], [0, 1, 0], [0, 0.2, 0.8], [0, 0.9, 0.7],
-                 [0.7, 0.1, 0.2], [0.9, 0.9, 0.1], [0.8, 0.1, 0.9], [1, 1, 1]])
-    # x = np.array([[0, 0, 0], [0.9, 0, 0], [0, 1.0, 0], [0.9, 0.9, 0],
-    #              [0, 0, 0.9], [0.9, 0, 0.9], [0, 0.9, 0.9], [0.9, 0.9, 0.9]])
-    cells = np.array([[0, 1, 2, 3, 4, 5, 6, 7]], dtype=np.int32)
-    ct = "hexahedron"
+@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("vector", [True, False])
+@pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
+def test_surface_non_affine(P, vector, dim):
+    if dim == 3:
+        x = np.array([[0, 0, 0], [0, 1, 0], [0, 0.2, 0.8], [0, 0.9, 0.7],
+                      [0.7, 0.1, 0.2], [0.9, 0.9, 0.1], [0.8, 0.1, 0.9], [1, 1, 1]])
 
-    cell = ufl.Cell(ct, geometric_dimension=x.shape[1])
-    domain = ufl.Mesh(ufl.VectorElement("Lagrange", cell, 1))
-    mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
+        cells = np.array([[0, 1, 2, 3, 4, 5, 6, 7]], dtype=np.int32)
+        ct = "hexahedron"
+
+        cell = ufl.Cell(ct, geometric_dimension=x.shape[1])
+        domain = ufl.Mesh(ufl.VectorElement("Lagrange", cell, 1))
+        mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
+    else:
+        x = np.array([[0, 0], [0.5, 0], [0, 1], [0.6, 1],
+                      [1, 0], [0.7, 1]])
+
+        cells = np.array([[0, 1, 2, 3], [1, 4, 3, 5]], dtype=np.int32)
+        ct = "quadrilateral"
+
+        cell = ufl.Cell(ct, geometric_dimension=x.shape[1])
+        domain = ufl.Mesh(ufl.VectorElement("Lagrange", cell, 1))
+        mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
     el = ufl.VectorElement("CG", mesh.ufl_cell(), P) if vector \
         else ufl.FiniteElement("CG", mesh.ufl_cell(), P)
     V = dolfinx.FunctionSpace(mesh, el)
@@ -307,10 +318,6 @@ def test_surface_non_affine(P, vector):
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
     a = ufl.inner(u, v) * ds(1)
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
-
-    # For debugging
-    # with dolfinx.io.XDMFFile(MPI.COMM_WORLD, 'hexahedron.xdmf', "w") as xdmf:
-    #     xdmf.write_mesh(mesh)
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
