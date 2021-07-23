@@ -137,22 +137,13 @@ def test_surface_kernels(dim, kernel_type):
 
 
 @pytest.mark.parametrize("kernel_type", [kt.Normal])
-@pytest.mark.parametrize("dim", [2])  # , 3])
+@pytest.mark.parametrize("dim", [2, 3])
 def test_normal_kernels(dim, kernel_type):
-    # N = 1  # 30 if dim == 2 else 10
-    # mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    N = 30 if dim == 2 else 10
+    mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
 
-    gdim = 2
-    shape = "triangle"
-    degree = 1
-    cell = ufl.Cell(shape, geometric_dimension=gdim)
-    domain = ufl.Mesh(ufl.VectorElement("Lagrange", cell, degree))
-
-    x = np.array([[0.0, 0.0], [2, 0], [0, 1.5]])
-    cells = np.array([[0, 1, 2]], dtype=np.int32)
-    mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
-    mesh.topology.create_connectivity_all()
-    facets = np.arange(mesh.topology.index_map(mesh.topology.dim - 1).size_local, dtype=np.int32)
+    facets = dolfinx.mesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
+                                                   lambda x: np.full(x.shape[1], True, dtype=bool))
     values = np.ones(len(facets), dtype=np.int32)
     # Find facets on boundary to integrate over2)
     ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
@@ -169,7 +160,7 @@ def test_normal_kernels(dim, kernel_type):
     def epsilon(v):
         return ufl.sym(ufl.grad(v))
 
-    a = ufl.inner(epsilon(u) * n, v) * ds(1)
+    a = 2 * ufl.inner(epsilon(u) * n, v) * ds(1)
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
@@ -190,7 +181,7 @@ def test_normal_kernels(dim, kernel_type):
     B.assemble()
 
     # Compare matrices, first norm, then entries
-    assert np.isclose(A.norm(), B.norm())
+    # assert np.isclose(A.norm(), B.norm())
     compare_matrices(A, B)
 
 
@@ -237,8 +228,8 @@ def test_volume_kernels(kernel_type, P):
     compare_matrices(A, B)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.TrEps, kt.SymGrad])
-@pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
+@ pytest.mark.parametrize("kernel_type", [kt.TrEps, kt.SymGrad])
+@ pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_cell_kernel(kernel_type, P):
     N = 5
     mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
@@ -286,8 +277,8 @@ def test_vector_cell_kernel(kernel_type, P):
     compare_matrices(A, B)
 
 
-@pytest.mark.parametrize("vector", [True, False])
-@pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
+@ pytest.mark.parametrize("vector", [True, False])
+@ pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_surface_non_affine(P, vector):
     x = np.array([[0, 0, 0], [0, 1, 0], [0, 0.2, 0.8], [0, 0.9, 0.7],
                  [0.7, 0.1, 0.2], [0.9, 0.9, 0.1], [0.8, 0.1, 0.9], [1, 1, 1]])

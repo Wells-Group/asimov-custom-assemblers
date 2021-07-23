@@ -341,7 +341,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     }
   };
   kernel_fn normal
-      = [dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs, ref_jacobians,
+      = [phi, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs, ref_jacobians,
          facet_normals](double* A, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
@@ -398,29 +398,27 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
       for (int i = 0; i < ndofs_cell; i++)
         for (int j = 0; j < gdim; j++)
           for (int k = 0; k < tdim; k++)
-            dphi_phys(j, i) += K(k, j) * dphi(*entity_local_index, k, q, i);
+            dphi_phys(j, i) += K(k, j) * dphi(facet_index, k, q, i);
 
-      // This corresponds to the term sym(grad(u)):sym(grad(v)) (see
-      // https://www.overleaf.com/read/wnvkgjfnhkrx for details)
-      for (int i = 0; i < ndofs_cell; i++)
+      for (int j = 0; j < ndofs_cell; j++)
       {
-        for (int j = 0; j < ndofs_cell; j++)
+        for (int i = 0; i < ndofs_cell; i++)
         {
-          // Compute sum_t dphi^j/dx_t dphi^i/dx_t
+          // Compute sum_s dphi_phys^i/dx_s n_s \phi^j
           // Component is invarient of block size
           double block_invariant_cont = 0;
           for (int s = 0; s < gdim; s++)
-            block_invariant_cont += dphi_phys(s, i) * dphi_phys(s, j);
-          block_invariant_cont *= 0.5 * w0;
+            block_invariant_cont += dphi_phys(s, i) * n_phys(s) * phi(facet_index, q, j);
+          block_invariant_cont *= w0;
 
-          for (int k = 0; k < bs; ++k)
+          for (int l = 0; l < bs; ++l)
           {
-            const std::size_t row = (k + i * bs) * (ndofs_cell * bs);
-            A[row + j * bs + k] += block_invariant_cont;
+            const std::size_t row = (l + j * bs) * (ndofs_cell * bs);
+            A[row + i * bs + l] += block_invariant_cont;
 
             // Add dphi^j/dx_k dphi^i/dx_l
-            for (int l = 0; l < bs; ++l)
-              A[row + j * bs + l] += 0.5 * w0 * dphi_phys(l, i) * dphi_phys(k, j);
+            for (int b = 0; b < bs; ++b)
+              A[row + i * bs + b] += w0 * dphi_phys(l, i) * n_phys(b) * phi(facet_index, q, j);
           }
         }
       }
