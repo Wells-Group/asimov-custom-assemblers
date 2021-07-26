@@ -1,8 +1,13 @@
+# Copyright (C) 2021 Sarah Roggendorf
+#
+# SPDX-License-Identifier:   LGPL-3.0-or-later
+
 import dolfinx
 import dolfinx_cuas.cpp
 import dolfinx.io
 import dolfinx.log
 import numpy as np
+import pytest
 import ufl
 from mpi4py import MPI
 import scipy.sparse
@@ -26,7 +31,10 @@ def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-12):
     assert diff.max() <= atol
 
 
-def test_volume_kernels(kernel_type, P):
+@pytest.mark.parametrize("kernel_type", [kt.Mass])
+@pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("Q", [1, 2, 3])
+def test_volume_kernels(kernel_type, P, Q):
     N = 4
     mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
     # Define variational form
@@ -39,14 +47,18 @@ def test_volume_kernels(kernel_type, P):
             values[0, i] = np.max(np.abs(x[:, i]))
         return values
 
-    V2 = dolfinx.FunctionSpace(mesh, ("DG", 0))
+    V2 = dolfinx.FunctionSpace(mesh, ("DG", Q - 1))
     mu = dolfinx.Function(V2)
     mu.interpolate(f)
+
+    V3 = dolfinx.FunctionSpace(mesh, ("CG", Q))
+    lam = dolfinx.Function(V3)
+    lam.interpolate(f)
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
     if kernel_type == kt.Mass:
-        a = mu * ufl.inner(u, v) * dx
+        a = (mu + lam) * ufl.inner(u, v) * dx
     elif kernel_type == kt.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
     else:
@@ -66,10 +78,10 @@ def test_volume_kernels(kernel_type, P):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.generate_coeff_kernel(kernel_type, P, bs)
+    kernel = dolfinx_cuas.cpp.generate_coeff_kernel(kernel_type, [mu._cpp_object, lam._cpp_object], P, Q, bs)
     B.zeroEntries()
     consts = np.zeros(0)
-    coeffs = mu.vector.array.reshape(num_local_cells, 1)
+    coeffs = dolfinx_cuas.cpp.pack_coefficients([mu._cpp_object, lam._cpp_object])
     dolfinx_cuas.cpp.assemble_cells(B, V._cpp_object, active_cells, kernel, coeffs, consts)
     B.assemble()
 
@@ -79,4 +91,4 @@ def test_volume_kernels(kernel_type, P):
 
 
 if __name__ == "__main__":
-    test_volume_kernels(kt.Mass, 2)
+    test_volume_kernels(kt.Mass, 2, 5)

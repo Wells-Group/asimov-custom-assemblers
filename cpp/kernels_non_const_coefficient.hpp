@@ -24,7 +24,9 @@ namespace
 /// @param[in] type The kernel type (Mass or Stiffness)
 /// @return The integration kernel
 template <int P, int bs>
-kernel_fn generate_coefficient_kernel(dolfinx_cuas::Kernel type)
+kernel_fn generate_coefficient_kernel(
+    dolfinx_cuas::Kernel type,
+    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int Q)
 {
   // Problem specific parameters
   std::string family = "Lagrange";
@@ -39,7 +41,7 @@ kernel_fn generate_coefficient_kernel(dolfinx_cuas::Kernel type)
   if (type == dolfinx_cuas::Kernel::Stiffness)
     quad_degree = (P - 1) + (P - 1);
   else if (type == dolfinx_cuas::Kernel::Mass or type == dolfinx_cuas::Kernel::MassTensor)
-    quad_degree = 2 * P;
+    quad_degree = 2 * P + Q;
   else if (type == dolfinx_cuas::Kernel::TrEps)
     quad_degree = (P - 1) + (P - 1);
   else if (type == dolfinx_cuas::Kernel::SymGrad)
@@ -55,6 +57,25 @@ kernel_fn generate_coefficient_kernel(dolfinx_cuas::Kernel type)
   xt::xtensor<double, 2> phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
   xt::xtensor<double, 3> dphi = xt::view(basis, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
 
+  // Create Finite elements for coefficient functions and tabulate shape functions
+  int num_coeffs = coeffs.size();
+  std::vector<int> offsets(num_coeffs + 1);
+  offsets[0] = 0;
+  for (int i = 1; i < num_coeffs + 1; i++)
+  {
+    offsets[i] = offsets[i - 1] + coeffs[i - 1]->function_space()->element()->space_dimension();
+  }
+  xt::xtensor<double, 2> phi_coeffs({weights.size(), offsets[num_coeffs]});
+  for (int i = 0; i < num_coeffs; i++)
+  {
+    std::shared_ptr<const dolfinx::fem::FiniteElement> coeff_element
+        = coeffs[i]->function_space()->element();
+    xt::xtensor<double, 4> coeff_basis({1, weights.size(), coeff_element->space_dimension(), 1});
+    coeff_element->tabulate(coeff_basis, points, 0);
+    auto phi_i = xt::view(phi_coeffs, xt::all(), xt::range(offsets[i], offsets[i + 1]));
+    phi_i = xt::view(coeff_basis, 0, xt::all(), xt::all(), 0);
+  }
+
   // Get coordinate element from dolfinx
   basix::FiniteElement coordinate_element = basix::create_element("Lagrange", cell, 1);
   xt::xtensor<double, 4> coordinate_basis = coordinate_element.tabulate(1, points);
@@ -67,11 +88,11 @@ kernel_fn generate_coefficient_kernel(dolfinx_cuas::Kernel type)
   // Stiffness Matrix using quadrature formulation
   // =====================================================================================
 
-  xt::xtensor<double, 3> _dphi({dphi.shape(1), dphi.shape(2), dphi.shape(0)});
-  for (std::int32_t k = 0; k < tdim; k++)
-    for (std::size_t q = 0; q < weights.size(); q++)
-      for (std::int32_t i = 0; i < ndofs_cell; i++)
-        _dphi(q, i, k) = dphi(k, q, i);
+  // xt::xtensor<double, 3> _dphi({dphi.shape(1), dphi.shape(2), dphi.shape(0)});
+  // for (std::int32_t k = 0; k < tdim; k++)
+  //   for (std::size_t q = 0; q < weights.size(); q++)
+  //     for (std::int32_t i = 0; i < ndofs_cell; i++)
+  //       _dphi(q, i, k) = dphi(k, q, i);
 
   // kernel_fn stiffness
   //     = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
@@ -135,12 +156,20 @@ kernel_fn generate_coefficient_kernel(dolfinx_cuas::Kernel type)
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
-      double w0 = weights[q] * detJ;
+      double w0 = 0;
+      for (int i = 0; i < num_coeffs; i++)
+      {
+        for (int j = offsets[i]; j < offsets[i + 1]; j++)
+        {
+          w0 += c[j] * phi_coeffs(q, j);
+        }
+      }
+      w0 *= weights[q] * detJ;
       for (int i = 0; i < ndofs_cell; i++)
       {
         double w1 = w0 * phi.unchecked(q, i);
         for (int j = 0; j < ndofs_cell; j++)
-          A[i * ndofs_cell + j] += c[0] * w1 * phi.unchecked(q, j);
+          A[i * ndofs_cell + j] += w1 * phi.unchecked(q, j);
       }
     }
   };
@@ -319,7 +348,10 @@ namespace dolfinx_cuas
 /// @param[in] P Degree of the element
 /// @param[in] bs The block size
 /// @return The integration kernel
-kernel_fn generate_coeff_kernel(dolfinx_cuas::Kernel type, int P, int bs)
+kernel_fn generate_coeff_kernel(
+    dolfinx_cuas::Kernel type,
+    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int P, int Q,
+    int bs)
 {
   switch (P)
   {
@@ -327,11 +359,11 @@ kernel_fn generate_coeff_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_coefficient_kernel<1, 1>(type);
+      return generate_coefficient_kernel<1, 1>(type, coeffs, Q);
     case 2:
-      return generate_coefficient_kernel<1, 2>(type);
+      return generate_coefficient_kernel<1, 2>(type, coeffs, Q);
     case 3:
-      return generate_coefficient_kernel<1, 3>(type);
+      return generate_coefficient_kernel<1, 3>(type, coeffs, Q);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -339,11 +371,11 @@ kernel_fn generate_coeff_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_coefficient_kernel<2, 1>(type);
+      return generate_coefficient_kernel<2, 1>(type, coeffs, Q);
     case 2:
-      return generate_coefficient_kernel<2, 2>(type);
+      return generate_coefficient_kernel<2, 2>(type, coeffs, Q);
     case 3:
-      return generate_coefficient_kernel<2, 3>(type);
+      return generate_coefficient_kernel<2, 3>(type, coeffs, Q);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -351,11 +383,11 @@ kernel_fn generate_coeff_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_coefficient_kernel<3, 1>(type);
+      return generate_coefficient_kernel<3, 1>(type, coeffs, Q);
     case 2:
-      return generate_coefficient_kernel<3, 2>(type);
+      return generate_coefficient_kernel<3, 2>(type, coeffs, Q);
     case 3:
-      return generate_coefficient_kernel<3, 3>(type);
+      return generate_coefficient_kernel<3, 3>(type, coeffs, Q);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -363,11 +395,11 @@ kernel_fn generate_coeff_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_coefficient_kernel<4, 1>(type);
+      return generate_coefficient_kernel<4, 1>(type, coeffs, Q);
     case 2:
-      return generate_coefficient_kernel<4, 2>(type);
+      return generate_coefficient_kernel<4, 2>(type, coeffs, Q);
     case 3:
-      return generate_coefficient_kernel<4, 3>(type);
+      return generate_coefficient_kernel<4, 3>(type, coeffs, Q);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -375,11 +407,11 @@ kernel_fn generate_coeff_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_coefficient_kernel<5, 1>(type);
+      return generate_coefficient_kernel<5, 1>(type, coeffs, Q);
     case 2:
-      return generate_coefficient_kernel<5, 2>(type);
+      return generate_coefficient_kernel<5, 2>(type, coeffs, Q);
     case 3:
-      return generate_coefficient_kernel<5, 3>(type);
+      return generate_coefficient_kernel<5, 3>(type, coeffs, Q);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }

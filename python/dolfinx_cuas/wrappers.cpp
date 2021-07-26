@@ -61,8 +61,14 @@ PYBIND11_MODULE(cpp, m)
         });
   m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p, int bs)
         { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p, bs)); });
-  m.def("generate_coeff_kernel", [](dolfinx_cuas::Kernel type, int p, int bs)
-        { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_coeff_kernel(type, p, bs)); });
+  m.def("generate_coeff_kernel",
+        [](dolfinx_cuas::Kernel type,
+           std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int p,
+           int q, int bs)
+        {
+          return cuas_wrappers::KernelWrapper(
+              dolfinx_cuas::generate_coeff_kernel(type, coeffs, p, q, bs));
+        });
   m.def("assemble_exterior_facets",
         [](Mat A, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
            const py::array_t<std::int32_t, py::array::c_style>& active_facets,
