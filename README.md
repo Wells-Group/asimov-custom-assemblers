@@ -7,7 +7,8 @@ See: `python/tests/test_cpp_kernels.py` for examples on how to interface with th
 
 See: `cpp/demo/main.cpp` for how to interface with the C++ layer.
 
-Currently implemented kernels for Lagrange elements (affine meshes):
+# Affine meshes (triangles and tetrahedra)
+## Lagrange elements (degree 1-5)
 - `ufl.inner(u, v) * ufl.dx` (3D)
 - `ufl.inner(u, v) * ufl.ds` (2D and 3D)
 - `ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx` (3D)
@@ -15,6 +16,11 @@ Currently implemented kernels for Lagrange elements (affine meshes):
 - `ufl.inner(ufl.tr(ufl.sym(ufl.grad(u))), ufl.sym(ufl.grad(v))) * ufl.dx` (3D)
 - `2 * ufl.inner(ufl.sym(ufl.grad(u)), ufl.sym(ufl.grad(v))) * ufl.dx` (3D)
 - `ufl.inner(ufl.sym(ufl.grad(u)), ufl.sym(ufl.grad(v))) * ufl.ds` (2D and 3D)
+- `2 * ufl.inner(ufl.sym(ufl.grad(u))) * ufl.FacetNormal(mesh), v) * ufl.ds` (2D and 3D)
+
+# Non-affine meshes (quadrilaterals and hexahedra)
+## Lagrange elements (degree 1-5)
+- `ufl.inner(u, v) * ufl.ds`
 
 ## Dependencies
 DOLFINX_CUAS depends on DOLFINx and in turn its dependencies.
