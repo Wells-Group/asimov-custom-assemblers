@@ -93,6 +93,10 @@ PYBIND11_MODULE(cpp, m)
               xtl::span<const std::int32_t>(active_cells.data(), active_cells.size()), ker, _coeffs,
               xtl::span(constants.data(), constants.shape(0)));
         });
+  m.def("pack_coefficients",
+        [](std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
+        { return dolfinx_cuas_wrappers::as_pyarray2d(dolfinx_cuas::pack_coefficients(coeffs)); });
+
   py::enum_<dolfinx_cuas::Kernel>(m, "Kernel")
       .value("Mass", dolfinx_cuas::Kernel::Mass)
       .value("MassNonAffine", dolfinx_cuas::Kernel::MassNonAffine)
