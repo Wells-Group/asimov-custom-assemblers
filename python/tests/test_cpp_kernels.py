@@ -61,6 +61,7 @@ def test_manifold(kernel_type):
         a = ufl.inner(epsilon(u), epsilon(v)) * ds(1)
     else:
         raise RuntimeError("Unknown kernel")
+
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
@@ -73,11 +74,13 @@ def test_manifold(kernel_type):
     A.assemble()
 
     # Custom assembly
+    num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    consts = np.zeros(0)
+    coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = dolfinx.fem.create_matrix(a)
-
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_exterior_facets(B, a._cpp_object, ft.indices, kernel)
+    dolfinx_cuas.cpp.assemble_exterior_facets(B, V._cpp_object, ft.indices, kernel, coeffs, consts)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -124,11 +127,14 @@ def test_surface_kernels(dim, kernel_type):
     A.assemble()
 
     # Custom assembly
-    B = dolfinx.fem.create_matrix(a)
+    num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    consts = np.zeros(0)
+    coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
+    B = dolfinx.fem.create_matrix(a)
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_exterior_facets(B, a._cpp_object, ft.indices, kernel)
+    dolfinx_cuas.cpp.assemble_exterior_facets(B, V._cpp_object, ft.indices, kernel, coeffs, consts)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -173,11 +179,14 @@ def test_normal_kernels(dim, kernel_type):
     A.assemble()
 
     # Custom assembly
-    B = dolfinx.fem.create_matrix(a)
+    num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    consts = np.zeros(0)
+    coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
+    B = dolfinx.fem.create_matrix(a)
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_exterior_facets(B, a._cpp_object, ft.indices, kernel)
+    dolfinx_cuas.cpp.assemble_exterior_facets(B, V._cpp_object, ft.indices, kernel, coeffs, consts)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -220,7 +229,9 @@ def test_volume_kernels(kernel_type, P):
     B = dolfinx.fem.create_matrix(a)
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_cells(B, a._cpp_object, active_cells, kernel)
+    consts = np.zeros(0)
+    coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
+    dolfinx_cuas.cpp.assemble_cells(B, V._cpp_object, active_cells, kernel, coeffs, consts)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -266,10 +277,12 @@ def test_vector_cell_kernel(kernel_type, P):
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
+    consts = np.zeros(0)
+    coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = dolfinx.fem.create_matrix(a)
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_cells(B, a._cpp_object, active_cells, kernel)
+    dolfinx_cuas.cpp.assemble_cells(B, V._cpp_object, active_cells, kernel, coeffs, consts)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -331,10 +344,12 @@ def test_surface_non_affine(P, vector, dim):
 
     # Custom assembly
     B = dolfinx.fem.create_matrix(a)
-
+    num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    consts = np.zeros(0)
+    coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kt.MassNonAffine, quadrature_degree)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_exterior_facets(B, a._cpp_object, ft.indices, kernel)
+    dolfinx_cuas.cpp.assemble_exterior_facets(B, V._cpp_object, ft.indices, kernel, consts, coeffs)
     B.assemble()
 
     # Compare matrices, first norm, then entries
