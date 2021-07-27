@@ -36,16 +36,7 @@ kernel_fn generate_coefficient_kernel(
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  // NOTE: These assumptions are only fine for simplices
-  int quad_degree = 0;
-  if (type == dolfinx_cuas::Kernel::Stiffness)
-    quad_degree = (P - 1) + (P - 1);
-  else if (type == dolfinx_cuas::Kernel::Mass or type == dolfinx_cuas::Kernel::MassTensor)
-    quad_degree = 2 * P + Q;
-  else if (type == dolfinx_cuas::Kernel::TrEps)
-    quad_degree = (P - 1) + (P - 1);
-  else if (type == dolfinx_cuas::Kernel::SymGrad)
-    quad_degree = (P - 1) + (P - 1);
+   const int quad_degree = 2 * P + Q;
 
   auto [points, weight]
       = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell), quad_degree);
@@ -55,16 +46,13 @@ kernel_fn generate_coefficient_kernel(
   basix::FiniteElement element = basix::create_element(family, cell, P);
   xt::xtensor<double, 4> basis = element.tabulate(1, points);
   xt::xtensor<double, 2> phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
-  xt::xtensor<double, 3> dphi = xt::view(basis, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
 
   // Create Finite elements for coefficient functions and tabulate shape functions
   int num_coeffs = coeffs.size();
   std::vector<int> offsets(num_coeffs + 1);
   offsets[0] = 0;
   for (int i = 1; i < num_coeffs + 1; i++)
-  {
     offsets[i] = offsets[i - 1] + coeffs[i - 1]->function_space()->element()->space_dimension();
-  }
   xt::xtensor<double, 2> phi_coeffs({weights.size(), offsets[num_coeffs]});
   for (int i = 0; i < num_coeffs; i++)
   {
@@ -104,12 +92,11 @@ kernel_fn generate_coefficient_kernel(
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       double w0 = 0;
+      //  For each coefficient (assumed scalar valued), compute  sum_{i=0}^{num_functions}sum_{j=0}^{num_dofs} c^j phi^j(x_q)
       for (int i = 0; i < num_coeffs; i++)
       {
         for (int j = offsets[i]; j < offsets[i + 1]; j++)
-        {
           w0 += c[j] * phi_coeffs(q, j);
-        }
       }
       w0 *= weights[q] * detJ;
       for (int i = 0; i < ndofs_cell; i++)
