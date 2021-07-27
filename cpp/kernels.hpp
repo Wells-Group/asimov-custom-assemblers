@@ -85,9 +85,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
       for (std::int32_t i = 0; i < ndofs_cell; i++)
         _dphi(q, i, k) = dphi(k, q, i);
 
-  kernel_fn stiffness = [=](double* A, const double* c, const double* w,
-                            const double* coordinate_dofs, const int* entity_local_index,
-                            const std::uint8_t* quadrature_permutation) {
+  kernel_fn stiffness
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
@@ -98,30 +99,38 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     dolfinx_cuas::math::compute_inv(J, K);
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+    std::array<std::size_t, 2> shape_d = {ndofs_cell, gdim};
+    xt::xtensor<double, 2> dphi(shape_d);
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       double w0 = weights[q] * detJ;
 
-      // Auxiliary data structure
-      double d0[ndofs_cell];
-      double d1[ndofs_cell];
-      double d2[ndofs_cell];
-
       // precompute J^-T * dphi in temporary array d
+      std::fill(dphi.begin(), dphi.end(), 0);
       for (int i = 0; i < ndofs_cell; i++)
       {
-        d0[i] = K(0, 0) * _dphi(q, i, 0) + K(1, 0) * _dphi(q, i, 1) + K(2, 0) * _dphi(q, i, 2);
-        d1[i] = K(0, 1) * _dphi(q, i, 0) + K(1, 1) * _dphi(q, i, 1) + K(2, 1) * _dphi(q, i, 2);
-        d2[i] = K(0, 2) * _dphi(q, i, 0) + K(1, 2) * _dphi(q, i, 1) + K(2, 2) * _dphi(q, i, 2);
+        auto dphi_i = xt::view(_dphi, q, i, xt::all());
+        for (int j = 0; j < gdim; j++)
+          for (int k = 0; k < tdim; k++)
+            dphi(i, j) += K(k, j) * dphi_i[k];
       }
 
+      // Assemble into local matrix
       for (int i = 0; i < ndofs_cell; i++)
       {
         for (int j = 0; j < ndofs_cell; j++)
         {
-          A[i * ndofs_cell + j] += (d0[i] * d0[j] + d1[i] * d1[j] + d2[i] * d2[j]) * w0;
+          // Compute block invariant contribution
+          double block_invariant = 0;
+          for (int k = 0; k < gdim; k++)
+            block_invariant += dphi(i, k) * dphi(j, k);
+          block_invariant *= w0;
+
+          // Insert into matrix
+          for (int k = 0; k < bs; k++)
+            A[(k + i * bs) * (ndofs_cell * bs) + j * bs + k] += block_invariant;
         }
       }
     }
@@ -130,7 +139,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   // Mass Matrix using quadrature formulation
   // =====================================================================================
   kernel_fn mass = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                       const int* entity_local_index, const std::uint8_t* quadrature_permutation) {
+                       const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     std::array<std::size_t, 2> shape = {d, gdim};
@@ -163,9 +173,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
       for (int j = 0; j < ndofs_cell; j++)
         A0(i, j) += weights[q] * phi(q, i) * phi(q, j);
 
-  kernel_fn masstensor = [=](double* A, const double* c, const double* w,
-                             const double* coordinate_dofs, const int* entity_local_index,
-                             const std::uint8_t* quadrature_permutation) {
+  kernel_fn masstensor
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     std::array<std::size_t, 2> shape = {d, gdim};
@@ -183,8 +194,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   // Tr(eps(u))I:eps(v) dx
   //========================================================================================
   kernel_fn tr_eps = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                         const int* entity_local_index,
-                         const std::uint8_t* quadrature_permutation) {
+                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     assert(bs == 3);
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
@@ -234,9 +245,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
 
   // sym(grad(eps(u))):eps(v) dx
   //========================================================================================
-  kernel_fn sym_grad_eps = [=](double* A, const double* c, const double* w,
-                               const double* coordinate_dofs, const int* entity_local_index,
-                               const std::uint8_t* quadrature_permutation) {
+  kernel_fn sym_grad_eps
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     assert(bs == 3);
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
