@@ -130,7 +130,12 @@ bool allclose(Mat A, Mat B)
   return xt::allclose(_A, _B);
 }
 
-// Pack coefficients
+/// Prepare coefficients (dolfinx.Function's) for assembly with custom kernels
+/// by packing them as a 2D array, where the ith row maps to the ith local cell.
+/// For each row, the first N_0 columns correspond to the values of the 0th function space with N_0
+/// dofs. If function space is blocked, the coefficients are ordered in XYZ XYZ ordering.
+/// @param[in] coeffs The coefficients to pack
+/// @param[out] c The packed coefficients
 dolfinx::array2d<PetscScalar>
 pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
 {
