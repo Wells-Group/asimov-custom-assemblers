@@ -2,16 +2,34 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-import numpy as np
-import numba
-import ufl
 import dolfinx
+import numba
+import numpy as np
+from petsc4py import PETSc
+import scipy.sparse
+import ufl
+
 """
 Utilities for assembly
 """
 
 __all__ = ["estimate_max_polynomial_degree",
-           "pack_facet_info", "expand_dofmap", "create_csr_sparsity_pattern"]
+           "pack_facet_info", "expand_dofmap", "create_csr_sparsity_pattern", "compare_matrices"]
+
+
+def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-12):
+    """
+    Helper for comparing two PETSc matrices
+    """
+    # Create scipy CSR matrices
+    ai, aj, av = A.getValuesCSR()
+    A_sp = scipy.sparse.csr_matrix((av, aj, ai), shape=A.getSize())
+    bi, bj, bv = B.getValuesCSR()
+    B_sp = scipy.sparse.csr_matrix((bv, bj, bi), shape=B.getSize())
+
+    # Compare matrices
+    diff = np.abs(A_sp - B_sp)
+    assert diff.max() <= atol
 
 
 def pack_facet_info(mesh: dolfinx.cpp.mesh.Mesh, mt: dolfinx.MeshTags, index: int):

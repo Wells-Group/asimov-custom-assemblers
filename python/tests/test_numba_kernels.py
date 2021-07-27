@@ -8,7 +8,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import ufl
 import ufl.algorithms
-from dolfinx_cuas import (assemble_matrix, compute_reference_mass_matrix,
+from dolfinx_cuas import (assemble_matrix_numba, compute_reference_mass_matrix,
                           compute_reference_stiffness_matrix,
                           compute_reference_surface_matrix,
                           estimate_max_polynomial_degree)
@@ -68,7 +68,7 @@ def test_cell_kernels(element, ct, degree, integral_type):
 
     quadrature_degree = estimate_max_polynomial_degree(a_)
     Aref = reference_code(V, quadrature_degree)
-    A = assemble_matrix(V, quadrature_degree, int_type=integral_type, mt=mt, index=index)
+    A = assemble_matrix_numba(V, quadrature_degree, int_type=integral_type, mt=mt, index=index)
     ai, aj, av = Aref.getValuesCSR()
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
