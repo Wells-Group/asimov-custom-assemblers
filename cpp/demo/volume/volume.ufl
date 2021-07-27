@@ -8,6 +8,7 @@ V = FunctionSpace(mesh, element)
 
 u = TrialFunction(V)
 v = TestFunction(V)
-f = Coefficient(V)
 kappa = Constant(mesh)
-a = kappa * inner(u, v) * dx
+a_mass = kappa * inner(u, v) * dx
+a_stiffness = kappa * inner(grad(u), grad(v)) * dx
+forms = [a_mass, a_stiffness]

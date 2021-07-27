@@ -7,20 +7,36 @@
 #include "volume.h"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
+#include <boost/program_options.hpp>
 #include <dolfinx.h>
 #include <dolfinx/fem/petsc.h>
 #include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/kernels.hpp>
 #include <dolfinx_cuas/utils.hpp>
-
 #include <xtensor/xio.hpp>
 
 using namespace dolfinx;
+namespace po = boost::program_options;
 
 int main(int argc, char* argv[])
 {
   common::subsystem::init_logging(argc, argv);
   common::subsystem::init_petsc(argc, argv);
+
+  po::options_description desc("Allowed options");
+  desc.add_options()("help,h", "print usage message")(
+      "problem_type", po::value<std::string>()->default_value("mass"),
+      "problem (mass or stiffness)");
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+  po::notify(vm);
+
+  if (vm.count("help"))
+  {
+    std::cout << desc << "\n";
+    return 0;
+  }
+  const std::string problem_type = vm["problem_type"].as<std::string>();
 
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
@@ -30,13 +46,29 @@ int main(int argc, char* argv[])
 
   mesh->topology().create_entity_permutations();
 
-  const std::shared_ptr<fem::FunctionSpace>& V
-      = fem::create_functionspace(functionspace_form_volume_a, "u", mesh);
+  auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
 
   // Define variational forms
-  auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
+  ufc_form form;
+  std::shared_ptr<fem::FunctionSpace> V;
+  dolfinx_cuas::Kernel kernel_type;
+  if (problem_type == "mass")
+  {
+    V = fem::create_functionspace(functionspace_form_volume_a_mass, "u", mesh);
+    form = *form_volume_a_mass;
+    kernel_type = dolfinx_cuas::Kernel::MassTensor;
+  }
+  else if (problem_type == "stiffness")
+  {
+    V = fem::create_functionspace(functionspace_form_volume_a_stiffness, "u", mesh);
+    form = *form_volume_a_stiffness;
+    kernel_type = dolfinx_cuas::Kernel::Stiffness;
+  }
+  else
+    throw std::runtime_error("Unsupported kernel");
+
   auto a = std::make_shared<fem::Form<PetscScalar>>(
-      fem::create_form<PetscScalar>(*form_volume_a, {V, V}, {}, {{"kappa", kappa}}, {}));
+      fem::create_form<PetscScalar>(form, {V, V}, {}, {{"kappa", kappa}}, {}));
 
   // Matrix to be used with custom assembler
   la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
@@ -47,7 +79,7 @@ int main(int argc, char* argv[])
   MatZeroEntries(B.mat());
 
   // Generate Kernel
-  auto kernel = dolfinx_cuas::generate_kernel(dolfinx_cuas::Kernel::MassTensor, 1, 1);
+  auto kernel = dolfinx_cuas::generate_kernel(kernel_type, 1, V->dofmap()->index_map_bs());
 
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();
