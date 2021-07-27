@@ -11,6 +11,7 @@
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/contact/Contact.hpp>
+#include <dolfinx_cuas/kernels_non_const_coefficient.hpp>
 #include <dolfinx_cuas/surface_kernels.hpp>
 #include <dolfinx_cuas/utils.hpp>
 #include <iostream>
@@ -60,6 +61,14 @@ PYBIND11_MODULE(cpp, m)
         });
   m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p, int bs)
         { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p, bs)); });
+  m.def("generate_coeff_kernel",
+        [](dolfinx_cuas::Kernel type,
+           std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int p,
+           int q) {
+          return cuas_wrappers::KernelWrapper(
+              dolfinx_cuas::generate_coeff_kernel(type, coeffs, p, q));
+        });
+
   m.def("assemble_matrix",
         [](Mat A, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
            const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<PetscScalar>>>& bcs,
