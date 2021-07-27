@@ -4,31 +4,14 @@
 
 import dolfinx
 import dolfinx_cuas.cpp
-import dolfinx.io
-import dolfinx.log
+import dolfinx_cuas.utils
 import numpy as np
 import pytest
 import ufl
 from mpi4py import MPI
-import scipy.sparse
-from petsc4py import PETSc
 
 kt = dolfinx_cuas.cpp.Kernel
-
-
-def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-12):
-    """
-    Helper for comparing two PETSc matrices
-    """
-    # Create scipy CSR matrices
-    ai, aj, av = A.getValuesCSR()
-    A_sp = scipy.sparse.csr_matrix((av, aj, ai), shape=A.getSize())
-    bi, bj, bv = B.getValuesCSR()
-    B_sp = scipy.sparse.csr_matrix((bv, bj, bi), shape=B.getSize())
-
-    # Compare matrices
-    diff = np.abs(A_sp - B_sp)
-    assert diff.max() <= atol
+it = dolfinx.cpp.fem.IntegralType
 
 
 @pytest.mark.parametrize("kernel_type", [kt.Mass])
@@ -82,12 +65,12 @@ def test_volume_kernels(kernel_type, P, Q):
     B.zeroEntries()
     consts = np.zeros(0)
     coeffs = dolfinx_cuas.cpp.pack_coefficients([mu._cpp_object, lam._cpp_object])
-    dolfinx_cuas.cpp.assemble_cells(B, V._cpp_object, active_cells, kernel, coeffs, consts)
+    dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
     B.assemble()
 
     # Compare matrices, first norm, then entries
     assert np.isclose(A.norm(), B.norm())
-    compare_matrices(A, B)
+    dolfinx_cuas.utils.compare_matrices(A, B)
 
 
 if __name__ == "__main__":

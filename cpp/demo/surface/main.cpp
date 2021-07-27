@@ -92,8 +92,9 @@ int main(int argc, char* argv[])
   std::array<std::size_t, 2> shape = {std::size_t(ncells), 0};
   const dolfinx::array2d<PetscScalar> coeffs(shape);
   const std::vector<PetscScalar> consts(0);
-  dolfinx_cuas::assemble_exterior_facets(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), V,
-                                         left_facets, kernel, coeffs, consts);
+  dolfinx_cuas::assemble_matrix(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), V, {},
+                                left_facets, kernel, coeffs, consts,
+                                dolfinx::fem::IntegralType::exterior_facet);
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();

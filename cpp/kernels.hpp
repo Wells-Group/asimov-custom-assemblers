@@ -6,12 +6,11 @@
 
 #pragma once
 
+#include "math.hpp"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <string>
 #include <xtensor-blas/xlinalg.hpp>
-
-#include "math.hpp"
 
 using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
                                      const int*, const std::uint8_t*)>;
@@ -85,9 +84,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
       for (std::int32_t i = 0; i < ndofs_cell; i++)
         _dphi(q, i, k) = dphi(k, q, i);
 
-  kernel_fn stiffness = [=](double* A, const double* c, const double* w,
-                            const double* coordinate_dofs, const int* entity_local_index,
-                            const std::uint8_t* quadrature_permutation) {
+  kernel_fn stiffness
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
@@ -130,7 +130,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   // Mass Matrix using quadrature formulation
   // =====================================================================================
   kernel_fn mass = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                       const int* entity_local_index, const std::uint8_t* quadrature_permutation) {
+                       const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     std::array<std::size_t, 2> shape = {d, gdim};
@@ -163,9 +164,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
       for (int j = 0; j < ndofs_cell; j++)
         A0(i, j) += weights[q] * phi(q, i) * phi(q, j);
 
-  kernel_fn masstensor = [=](double* A, const double* c, const double* w,
-                             const double* coordinate_dofs, const int* entity_local_index,
-                             const std::uint8_t* quadrature_permutation) {
+  kernel_fn masstensor
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     std::array<std::size_t, 2> shape = {d, gdim};
@@ -183,8 +185,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   // Tr(eps(u))I:eps(v) dx
   //========================================================================================
   kernel_fn tr_eps = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                         const int* entity_local_index,
-                         const std::uint8_t* quadrature_permutation) {
+                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     assert(bs == 3);
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
@@ -234,9 +236,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
 
   // sym(grad(eps(u))):eps(v) dx
   //========================================================================================
-  kernel_fn sym_grad_eps = [=](double* A, const double* c, const double* w,
-                               const double* coordinate_dofs, const int* entity_local_index,
-                               const std::uint8_t* quadrature_permutation) {
+  kernel_fn sym_grad_eps
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  {
     assert(bs == 3);
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});

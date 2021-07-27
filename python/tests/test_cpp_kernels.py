@@ -7,27 +7,13 @@ import dolfinx_cuas
 import dolfinx_cuas.cpp
 import numpy as np
 import pytest
-import scipy.sparse
 import ufl
 from mpi4py import MPI
 from petsc4py import PETSc
 
 kt = dolfinx_cuas.cpp.Kernel
-
-
-def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-12):
-    """
-    Helper for comparing two PETSc matrices
-    """
-    # Create scipy CSR matrices
-    ai, aj, av = A.getValuesCSR()
-    A_sp = scipy.sparse.csr_matrix((av, aj, ai), shape=A.getSize())
-    bi, bj, bv = B.getValuesCSR()
-    B_sp = scipy.sparse.csr_matrix((bv, bj, bi), shape=B.getSize())
-
-    # Compare matrices
-    diff = np.abs(A_sp - B_sp)
-    assert diff.max() <= atol
+it = dolfinx.cpp.fem.IntegralType
+compare_matrices = dolfinx_cuas.utils.compare_matrices
 
 
 @pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness, kt.SymGrad])
@@ -80,7 +66,7 @@ def test_manifold(kernel_type):
     B = dolfinx.fem.create_matrix(a)
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_exterior_facets(B, V._cpp_object, ft.indices, kernel, coeffs, consts)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -134,7 +120,7 @@ def test_surface_kernels(dim, kernel_type):
     B = dolfinx.fem.create_matrix(a)
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_exterior_facets(B, V._cpp_object, ft.indices, kernel, coeffs, consts)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -186,7 +172,8 @@ def test_normal_kernels(dim, kernel_type):
     B = dolfinx.fem.create_matrix(a)
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_exterior_facets(B, V._cpp_object, ft.indices, kernel, coeffs, consts)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -231,7 +218,7 @@ def test_volume_kernels(kernel_type, P):
     B.zeroEntries()
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
-    dolfinx_cuas.cpp.assemble_cells(B, V._cpp_object, active_cells, kernel, coeffs, consts)
+    dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -282,7 +269,7 @@ def test_vector_cell_kernel(kernel_type, P):
     B = dolfinx.fem.create_matrix(a)
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_cells(B, V._cpp_object, active_cells, kernel, coeffs, consts)
+    dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -349,7 +336,7 @@ def test_surface_non_affine(P, vector, dim):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kt.MassNonAffine, quadrature_degree)
     B.zeroEntries()
-    dolfinx_cuas.cpp.assemble_exterior_facets(B, V._cpp_object, ft.indices, kernel, consts, coeffs)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, consts, coeffs, it.exterior_facet)
     B.assemble()
 
     # Compare matrices, first norm, then entries
