@@ -57,56 +57,26 @@ int main(int argc, char* argv[])
   if (problem_type == "mass")
   {
     kernel_type = dolfinx_cuas::Kernel::MassTensor;
-    switch (degree)
-    {
-    case 1:
-      V = fem::create_functionspace(functionspace_form_volume_a_mass1, "v_0", mesh);
-      form = *form_volume_a_mass1;
-      break;
-    case 2:
-      V = fem::create_functionspace(functionspace_form_volume_a_mass2, "v_0", mesh);
-      form = *form_volume_a_mass2;
-      break;
-    case 3:
-      V = fem::create_functionspace(functionspace_form_volume_a_mass3, "v_0", mesh);
-      form = *form_volume_a_mass3;
-      break;
-    case 4:
-      V = fem::create_functionspace(functionspace_form_volume_a_mass4, "v_0", mesh);
-      form = *form_volume_a_mass4;
-      break;
-    case 5:
-      V = fem::create_functionspace(functionspace_form_volume_a_mass5, "v_0", mesh);
-      form = *form_volume_a_mass5;
-      break;
-    }
+    std::vector spaces_mass = {functionspace_form_volume_a_mass1, functionspace_form_volume_a_mass2,
+                               functionspace_form_volume_a_mass3, functionspace_form_volume_a_mass4,
+                               functionspace_form_volume_a_mass5};
+    std::vector forms_mass = {form_volume_a_mass1, form_volume_a_mass2, form_volume_a_mass3,
+                              form_volume_a_mass4, form_volume_a_mass5};
+    V = fem::create_functionspace(spaces_mass[degree - 1], "v_0", mesh);
+    form = *forms_mass[degree - 1];
   }
   else if (problem_type == "stiffness")
   {
     kernel_type = dolfinx_cuas::Kernel::Stiffness;
-    switch (degree)
-    {
-    case 1:
-      V = fem::create_functionspace(functionspace_form_volume_a_stiffness1, "v_0", mesh);
-      form = *form_volume_a_stiffness1;
-      break;
-    case 2:
-      V = fem::create_functionspace(functionspace_form_volume_a_stiffness2, "v_0", mesh);
-      form = *form_volume_a_stiffness2;
-      break;
-    case 3:
-      V = fem::create_functionspace(functionspace_form_volume_a_stiffness3, "v_0", mesh);
-      form = *form_volume_a_stiffness3;
-      break;
-    case 4:
-      V = fem::create_functionspace(functionspace_form_volume_a_stiffness4, "v_0", mesh);
-      form = *form_volume_a_stiffness4;
-      break;
-    case 5:
-      V = fem::create_functionspace(functionspace_form_volume_a_stiffness5, "v_0", mesh);
-      form = *form_volume_a_stiffness5;
-      break;
-    }
+    std::vector spaces_stiffness
+        = {functionspace_form_volume_a_stiffness1, functionspace_form_volume_a_stiffness2,
+           functionspace_form_volume_a_stiffness3, functionspace_form_volume_a_stiffness4,
+           functionspace_form_volume_a_stiffness5};
+    std::vector forms_stiffness
+        = {form_volume_a_stiffness1, form_volume_a_stiffness2, form_volume_a_stiffness3,
+           form_volume_a_stiffness4, form_volume_a_stiffness5};
+    V = fem::create_functionspace(spaces_stiffness[degree - 1], "v_0", mesh);
+    form = *forms_stiffness[degree - 1];
   }
   else
     throw std::runtime_error("Unsupported kernel");
