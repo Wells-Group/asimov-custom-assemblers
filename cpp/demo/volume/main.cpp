@@ -25,8 +25,9 @@ int main(int argc, char* argv[])
 
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "print usage message")(
-      "problem_type", po::value<std::string>()->default_value("mass"),
-      "problem (mass or stiffness)");
+      "kernel", po::value<std::string>()->default_value("mass"),
+      "kernel (mass or stiffness)")("degree", po::value<int>()->default_value(1),
+                                    "Degree of function space (1-5)");
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
   po::notify(vm);
@@ -36,12 +37,13 @@ int main(int argc, char* argv[])
     std::cout << desc << "\n";
     return 0;
   }
-  const std::string problem_type = vm["problem_type"].as<std::string>();
+  const std::string problem_type = vm["kernel"].as<std::string>();
+  const int degree = vm["degree"].as<int>();
 
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {50, 50, 50},
+      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {25, 25, 25},
                                   mesh::CellType::tetrahedron, mesh::GhostMode::none));
 
   mesh->topology().create_entity_permutations();
@@ -54,15 +56,57 @@ int main(int argc, char* argv[])
   dolfinx_cuas::Kernel kernel_type;
   if (problem_type == "mass")
   {
-    V = fem::create_functionspace(functionspace_form_volume_a_mass, "u", mesh);
-    form = *form_volume_a_mass;
     kernel_type = dolfinx_cuas::Kernel::MassTensor;
+    switch (degree)
+    {
+    case 1:
+      V = fem::create_functionspace(functionspace_form_volume_a_mass1, "v_0", mesh);
+      form = *form_volume_a_mass1;
+      break;
+    case 2:
+      V = fem::create_functionspace(functionspace_form_volume_a_mass2, "v_0", mesh);
+      form = *form_volume_a_mass2;
+      break;
+    case 3:
+      V = fem::create_functionspace(functionspace_form_volume_a_mass3, "v_0", mesh);
+      form = *form_volume_a_mass3;
+      break;
+    case 4:
+      V = fem::create_functionspace(functionspace_form_volume_a_mass4, "v_0", mesh);
+      form = *form_volume_a_mass4;
+      break;
+    case 5:
+      V = fem::create_functionspace(functionspace_form_volume_a_mass5, "v_0", mesh);
+      form = *form_volume_a_mass5;
+      break;
+    }
   }
   else if (problem_type == "stiffness")
   {
-    V = fem::create_functionspace(functionspace_form_volume_a_stiffness, "u", mesh);
-    form = *form_volume_a_stiffness;
     kernel_type = dolfinx_cuas::Kernel::Stiffness;
+    switch (degree)
+    {
+    case 1:
+      V = fem::create_functionspace(functionspace_form_volume_a_stiffness1, "v_0", mesh);
+      form = *form_volume_a_stiffness1;
+      break;
+    case 2:
+      V = fem::create_functionspace(functionspace_form_volume_a_stiffness2, "v_0", mesh);
+      form = *form_volume_a_stiffness2;
+      break;
+    case 3:
+      V = fem::create_functionspace(functionspace_form_volume_a_stiffness3, "v_0", mesh);
+      form = *form_volume_a_stiffness3;
+      break;
+    case 4:
+      V = fem::create_functionspace(functionspace_form_volume_a_stiffness4, "v_0", mesh);
+      form = *form_volume_a_stiffness4;
+      break;
+    case 5:
+      V = fem::create_functionspace(functionspace_form_volume_a_stiffness5, "v_0", mesh);
+      form = *form_volume_a_stiffness5;
+      break;
+    }
   }
   else
     throw std::runtime_error("Unsupported kernel");
@@ -79,7 +123,7 @@ int main(int argc, char* argv[])
   MatZeroEntries(B.mat());
 
   // Generate Kernel
-  auto kernel = dolfinx_cuas::generate_kernel(kernel_type, 1, V->dofmap()->index_map_bs());
+  auto kernel = dolfinx_cuas::generate_kernel(kernel_type, degree, V->dofmap()->index_map_bs());
 
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();
@@ -102,9 +146,10 @@ int main(int argc, char* argv[])
   MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
   t1.stop();
 
-  assert(dolfinx_cuas::allclose(A.mat(), B.mat()));
-
   dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
+
+  if (!dolfinx_cuas::allclose(A.mat(), B.mat()))
+    throw std::runtime_error("Matrices are not the same");
 
   return 0;
 }
