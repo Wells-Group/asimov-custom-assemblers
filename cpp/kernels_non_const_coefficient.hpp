@@ -23,7 +23,7 @@ namespace
 /// Create integration kernel for Pth order Lagrange elements
 /// @param[in] type The kernel type (Mass or Stiffness)
 /// @return The integration kernel
-template <int P, int bs>
+template <int P>
 kernel_fn generate_coefficient_kernel(
     dolfinx_cuas::Kernel type,
     std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int Q)
@@ -36,7 +36,7 @@ kernel_fn generate_coefficient_kernel(
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-   const int quad_degree = 2 * P + Q;
+  const int quad_degree = 2 * P + Q;
 
   auto [points, weight]
       = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell), quad_degree);
@@ -92,7 +92,8 @@ kernel_fn generate_coefficient_kernel(
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       double w0 = 0;
-      //  For each coefficient (assumed scalar valued), compute  sum_{i=0}^{num_functions}sum_{j=0}^{num_dofs} c^j phi^j(x_q)
+      //  For each coefficient (assumed scalar valued), compute
+      //  sum_{i=0}^{num_functions}sum_{j=0}^{num_dofs} c^j phi^j(x_q)
       for (int i = 0; i < num_coeffs; i++)
       {
         for (int j = offsets[i]; j < offsets[i + 1]; j++)
@@ -108,7 +109,7 @@ kernel_fn generate_coefficient_kernel(
     }
   };
 
-   switch (type)
+  switch (type)
   {
   case dolfinx_cuas::Kernel::Mass:
     return mass_coeff;
@@ -123,75 +124,23 @@ namespace dolfinx_cuas
 /// Create integration kernel for Pth order Lagrange elements
 /// @param[in] type The kernel type (Mass or Stiffness)
 /// @param[in] P Degree of the element
-/// @param[in] bs The block size
 /// @return The integration kernel
 kernel_fn generate_coeff_kernel(
     dolfinx_cuas::Kernel type,
-    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int P, int Q,
-    int bs)
+    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int P, int Q)
 {
   switch (P)
   {
   case 1:
-    switch (bs)
-    {
-    case 1:
-      return generate_coefficient_kernel<1, 1>(type, coeffs, Q);
-    case 2:
-      return generate_coefficient_kernel<1, 2>(type, coeffs, Q);
-    case 3:
-      return generate_coefficient_kernel<1, 3>(type, coeffs, Q);
-    default:
-      throw std::runtime_error("Can only have block size from 1 to 3.");
-    }
+    return generate_coefficient_kernel<1>(type, coeffs, Q);
   case 2:
-    switch (bs)
-    {
-    case 1:
-      return generate_coefficient_kernel<2, 1>(type, coeffs, Q);
-    case 2:
-      return generate_coefficient_kernel<2, 2>(type, coeffs, Q);
-    case 3:
-      return generate_coefficient_kernel<2, 3>(type, coeffs, Q);
-    default:
-      throw std::runtime_error("Can only have block size from 1 to 3.");
-    }
+    return generate_coefficient_kernel<2>(type, coeffs, Q);
   case 3:
-    switch (bs)
-    {
-    case 1:
-      return generate_coefficient_kernel<3, 1>(type, coeffs, Q);
-    case 2:
-      return generate_coefficient_kernel<3, 2>(type, coeffs, Q);
-    case 3:
-      return generate_coefficient_kernel<3, 3>(type, coeffs, Q);
-    default:
-      throw std::runtime_error("Can only have block size from 1 to 3.");
-    }
+    return generate_coefficient_kernel<3>(type, coeffs, Q);
   case 4:
-    switch (bs)
-    {
-    case 1:
-      return generate_coefficient_kernel<4, 1>(type, coeffs, Q);
-    case 2:
-      return generate_coefficient_kernel<4, 2>(type, coeffs, Q);
-    case 3:
-      return generate_coefficient_kernel<4, 3>(type, coeffs, Q);
-    default:
-      throw std::runtime_error("Can only have block size from 1 to 3.");
-    }
+    return generate_coefficient_kernel<4>(type, coeffs, Q);
   case 5:
-    switch (bs)
-    {
-    case 1:
-      return generate_coefficient_kernel<5, 1>(type, coeffs, Q);
-    case 2:
-      return generate_coefficient_kernel<5, 2>(type, coeffs, Q);
-    case 3:
-      return generate_coefficient_kernel<5, 3>(type, coeffs, Q);
-    default:
-      throw std::runtime_error("Can only have block size from 1 to 3.");
-    }
+    return generate_coefficient_kernel<5>(type, coeffs, Q);
   default:
     throw std::runtime_error("Custom kernel only supported up to 5th order");
   }

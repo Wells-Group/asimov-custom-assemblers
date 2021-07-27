@@ -22,7 +22,6 @@ def test_volume_kernels(kernel_type, P, Q):
     mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
     # Define variational form
     V = dolfinx.FunctionSpace(mesh, ("CG", P))
-    bs = V.dofmap.index_map_bs
 
     def f(x):
         values = np.zeros((1, x.shape[1]))
@@ -61,7 +60,7 @@ def test_volume_kernels(kernel_type, P, Q):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.generate_coeff_kernel(kernel_type, [mu._cpp_object, lam._cpp_object], P, Q, bs)
+    kernel = dolfinx_cuas.cpp.generate_coeff_kernel(kernel_type, [mu._cpp_object, lam._cpp_object], P, Q)
     B.zeroEntries()
     consts = np.zeros(0)
     coeffs = dolfinx_cuas.cpp.pack_coefficients([mu._cpp_object, lam._cpp_object])
