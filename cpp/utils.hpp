@@ -10,7 +10,12 @@
 #include <basix/cell.h>
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
+#include <dolfinx/common/IndexMap.h>
+#include <dolfinx/fem/DofMap.h>
+#include <dolfinx/fem/FiniteElement.h>
+#include <dolfinx/fem/Function.h>
 #include <dolfinx/fem/petsc.h>
+#include <dolfinx/fem/utils.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <xtensor-blas/xlinalg.hpp>
 
@@ -125,4 +130,94 @@ bool allclose(Mat A, Mat B)
   return xt::allclose(_A, _B);
 }
 
+/// Prepare coefficients (dolfinx.Function's) for assembly with custom kernels
+/// by packing them as a 2D array, where the ith row maps to the ith local cell.
+/// For each row, the first N_0 columns correspond to the values of the 0th function space with N_0
+/// dofs. If function space is blocked, the coefficients are ordered in XYZ XYZ ordering.
+/// @param[in] coeffs The coefficients to pack
+/// @param[out] c The packed coefficients
+dolfinx::array2d<PetscScalar>
+pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
+{
+  // Coefficient offsets
+  std::vector<int> coeffs_offsets{0};
+  for (const auto& c : coeffs)
+  {
+    if (!c)
+      throw std::runtime_error("Not all form coefficients have been set.");
+    coeffs_offsets.push_back(coeffs_offsets.back()
+                             + c->function_space()->element()->space_dimension());
+  }
+
+  std::vector<const dolfinx::fem::DofMap*> dofmaps(coeffs.size());
+  std::vector<const dolfinx::fem::FiniteElement*> elements(coeffs.size());
+  std::vector<std::reference_wrapper<const std::vector<PetscScalar>>> v;
+  v.reserve(coeffs.size());
+  for (std::size_t i = 0; i < coeffs.size(); ++i)
+  {
+    elements[i] = coeffs[i]->function_space()->element().get();
+    dofmaps[i] = coeffs[i]->function_space()->dofmap().get();
+    v.push_back(coeffs[i]->x()->array());
+  }
+
+  // Get mesh
+  std::shared_ptr<const dolfinx::mesh::Mesh> mesh = coeffs[0]->function_space()->mesh();
+  assert(mesh);
+  const int tdim = mesh->topology().dim();
+  const std::int32_t num_cells = mesh->topology().index_map(tdim)->size_local()
+                                 + mesh->topology().index_map(tdim)->num_ghosts();
+
+  // Copy data into coefficient array
+  dolfinx::array2d<PetscScalar> c(num_cells, coeffs_offsets.back());
+  if (!coeffs.empty())
+  {
+    bool needs_dof_transformations = false;
+    for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
+    {
+      if (elements[coeff]->needs_dof_transformations())
+      {
+        needs_dof_transformations = true;
+        mesh->topology_mutable().create_entity_permutations();
+      }
+    }
+
+    // Iterate over coefficients
+    xtl::span<const std::uint32_t> cell_info;
+    if (needs_dof_transformations)
+      cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
+    for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
+    {
+      const std::function<void(const xtl::span<PetscScalar>&, const xtl::span<const std::uint32_t>&,
+                               std::int32_t, int)>
+          transformation
+          = elements[coeff]->get_dof_transformation_function<PetscScalar>(false, true);
+      if (int bs = dofmaps[coeff]->bs(); bs == 1)
+      {
+        dolfinx::fem::impl::pack_coefficient<PetscScalar, 1>(
+            c, v[coeff], cell_info, *dofmaps[coeff], num_cells, coeffs_offsets[coeff],
+            elements[coeff]->space_dimension(), transformation);
+      }
+      else if (bs == 2)
+      {
+        dolfinx::fem::impl::pack_coefficient<PetscScalar, 2>(
+            c, v[coeff], cell_info, *dofmaps[coeff], num_cells, coeffs_offsets[coeff],
+            elements[coeff]->space_dimension(), transformation);
+      }
+      else if (bs == 3)
+      {
+        dolfinx::fem::impl::pack_coefficient<PetscScalar, 3>(
+            c, v[coeff], cell_info, *dofmaps[coeff], num_cells, coeffs_offsets[coeff],
+            elements[coeff]->space_dimension(), transformation);
+      }
+      else
+      {
+        dolfinx::fem::impl::pack_coefficient<PetscScalar>(
+            c, v[coeff], cell_info, *dofmaps[coeff], num_cells, coeffs_offsets[coeff],
+            elements[coeff]->space_dimension(), transformation);
+      }
+    }
+  }
+
+  return c;
+}
 } // namespace dolfinx_cuas
