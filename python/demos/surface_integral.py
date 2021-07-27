@@ -10,7 +10,7 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import ufl
-from dolfinx_cuas import (assemble_matrix,
+from dolfinx_cuas import (assemble_matrix_numba,
                           compute_reference_surface_matrix, estimate_max_polynomial_degree)
 from mpi4py import MPI
 
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         if i > 0:
             dolfin_times[i - 1] = end - start
         start = time.time()
-        A = assemble_matrix(V, quadrature_degree, int_type="surface", mt=mt, index=1)
+        A = assemble_matrix_numba(V, quadrature_degree, int_type="surface", mt=mt, index=1)
         end = time.time()
         if i > 0:
             numba_times[i - 1] = end - start

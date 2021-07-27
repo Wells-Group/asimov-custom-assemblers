@@ -6,12 +6,11 @@
 
 #pragma once
 
+#include "math.hpp"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <string>
 #include <xtensor-blas/xlinalg.hpp>
-
-#include "math.hpp"
 
 using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
                                      const int*, const std::uint8_t*)>;

@@ -16,14 +16,12 @@ using kernel_fn = std::function<void(double*, const double*, const double*, cons
                                      const int*, const std::uint8_t*)>;
 
 // Helper functions for assembly in DOLFINx
-
-namespace dolfinx_cuas
+namespace
 {
-
 void assemble_exterior_facets(
     const std::function<int(std::int32_t, const std::int32_t*, std::int32_t, const std::int32_t*,
                             const PetscScalar*)>& mat_set,
-    std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+    std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<bool>& bc,
     const xtl::span<const std::int32_t>& active_facets, kernel_fn& kernel,
     const dolfinx::array2d<PetscScalar>& coeffs, const xtl::span<const PetscScalar>& constants)
 {
@@ -34,7 +32,6 @@ void assemble_exterior_facets(
   std::shared_ptr<const dolfinx::fem::DofMap> dofmap = V->dofmap();
   const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
   const int bs = dofmap->bs();
-  std::vector<bool> bc;
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
   const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
                            std::int32_t, int)>
@@ -66,7 +63,7 @@ void assemble_exterior_facets(
 
 void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, std::int32_t,
                                             const std::int32_t*, const PetscScalar*)>& mat_set,
-                    std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                    std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<bool>& bc,
                     const xtl::span<const std::int32_t>& active_cells, kernel_fn& kernel,
                     const dolfinx::array2d<PetscScalar>& coeffs,
                     const xtl::span<const PetscScalar>& constants)
@@ -78,7 +75,6 @@ void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, s
   std::shared_ptr<const dolfinx::fem::DofMap> dofmap = V->dofmap();
   const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
   const int bs = dofmap->bs();
-  std::vector<bool> bc;
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
   const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
                            std::int32_t, int)>
@@ -105,5 +101,45 @@ void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, s
                                                   apply_dof_transformation_to_transpose, dofs, bs,
                                                   bc, bc, kernel, coeffs, constants, cell_info);
 }
+} // namespace
+
+namespace dolfinx_cuas
+{
+
+void assemble_matrix(
+    const std::function<int(std::int32_t, const std::int32_t*, std::int32_t, const std::int32_t*,
+                            const PetscScalar*)>& mat_set,
+    std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+    const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<PetscScalar>>>& bcs,
+    const xtl::span<const std::int32_t>& active_entities, kernel_fn& kernel,
+    const dolfinx::array2d<PetscScalar>& coeffs, const xtl::span<const PetscScalar>& constants,
+    dolfinx::fem::IntegralType type)
+{
+
+  // Build dof marker (assuming same test and trial space)
+  std::vector<bool> dof_marker;
+  auto map = V->dofmap()->index_map;
+  auto bs = V->dofmap()->index_map_bs();
+  assert(map);
+  std::int32_t dim = bs * (map->size_local() + map->num_ghosts());
+  for (std::size_t k = 0; k < bcs.size(); ++k)
+  {
+    assert(bcs[k]);
+    assert(bcs[k]->function_space());
+    if (V->contains(*bcs[k]->function_space()))
+    {
+      dof_marker.resize(dim, false);
+      bcs[k]->mark_dofs(dof_marker);
+    }
+  }
+
+  // Assemble integral
+  if (type == dolfinx::fem::IntegralType::cell)
+    assemble_cells(mat_set, V, dof_marker, active_entities, kernel, coeffs, constants);
+  else if (type == dolfinx::fem::IntegralType::exterior_facet)
+    assemble_exterior_facets(mat_set, V, dof_marker, active_entities, kernel, coeffs, constants);
+  else
+    throw std::runtime_error("Unsupported integral type");
+};
 
 } // namespace dolfinx_cuas
