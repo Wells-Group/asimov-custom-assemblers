@@ -169,10 +169,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
           if constexpr (bs == 1)
             A[i * ndofs_cell + j] += w1 * phi.unchecked(q, j);
           else
-          {
             for (int b = 0; b < bs; b++)
               A[(i * bs + b) * (ndofs_cell * bs) + bs * j + b] += w1 * phi.unchecked(q, j);
-          }
         }
       }
     }
