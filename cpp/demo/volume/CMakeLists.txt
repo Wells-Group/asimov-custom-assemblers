@@ -6,7 +6,7 @@ project(${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "-Ofast -march=native ${CMAKE_CXX_FLAGS} -Wall")
-set(CMAKE_C_FLAGS "-Ofast -march=native ${CMAKE_CXX_FLAGS} -Wall")
+set(CMAKE_C_FLAGS "-Ofast -march=native ${CMAKE_C_FLAGS} -Wall")
 
 find_package(DOLFINX REQUIRED)
 find_package(Basix REQUIRED)
@@ -21,10 +21,19 @@ add_custom_command(
 
 add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME})
 
+# Find Boost program_options
+if(DEFINED ENV{BOOST_ROOT} OR DEFINED BOOST_ROOT)
+  set(Boost_NO_SYSTEM_PATHS on)
+endif()
+set(Boost_USE_MULTITHREADED $ENV{BOOST_USE_MULTITHREADED})
+set(Boost_VERBOSE TRUE)
+find_package(Boost 1.70 REQUIRED program_options)
+
 
 target_link_directories(${PROJECT_NAME} PRIVATE dolfinx_cuas)
 target_link_libraries(${PROJECT_NAME} PRIVATE dolfinx)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ${xtensor_blas_LIBRARY})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LAPACK_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} PRIVATE Boost::program_options)
 

@@ -84,6 +84,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
       for (std::int32_t i = 0; i < ndofs_cell; i++)
         _dphi(q, i, k) = dphi(k, q, i);
 
+  std::array<std::size_t, 2> shape = {d, gdim};
+  std::array<std::size_t, 2> shape_d = {ndofs_cell, gdim};
   kernel_fn stiffness
       = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
@@ -91,37 +93,50 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
-    std::array<std::size_t, 2> shape = {d, gdim};
     xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
 
     // Compute Jacobian, its inverse and the determinant
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
     dolfinx_cuas::math::compute_inv(J, K);
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+    const double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 
-    // Main loop
+    xt::xtensor<double, 2> dphi_kernel(shape_d);
     for (std::size_t q = 0; q < weights.size(); q++)
     {
-      double w0 = weights[q] * detJ;
-
-      // Auxiliary data structure
-      double d0[ndofs_cell];
-      double d1[ndofs_cell];
-      double d2[ndofs_cell];
-
+      const double w0 = weights[q] * detJ;
       // precompute J^-T * dphi in temporary array d
+      std::fill(dphi_kernel.begin(), dphi_kernel.end(), 0);
       for (int i = 0; i < ndofs_cell; i++)
-      {
-        d0[i] = K(0, 0) * _dphi(q, i, 0) + K(1, 0) * _dphi(q, i, 1) + K(2, 0) * _dphi(q, i, 2);
-        d1[i] = K(0, 1) * _dphi(q, i, 0) + K(1, 1) * _dphi(q, i, 1) + K(2, 1) * _dphi(q, i, 2);
-        d2[i] = K(0, 2) * _dphi(q, i, 0) + K(1, 2) * _dphi(q, i, 1) + K(2, 2) * _dphi(q, i, 2);
-      }
+        for (int j = 0; j < gdim; j++)
+          for (int k = 0; k < tdim; k++)
+            dphi_kernel(i, j) += K(k, j) * _dphi(q, i, k);
 
-      for (int i = 0; i < ndofs_cell; i++)
+      // Special handling of scalar space
+      if constexpr (bs == 1)
       {
-        for (int j = 0; j < ndofs_cell; j++)
+        // Assemble into local matrix
+        for (int i = 0; i < ndofs_cell; i++)
+          for (int j = 0; j < ndofs_cell; j++)
+            for (int k = 0; k < gdim; k++)
+              A[i * ndofs_cell + j] += w0 * dphi_kernel(i, k) * dphi_kernel(j, k);
+      }
+      else
+      {
+        // Assemble into local matrix
+        for (int i = 0; i < ndofs_cell; i++)
         {
-          A[i * ndofs_cell + j] += (d0[i] * d0[j] + d1[i] * d1[j] + d2[i] * d2[j]) * w0;
+          for (int j = 0; j < ndofs_cell; j++)
+          {
+            // Compute block invariant contribution
+            double block_invariant = 0;
+            for (int k = 0; k < gdim; k++)
+              block_invariant += dphi_kernel(i, k) * dphi_kernel(j, k);
+            block_invariant *= w0;
+
+            // Insert into matrix
+            for (int k = 0; k < bs; k++)
+              A[(k + i * bs) * (ndofs_cell * bs) + j * bs + k] += block_invariant;
+          }
         }
       }
     }
