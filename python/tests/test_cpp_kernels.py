@@ -38,10 +38,14 @@ def test_manifold(kernel_type):
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
     if kernel_type == kt.Mass:
+        q_degree = 2
         a = ufl.inner(u, v) * ds(1)
     elif kernel_type == kt.Stiffness:
+        q_degree = 1
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ds(1)
     elif kernel_type == kt.SymGrad:
+        q_degree = 1
+
         def epsilon(v):
             return ufl.sym(ufl.grad(v))
         a = ufl.inner(epsilon(u), epsilon(v)) * ds(1)
@@ -64,7 +68,9 @@ def test_manifold(kernel_type):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
+    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, q_degree, "default")
+    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     B.assemble()
@@ -118,7 +124,10 @@ def test_surface_kernels(dim, kernel_type):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
+    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, quadrature_degree, "default")
+    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
+
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     B.assemble()
@@ -170,7 +179,9 @@ def test_normal_kernels(dim, kernel_type):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, quadrature_degree)
+    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, quadrature_degree, "default")
+    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
 
@@ -342,7 +353,10 @@ def test_surface_non_affine(P, vector, dim):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
-    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kt.MassNonAffine, quadrature_degree)
+    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, quadrature_degree, "default")
+    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kt.MassNonAffine, q_rule)
+
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, consts, coeffs, it.exterior_facet)
     B.assemble()

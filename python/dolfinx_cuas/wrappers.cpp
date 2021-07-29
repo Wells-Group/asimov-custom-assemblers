@@ -67,10 +67,10 @@ PYBIND11_MODULE(cpp, m)
       .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1);
   m.def("generate_surface_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
-           int quadrature_degree)
+           dolfinx_cuas::QuadratureRule quadrature_rule)
         {
           return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_surface_kernel(V, type, quadrature_degree));
+              dolfinx_cuas::generate_surface_kernel(V, type, quadrature_rule));
         });
   m.def("generate_kernel",
         [](dolfinx_cuas::Kernel type, int p, int bs, dolfinx_cuas::QuadratureRule q_rule) {

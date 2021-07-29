@@ -22,7 +22,7 @@ class QuadratureRule
 public:
   /// Constructor
   /// @param[in] ct The cell type
-  /// @param[in] degree Degree of quadrature rul
+  /// @param[in] degree Degree of quadrature rule
   /// @param[in] type Type of quadrature rule
   QuadratureRule(dolfinx::mesh::CellType ct, int degree, std::string type = "default")
   {
@@ -30,7 +30,10 @@ public:
         = basix::quadrature::make_quadrature(
             type, basix::cell::str_to_type(dolfinx::mesh::to_string(ct)), degree);
     // NOTE: Conversion could be easier if return-type had been nicer from Basix
-    _points = xt::empty<double>({quadrature.first.shape(0), quadrature.first.shape(1)});
+    if (quadrature.first.dimension() == 1)
+      _points = xt::empty<double>({quadrature.first.shape(0)});
+    else
+      _points = xt::empty<double>({quadrature.first.shape(0), quadrature.first.shape(1)});
     for (std::size_t i = 0; i < quadrature.first.size(); i++)
       _points[i] = quadrature.first[i];
     _weights = xt::empty<double>({quadrature.second.size()});
