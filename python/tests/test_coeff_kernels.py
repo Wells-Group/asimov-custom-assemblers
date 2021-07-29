@@ -5,7 +5,6 @@
 import dolfinx
 import dolfinx_cuas.cpp
 import dolfinx_cuas.utils
-from ffcx.element_interface import QuadratureElement
 import numpy as np
 import pytest
 import ufl
