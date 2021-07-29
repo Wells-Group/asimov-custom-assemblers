@@ -20,7 +20,7 @@ from .utils import create_csr_sparsity_pattern, expand_dofmap, pack_facet_info
 
 float_type = PETSc.ScalarType
 
-__all__ = ["assemble_matrix_numba", "assemble_matrix"]
+__all__ = ["assemble_matrix_numba", "assemble_matrix", "assemble_vector"]
 
 _dolfinx_to_basix_celltype = {dolfinx.cpp.mesh.CellType.interval: basix.CellType.interval,
                               dolfinx.cpp.mesh.CellType.triangle: basix.CellType.triangle,
@@ -44,6 +44,20 @@ def assemble_matrix(A: PETSc.Mat, V: dolfinx.FunctionSpace,
     A.assemblyBegin(PETSc.Mat.AssemblyType.FLUSH)
     A.assemblyEnd(PETSc.Mat.AssemblyType.FLUSH)
     dolfinx.cpp.fem.insert_diagonal(A, V._cpp_object, bcs, diagonal)
+
+
+def assemble_vector(b: np.ndarray, V: dolfinx.FunctionSpace,
+                    active_cells: np.ndarray,
+                    kernel: dolfinx_cuas.cpp.KernelWrapper,
+                    coeffs: np.ndarray,
+                    consts: np.ndarray,
+                    type: dolfinx.cpp.fem.IntegralType,
+                    bcs: typing.List[dolfinx.DirichletBC] = [],
+                    diagonal: float = 1.0):
+    """Assemble bilinear form into a matrix. The returned matrix is not
+    finalised, i.e. ghost values are not accumulated.
+    """
+    dolfinx_cuas.cpp.assemble_vector(b, V._cpp_object, bcs, active_cells, kernel, coeffs, consts, type)
 
 
 def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: str = "mass",

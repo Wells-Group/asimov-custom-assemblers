@@ -101,6 +101,42 @@ void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, s
                                                   apply_dof_transformation_to_transpose, dofs, bs,
                                                   bc, bc, kernel, coeffs, constants, cell_info);
 }
+
+void assemble_cells(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                    const xtl::span<const std::int32_t>& active_cells, kernel_fn& kernel,
+                    const dolfinx::array2d<PetscScalar>& coeffs,
+                    const xtl::span<const PetscScalar>& constants)
+{
+  // Extract mesh
+  std::shared_ptr<const dolfinx::mesh::Mesh> mesh = V->mesh();
+
+  // Extract function space data
+  std::shared_ptr<const dolfinx::fem::DofMap> dofmap = V->dofmap();
+  const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
+  const int bs = dofmap->bs();
+  std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
+  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
+                           std::int32_t, int)>
+      apply_dof_transformation = element->get_dof_transformation_function<double>();
+  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
+                           std::int32_t, int)>
+      apply_dof_transformation_to_transpose
+      = element->get_dof_transformation_to_transpose_function<double>();
+
+  // NOTE: Need to reconsider this when we get to jump integrals between disconnected interfaces
+  const bool needs_transformation_data = element->needs_dof_transformations();
+
+  // Get permutation data
+  xtl::span<const std::uint32_t> cell_info;
+  if (needs_transformation_data)
+  {
+    mesh->topology_mutable().create_entity_permutations();
+    cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
+  }
+  dolfinx::fem::impl::assemble_cells<PetscScalar>(apply_dof_transformation, b, mesh->geometry(),
+                                                  active_cells, dofs, bs, kernel, constants, coeffs,
+                                                  cell_info);
+}
 } // namespace
 
 namespace dolfinx_cuas
@@ -142,4 +178,20 @@ void assemble_matrix(
     throw std::runtime_error("Unsupported integral type");
 };
 
+void assemble_vector(
+    xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+    const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<PetscScalar>>>& bcs,
+    const xtl::span<const std::int32_t>& active_entities, kernel_fn& kernel,
+    const dolfinx::array2d<PetscScalar>& coeffs, const xtl::span<const PetscScalar>& constants,
+    dolfinx::fem::IntegralType type)
+{
+
+  // Assemble integral
+  if (type == dolfinx::fem::IntegralType::cell)
+    assemble_cells(b, V, active_entities, kernel, coeffs, constants);
+  // else if (type == dolfinx::fem::IntegralType::exterior_facet)
+  //   assemble_exterior_facets(mat_set, V, dof_marker, active_entities, kernel, coeffs, constants);
+  else
+    throw std::runtime_error("Unsupported integral type");
+};
 } // namespace dolfinx_cuas
