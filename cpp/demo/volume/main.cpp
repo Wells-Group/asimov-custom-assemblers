@@ -7,36 +7,82 @@
 #include "volume.h"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
+#include <boost/program_options.hpp>
 #include <dolfinx.h>
 #include <dolfinx/fem/petsc.h>
 #include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/kernels.hpp>
 #include <dolfinx_cuas/utils.hpp>
-
 #include <xtensor/xio.hpp>
 
 using namespace dolfinx;
+namespace po = boost::program_options;
 
 int main(int argc, char* argv[])
 {
   common::subsystem::init_logging(argc, argv);
   common::subsystem::init_petsc(argc, argv);
 
+  po::options_description desc("Allowed options");
+  desc.add_options()("help,h", "print usage message")(
+      "kernel", po::value<std::string>()->default_value("mass"),
+      "kernel (mass or stiffness)")("degree", po::value<int>()->default_value(1),
+                                    "Degree of function space (1-5)");
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+  po::notify(vm);
+
+  if (vm.count("help"))
+  {
+    std::cout << desc << "\n";
+    return 0;
+  }
+  const std::string problem_type = vm["kernel"].as<std::string>();
+  const int degree = vm["degree"].as<int>();
+
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {50, 50, 50},
+      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {25, 25, 25},
                                   mesh::CellType::tetrahedron, mesh::GhostMode::none));
 
   mesh->topology().create_entity_permutations();
 
-  const std::shared_ptr<fem::FunctionSpace>& V
-      = fem::create_functionspace(functionspace_form_volume_a, "u", mesh);
+  auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
 
   // Define variational forms
-  auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
+  ufc_form form;
+  std::shared_ptr<fem::FunctionSpace> V;
+  dolfinx_cuas::Kernel kernel_type;
+  if (problem_type == "mass")
+  {
+    kernel_type = dolfinx_cuas::Kernel::MassTensor;
+    std::vector spaces_mass = {functionspace_form_volume_a_mass1, functionspace_form_volume_a_mass2,
+                               functionspace_form_volume_a_mass3, functionspace_form_volume_a_mass4,
+                               functionspace_form_volume_a_mass5};
+    std::vector forms_mass = {form_volume_a_mass1, form_volume_a_mass2, form_volume_a_mass3,
+                              form_volume_a_mass4, form_volume_a_mass5};
+    V = fem::create_functionspace(spaces_mass[degree - 1], "v_0", mesh);
+    form = *forms_mass[degree - 1];
+  }
+  else if (problem_type == "stiffness")
+  {
+    kernel_type = dolfinx_cuas::Kernel::Stiffness;
+    std::vector spaces_stiffness
+        = {functionspace_form_volume_a_stiffness1, functionspace_form_volume_a_stiffness2,
+           functionspace_form_volume_a_stiffness3, functionspace_form_volume_a_stiffness4,
+           functionspace_form_volume_a_stiffness5};
+    std::vector forms_stiffness
+        = {form_volume_a_stiffness1, form_volume_a_stiffness2, form_volume_a_stiffness3,
+           form_volume_a_stiffness4, form_volume_a_stiffness5};
+    V = fem::create_functionspace(spaces_stiffness[degree - 1], "v_0", mesh);
+    form = *forms_stiffness[degree - 1];
+  }
+  else
+    throw std::runtime_error("Unsupported kernel");
+
   auto a = std::make_shared<fem::Form<PetscScalar>>(
-      fem::create_form<PetscScalar>(*form_volume_a, {V, V}, {}, {{"kappa", kappa}}, {}));
+      fem::create_form<PetscScalar>(form, {V, V}, {}, {{"kappa", kappa}}, {}));
 
   // Matrix to be used with custom assembler
   la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
@@ -47,7 +93,7 @@ int main(int argc, char* argv[])
   MatZeroEntries(B.mat());
 
   // Generate Kernel
-  auto kernel = dolfinx_cuas::generate_kernel(dolfinx_cuas::Kernel::MassTensor, 1, 1);
+  auto kernel = dolfinx_cuas::generate_kernel(kernel_type, degree, V->dofmap()->index_map_bs());
 
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();
@@ -71,9 +117,10 @@ int main(int argc, char* argv[])
   MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
   t1.stop();
 
-  assert(dolfinx_cuas::allclose(A.mat(), B.mat()));
-
   dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
+
+  if (!dolfinx_cuas::allclose(A.mat(), B.mat()))
+    throw std::runtime_error("Matrices are not the same");
 
   return 0;
 }
