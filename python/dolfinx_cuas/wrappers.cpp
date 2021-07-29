@@ -79,9 +79,10 @@ PYBIND11_MODULE(cpp, m)
   m.def("generate_coeff_kernel",
         [](dolfinx_cuas::Kernel type,
            std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int p,
-           int q) {
+           dolfinx_cuas::QuadratureRule q_rule)
+        {
           return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_coeff_kernel(type, coeffs, p, q));
+              dolfinx_cuas::generate_coeff_kernel(type, coeffs, p, q_rule));
         });
 
   m.def("assemble_matrix",
