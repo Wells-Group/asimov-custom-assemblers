@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "QuadratureRule.hpp"
 #include "kernels.hpp"
 #include "utils.hpp"
 #include <dolfinx/fem/FiniteElement.h>

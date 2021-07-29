@@ -42,8 +42,8 @@ PYBIND11_MODULE(cpp, m)
   // Quadrature rule class
   py::class_<dolfinx_cuas::QuadratureRule, std::shared_ptr<dolfinx_cuas::QuadratureRule>>(
       m, "QuadratureRule", "QuadratureRule object")
-      .def(py::init<std::shared_ptr<const dolfinx::mesh::Mesh>, int, std::string>(),
-           py::arg("mesh"), py::arg("degree"), py::arg("type") = "default")
+      .def(py::init<dolfinx::mesh::CellType, int, std::string>(), py::arg("cell_type"),
+           py::arg("degree"), py::arg("type") = "default")
       .def_property_readonly("points", [](dolfinx_cuas::QuadratureRule self)
                              { return dolfinx_cuas_wrappers::xt_as_pyarray(self.points()); })
       .def_property_readonly("weights", [](dolfinx_cuas::QuadratureRule self)

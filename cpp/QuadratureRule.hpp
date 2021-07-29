@@ -8,7 +8,8 @@
 #pragma once
 
 #include <basix/quadrature.h>
-#include <dolfinx/mesh/Mesh.h>
+#include <dolfinx/mesh/cell_types.h>
+#include <dolfinx/mesh/utils.h>
 #include <xtensor/xadapt.hpp>
 #include <xtensor/xio.hpp>
 namespace dolfinx_cuas
@@ -20,14 +21,11 @@ class QuadratureRule
 
 public:
   /// Constructor
-  /// @param[in] mesh The mesh
+  /// @param[in] ct The cell type
   /// @param[in] degree Degree of quadrature rul
   /// @param[in] type Type of quadrature rule
-  QuadratureRule(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int degree,
-                 std::string type = "default")
+  QuadratureRule(dolfinx::mesh::CellType ct, int degree, std::string type = "default")
   {
-
-    dolfinx::mesh::CellType ct = mesh->topology().cell_type();
     std::pair<xt::xarray<double>, std::vector<double>> quadrature
         = basix::quadrature::make_quadrature(
             type, basix::cell::str_to_type(dolfinx::mesh::to_string(ct)), degree);
