@@ -8,7 +8,7 @@ See: `python/tests/test_cpp_kernels.py` for examples on how to interface with th
 See: `cpp/demo/main.cpp` for how to interface with the C++ layer.
 
 # Affine meshes (triangles and tetrahedra)
-## Lagrange elements (degree 1-5)
+## Lagrange elements (Scalar and Vector) (degree 1-5)
 - `ufl.inner(u, v) * ufl.dx` (3D)
 - `ufl.inner(u, v) * ufl.ds` (2D and 3D)
 - `ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx` (3D)
