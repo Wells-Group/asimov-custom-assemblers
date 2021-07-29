@@ -9,6 +9,7 @@
 #include "kernelwrapper.h"
 #include <dolfinx/la/PETScMatrix.h>
 #include <dolfinx/mesh/MeshTags.h>
+#include <dolfinx_cuas/QuadratureRule.hpp>
 #include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/contact/Contact.hpp>
 #include <dolfinx_cuas/kernels_non_const_coefficient.hpp>
@@ -34,9 +35,21 @@ PYBIND11_MODULE(cpp, m)
 #else
   m.attr("__version__") = "dev";
 #endif
+  // Kernel wrapper class
   py::class_<cuas_wrappers::KernelWrapper, std::shared_ptr<cuas_wrappers::KernelWrapper>>(
       m, "KernelWrapper", "Wrapper for C++ integration kernels");
 
+  // Quadrature rule class
+  py::class_<dolfinx_cuas::QuadratureRule, std::shared_ptr<dolfinx_cuas::QuadratureRule>>(
+      m, "QuadratureRule", "QuadratureRule object")
+      .def(py::init<std::shared_ptr<const dolfinx::mesh::Mesh>, int, std::string>(),
+           py::arg("mesh"), py::arg("degree"), py::arg("type") = "default")
+      .def_property_readonly("points", [](dolfinx_cuas::QuadratureRule self)
+                             { return dolfinx_cuas_wrappers::xt_as_pyarray(self.points()); })
+      .def_property_readonly("weights", [](dolfinx_cuas::QuadratureRule self)
+                             { return dolfinx_cuas_wrappers::xt_as_pyarray(self.weights()); });
+
+  // Contact class
   py::class_<dolfinx_cuas::contact::Contact, std::shared_ptr<dolfinx_cuas::contact::Contact>>(
       m, "Contact", "Contact object")
       .def(py::init<std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>>, int, int,
