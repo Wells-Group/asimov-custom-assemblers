@@ -58,6 +58,7 @@ kernel_fn generate_coefficient_kernel(
   {
     std::shared_ptr<const dolfinx::fem::FiniteElement> coeff_element
         = coeffs[i]->function_space()->element();
+    // NOTE: Assuming value size 1
     xt::xtensor<double, 4> coeff_basis({1, weights.size(), coeff_element->space_dimension(), 1});
     coeff_element->tabulate(coeff_basis, points, 0);
     auto phi_i = xt::view(phi_coeffs, xt::all(), xt::range(offsets[i], offsets[i + 1]));
