@@ -221,6 +221,14 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<Petsc
   return c;
 }
 
+/// Prepare a coefficient (dolfinx::fem::Function) for assembly with custom kernels
+/// by packing them as a 2D array, where the ith row maps to the ith local cell.
+/// There are num_q_points*block_size*value_size columns, where
+/// column[q * (block_size * value_size) + k + c] = sum_i c^i[k] * phi^i(x_q)[c]
+/// where c^i[k] is the ith coefficient's kth vector component, phi^i(x_q)[c] is the ith basis
+/// function's c-th value compoenent at the quadrature point x_q.
+/// @param[in] coeff The coefficient to pack
+/// @param[out] c The packed coefficients
 dolfinx::array2d<PetscScalar>
 pack_coefficient_quadrature(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff,
                             const int q)
