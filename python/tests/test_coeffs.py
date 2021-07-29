@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier:   LGPL-3.0-or-later
 
-from functools import total_ordering
 import basix
 import dolfinx
 import dolfinx_cuas.cpp
