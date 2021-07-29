@@ -195,8 +195,10 @@ def test_volume_kernels(kernel_type, P):
     dx = ufl.Measure("dx", domain=mesh)
     if kernel_type == kt.Mass:
         a = ufl.inner(u, v) * dx
+        q_degree = 2 * P
     elif kernel_type == kt.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
+        q_degree = 2 * (P - 1)
     else:
         raise RuntimeError("Unknown kernel")
 
@@ -214,7 +216,8 @@ def test_volume_kernels(kernel_type, P):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs)
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh, q_degree, "default")
+    kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
     B.zeroEntries()
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
@@ -242,11 +245,15 @@ def test_vector_cell_kernel(kernel_type, P):
 
     if kernel_type == kt.Mass:
         a = ufl.inner(u, v) * dx
+        q_degree = 2 * P
     elif kernel_type == kt.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
+        q_degree = 2 * (P - 1)
     elif kernel_type == kt.TrEps:
         a = ufl.inner(ufl.tr(epsilon(u)) * ufl.Identity(len(u)), epsilon(v)) * dx
+        q_degree = 2 * (P - 1)
     elif kernel_type == kt.SymGrad:
+        q_degree = 2 * P
         a = 2 * ufl.inner(epsilon(u), epsilon(v)) * dx
     else:
         raise RuntimeError("Unknown kernel")
@@ -267,7 +274,8 @@ def test_vector_cell_kernel(kernel_type, P):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs)
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh, q_degree, "default")
+    kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
     B.assemble()

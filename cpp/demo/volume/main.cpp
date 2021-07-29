@@ -10,6 +10,7 @@
 #include <boost/program_options.hpp>
 #include <dolfinx.h>
 #include <dolfinx/fem/petsc.h>
+#include <dolfinx_cuas/QuadratureRule.hpp>
 #include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/kernels.hpp>
 #include <dolfinx_cuas/utils.hpp>
@@ -54,8 +55,10 @@ int main(int argc, char* argv[])
   ufc_form form;
   std::shared_ptr<fem::FunctionSpace> V;
   dolfinx_cuas::Kernel kernel_type;
+  int q_degree = 0;
   if (problem_type == "mass")
   {
+    q_degree = 2 * degree;
     kernel_type = dolfinx_cuas::Kernel::MassTensor;
     std::vector spaces_mass = {functionspace_form_volume_a_mass1, functionspace_form_volume_a_mass2,
                                functionspace_form_volume_a_mass3, functionspace_form_volume_a_mass4,
@@ -67,6 +70,7 @@ int main(int argc, char* argv[])
   }
   else if (problem_type == "stiffness")
   {
+    q_degree = 2 * (degree - 1);
     kernel_type = dolfinx_cuas::Kernel::Stiffness;
     std::vector spaces_stiffness
         = {functionspace_form_volume_a_stiffness1, functionspace_form_volume_a_stiffness2,
@@ -93,7 +97,9 @@ int main(int argc, char* argv[])
   MatZeroEntries(B.mat());
 
   // Generate Kernel
-  auto kernel = dolfinx_cuas::generate_kernel(kernel_type, degree, V->dofmap()->index_map_bs());
+  dolfinx_cuas::QuadratureRule q_rule(mesh, q_degree, "default");
+  auto kernel
+      = dolfinx_cuas::generate_kernel(kernel_type, degree, V->dofmap()->index_map_bs(), q_rule);
 
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();

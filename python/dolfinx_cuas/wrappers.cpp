@@ -72,8 +72,10 @@ PYBIND11_MODULE(cpp, m)
           return cuas_wrappers::KernelWrapper(
               dolfinx_cuas::generate_surface_kernel(V, type, quadrature_degree));
         });
-  m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p, int bs)
-        { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p, bs)); });
+  m.def("generate_kernel",
+        [](dolfinx_cuas::Kernel type, int p, int bs, dolfinx_cuas::QuadratureRule q_rule) {
+          return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p, bs, q_rule));
+        });
   m.def("generate_coeff_kernel",
         [](dolfinx_cuas::Kernel type,
            std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int p,

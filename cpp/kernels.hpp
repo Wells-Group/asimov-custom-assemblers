@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "QuadratureRule.hpp"
 #include "math.hpp"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
@@ -33,9 +34,11 @@ namespace
 {
 /// Create integration kernel for Pth order Lagrange elements
 /// @param[in] type The kernel type (Mass or Stiffness)
+/// @param[in] quadrature_rule The quadrature rule
 /// @return The integration kernel
 template <int P, int bs>
-kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
+kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
+                              dolfinx_cuas::QuadratureRule quadrature_rule)
 {
   // Problem specific parameters
   std::string family = "Lagrange";
@@ -45,20 +48,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type)
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  // NOTE: These assumptions are only fine for simplices
-  int quad_degree = 0;
-  if (type == dolfinx_cuas::Kernel::Stiffness)
-    quad_degree = (P - 1) + (P - 1);
-  else if (type == dolfinx_cuas::Kernel::Mass or type == dolfinx_cuas::Kernel::MassTensor)
-    quad_degree = 2 * P;
-  else if (type == dolfinx_cuas::Kernel::TrEps)
-    quad_degree = (P - 1) + (P - 1);
-  else if (type == dolfinx_cuas::Kernel::SymGrad)
-    quad_degree = (P - 1) + (P - 1);
-
-  auto [points, weight]
-      = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell), quad_degree);
-  std::vector<double> weights(weight);
+  auto weights = quadrature_rule.weights();
+  auto points = quadrature_rule.points();
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element = basix::create_element(family, cell, P);
@@ -338,7 +329,8 @@ namespace dolfinx_cuas
 /// @param[in] P Degree of the element
 /// @param[in] bs The block size
 /// @return The integration kernel
-kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs)
+kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs,
+                          dolfinx_cuas::QuadratureRule quadrature_rule)
 {
   switch (P)
   {
@@ -346,11 +338,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<1, 1>(type);
+      return generate_tet_kernel<1, 1>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<1, 2>(type);
+      return generate_tet_kernel<1, 2>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<1, 3>(type);
+      return generate_tet_kernel<1, 3>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -358,11 +350,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<2, 1>(type);
+      return generate_tet_kernel<2, 1>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<2, 2>(type);
+      return generate_tet_kernel<2, 2>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<2, 3>(type);
+      return generate_tet_kernel<2, 3>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -370,11 +362,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<3, 1>(type);
+      return generate_tet_kernel<3, 1>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<3, 2>(type);
+      return generate_tet_kernel<3, 2>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<3, 3>(type);
+      return generate_tet_kernel<3, 3>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -382,11 +374,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<4, 1>(type);
+      return generate_tet_kernel<4, 1>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<4, 2>(type);
+      return generate_tet_kernel<4, 2>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<4, 3>(type);
+      return generate_tet_kernel<4, 3>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -394,11 +386,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs)
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<5, 1>(type);
+      return generate_tet_kernel<5, 1>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<5, 2>(type);
+      return generate_tet_kernel<5, 2>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<5, 3>(type);
+      return generate_tet_kernel<5, 3>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }

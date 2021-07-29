@@ -32,7 +32,7 @@ public:
         = basix::quadrature::make_quadrature(
             type, basix::cell::str_to_type(dolfinx::mesh::to_string(ct)), degree);
     // NOTE: Conversion could be easier if return-type had been nicer from Basix
-    _points = xt::empty<double>({quadrature.first.size()});
+    _points = xt::empty<double>({quadrature.first.shape(0), quadrature.first.shape(1)});
     for (std::size_t i = 0; i < quadrature.first.size(); i++)
       _points[i] = quadrature.first[i];
     _weights = xt::empty<double>({quadrature.second.size()});
@@ -40,18 +40,18 @@ public:
       _weights[i] = quadrature.second[i];
   }
 
-  /// Return pointer to quadrature points
-  xt::xtensor<double, 1> points() { return _points; }
+  /// Return quadrature points
+  xt::xarray<double> points() { return _points; }
 
-  /// Return pointer to quadrature weights
-  xt::xtensor<double, 1> weights() { return _weights; }
+  /// Return quadrature weights
+  xt::xarray<double> weights() { return _weights; }
 
   /// Return number of quadrature points
   std::size_t num_points() { return _points.size(); }
 
 private:
-  xt::xtensor<double, 1> _points;  // 2D array of quadrature points
-  xt::xtensor<double, 1> _weights; // 1D array of quadrature weights
+  xt::xarray<double> _points;  // 2D array of quadrature points
+  xt::xarray<double> _weights; // 1D array of quadrature weights
 };
 
 } // namespace dolfinx_cuas
