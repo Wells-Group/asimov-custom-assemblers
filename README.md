@@ -1,4 +1,7 @@
 # DOLFINx_CUAS
+[![Test Python assemblers](https://github.com/Wells-Group/asimov-custom-assemblers/actions/workflows/python-app.yml/badge.svg)](https://github.com/Wells-Group/asimov-custom-assemblers/actions/workflows/python-app.yml)
+[![Test C++ assemblers](https://github.com/Wells-Group/asimov-custom-assemblers/actions/workflows/cpp-app.yml/badge.svg)](https://github.com/Wells-Group/asimov-custom-assemblers/actions/workflows/cpp-app.yml)
+
 Authors: Igor A. Baratta, Jørgen S. Dokken, Sarah Roggendorf
 
 Add-on to DOLFINx for assembly of custom kernels.
