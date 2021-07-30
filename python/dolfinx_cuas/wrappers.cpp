@@ -71,6 +71,11 @@ PYBIND11_MODULE(cpp, m)
           return cuas_wrappers::KernelWrapper(
               dolfinx_cuas::generate_coeff_kernel(type, coeffs, p, q));
         });
+  m.def("generate_surface_vector_kernel",
+        [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type, int p) {
+          return cuas_wrappers::KernelWrapper(
+              dolfinx_cuas::generate_surface_vector_kernel(V, type, p));
+        });
 
   m.def("assemble_matrix",
         [](Mat A, std::shared_ptr<dolfinx::fem::FunctionSpace> V,

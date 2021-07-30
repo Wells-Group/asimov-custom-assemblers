@@ -61,6 +61,43 @@ void assemble_exterior_facets(
       perms);
 }
 
+void assemble_exterior_facets(xtl::span<PetscScalar> b,
+                              std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                              const xtl::span<const std::int32_t>& active_facets, kernel_fn& kernel,
+                              const dolfinx::array2d<PetscScalar>& coeffs,
+                              const xtl::span<const PetscScalar>& constants)
+{
+  // Extract mesh
+  std::shared_ptr<const dolfinx::mesh::Mesh> mesh = V->mesh();
+
+  // Extract function space data (assuming same test and trial space)
+  std::shared_ptr<const dolfinx::fem::DofMap> dofmap = V->dofmap();
+  const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
+  const int bs = dofmap->bs();
+  std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
+  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
+                           std::int32_t, int)>
+      apply_dof_transformation = element->get_dof_transformation_function<double>();
+
+  // NOTE: Need to reconsider this when we get to jump integrals between disconnected interfaces
+  const bool needs_transformation_data = element->needs_dof_transformations();
+
+  // Get permutation data
+  xtl::span<const std::uint32_t> cell_info;
+  if (needs_transformation_data)
+  {
+    mesh->topology_mutable().create_entity_permutations();
+    cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
+  }
+
+  const std::vector<std::uint8_t>& perms = mesh->topology().get_facet_permutations();
+
+  // Assemble using dolfinx
+  dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(apply_dof_transformation, b, *mesh,
+                                                            active_facets, dofs, bs, kernel,
+                                                            constants, coeffs, cell_info, perms);
+}
+
 void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, std::int32_t,
                                             const std::int32_t*, const PetscScalar*)>& mat_set,
                     std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<bool>& bc,
@@ -118,10 +155,6 @@ void assemble_cells(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::Func
   const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
                            std::int32_t, int)>
       apply_dof_transformation = element->get_dof_transformation_function<double>();
-  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
-                           std::int32_t, int)>
-      apply_dof_transformation_to_transpose
-      = element->get_dof_transformation_to_transpose_function<double>();
 
   // NOTE: Need to reconsider this when we get to jump integrals between disconnected interfaces
   const bool needs_transformation_data = element->needs_dof_transformations();
@@ -189,8 +222,8 @@ void assemble_vector(
   // Assemble integral
   if (type == dolfinx::fem::IntegralType::cell)
     assemble_cells(b, V, active_entities, kernel, coeffs, constants);
-  // else if (type == dolfinx::fem::IntegralType::exterior_facet)
-  //   assemble_exterior_facets(mat_set, V, dof_marker, active_entities, kernel, coeffs, constants);
+  else if (type == dolfinx::fem::IntegralType::exterior_facet)
+    assemble_exterior_facets(b, V, active_entities, kernel, coeffs, constants);
   else
     throw std::runtime_error("Unsupported integral type");
 };
