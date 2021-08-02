@@ -10,8 +10,8 @@
 #include <boost/program_options.hpp>
 #include <dolfinx.h>
 #include <dolfinx/fem/petsc.h>
-#include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/kernels.hpp>
+#include <dolfinx_cuas/matrix_assembly.hpp>
 #include <dolfinx_cuas/utils.hpp>
 #include <xtensor/xio.hpp>
 

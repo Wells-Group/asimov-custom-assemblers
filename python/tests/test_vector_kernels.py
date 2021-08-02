@@ -17,10 +17,12 @@ compare_matrices = dolfinx_cuas.utils.compare_matrices
 
 
 @pytest.mark.parametrize("kernel_type", [kt.Rhs])
+@pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
-def test_vector_kernels(kernel_type, P):
-    N = 10
-    mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+def test_vector_kernels(dim, kernel_type, P):
+    N = 30 if dim == 2 else 10
+    mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+
     # Define variational form
     V = dolfinx.FunctionSpace(mesh, ("CG", P))
 
@@ -43,14 +45,14 @@ def test_vector_kernels(kernel_type, P):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     b2 = dolfinx.fem.create_vector(L)
-    kernel = dolfinx_cuas.cpp.generate_vector_kernel(kernel_type, P)
+    kernel = dolfinx_cuas.cpp.generate_vector_kernel(V._cpp_object, kernel_type, P + 1)
     b2.zeroEntries()
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     dolfinx_cuas.assemble_vector(b2, V, active_cells, kernel, coeffs, consts, it.cell)
     b2.assemble()
 
-    assert(np.linalg.norm(b - b2) < 1e-13)
+    assert np.allclose(b.array, b2.array)
 
 
 @pytest.mark.parametrize("kernel_type", [kt.Rhs])
@@ -89,9 +91,9 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     b2 = dolfinx.fem.create_vector(L)
-    kernel = dolfinx_cuas.cpp.generate_surface_vector_kernel(V._cpp_object, kernel_type, P)
+    kernel = dolfinx_cuas.cpp.generate_surface_vector_kernel(V._cpp_object, kernel_type, P + 1)
     b2.zeroEntries()
     dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     b2.assemble()
 
-    assert(np.linalg.norm(b - b2) < 1e-13)
+    assert np.allclose(b.array, b2.array)

@@ -14,48 +14,49 @@
 namespace dolfinx_cuas
 {
 
-kernel_fn generate_vector_kernel(dolfinx_cuas::Kernel type, int P)
+kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
+                                 dolfinx_cuas::Kernel type, int quadrature_degree)
 {
-  // Problem specific parameters
-  std::string family = "Lagrange";
-  std::string cell = "tetrahedron";
-  constexpr std::int32_t gdim = 3;
-  constexpr std::int32_t tdim = 3;
-  constexpr std::int32_t d = 4;
-  std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
+  auto mesh = V->mesh();
 
-  // NOTE: These assumptions are only fine for simplices
-  int quad_degree = (P + 1);
+  // Get mesh info
+  const int gdim = mesh->geometry().dim(); // geometrical dimension
+  const int tdim = mesh->topology().dim(); // topological dimension
+
+  const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
+  const int num_coordinate_dofs = basix_element.dim();
 
   auto [points, weight]
-      = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell), quad_degree);
+      = basix::quadrature::make_quadrature("default", basix_element.cell_type(), quadrature_degree);
   std::vector<double> weights(weight);
 
   // Create Finite element for test and trial functions and tabulate shape functions
-  basix::FiniteElement element = basix::create_element(family, cell, P);
-  xt::xtensor<double, 4> basis = element.tabulate(1, points);
+  std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
+  int bs = element->block_size();
+  std::uint32_t ndofs_cell = element->space_dimension() / bs;
+  xt::xtensor<double, 4> basis({1, weights.size(), ndofs_cell, bs});
+  element->tabulate(basis, points, 0);
   xt::xtensor<double, 2> phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
-  xt::xtensor<double, 3> dphi = xt::view(basis, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
 
   // Get coordinate element from dolfinx
-  basix::FiniteElement coordinate_element = basix::create_element("Lagrange", cell, 1);
-  xt::xtensor<double, 4> coordinate_basis = coordinate_element.tabulate(1, points);
+  xt::xtensor<double, 4> coordinate_basis = basix_element.tabulate(1, points);
 
   xt::xtensor<double, 2> dphi0_c
       = xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
 
   assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
 
-  // v*dx, v TestFunction
+  // 1 * v * dx, v TestFunction
   // =====================================================================================
   kernel_fn rhs = [=](double* b, const double* c, const double* w, const double* coordinate_dofs,
                       const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    std::array<std::size_t, 2> shape = {d, gdim};
+    std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
     // FIXME: These array should be views (when compute_jacobian doesn't use xtensor)
-    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+    xt::xtensor<double, 2> coord
+        = xt::adapt(coordinate_dofs, 3 * num_coordinate_dofs, xt::no_ownership(), shape);
 
     // Compute Jacobian, its inverse and the determinant
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
@@ -79,11 +80,10 @@ kernel_fn generate_vector_kernel(dolfinx_cuas::Kernel type, int P)
 }
 
 kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
-                                         dolfinx_cuas::Kernel type, int P)
+                                         dolfinx_cuas::Kernel type, int quadrature_degree)
 {
 
   auto mesh = V->mesh();
-  int quadrature_degree = P + 1;
 
   // Get mesh info
   const int gdim = mesh->geometry().dim(); // geometrical dimension
@@ -119,9 +119,9 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   // phi and grad(phi) at quadrature points
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
   int bs = element->block_size();
-  std::uint32_t num_local_dofs = element->space_dimension() / bs;
-  xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, num_local_dofs});
-  xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, num_local_dofs, bs});
+  std::uint32_t ndofs_cell = element->space_dimension() / bs;
+  xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, ndofs_cell});
+  xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, ndofs_cell, bs});
 
   // Structure needed for jacobian of cell basis function
   xt::xtensor<double, 4> dphi_c({num_facets, tdim, num_quadrature_pts, basix_element.dim()});

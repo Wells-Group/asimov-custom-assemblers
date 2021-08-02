@@ -54,9 +54,7 @@ def assemble_vector(b: np.ndarray, V: dolfinx.FunctionSpace,
                     type: dolfinx.cpp.fem.IntegralType,
                     bcs: typing.List[dolfinx.DirichletBC] = [],
                     diagonal: float = 1.0):
-    """Assemble bilinear form into a matrix. The returned matrix is not
-    finalised, i.e. ghost values are not accumulated.
-    """
+    """Assemble linear form into a vector. """
     dolfinx_cuas.cpp.assemble_vector(b, V._cpp_object, bcs, active_cells, kernel, coeffs, consts, type)
 
 

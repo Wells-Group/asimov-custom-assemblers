@@ -9,11 +9,12 @@
 #include "kernelwrapper.h"
 #include <dolfinx/la/PETScMatrix.h>
 #include <dolfinx/mesh/MeshTags.h>
-#include <dolfinx_cuas/assembly.hpp>
 #include <dolfinx_cuas/contact/Contact.hpp>
 #include <dolfinx_cuas/kernels_non_const_coefficient.hpp>
+#include <dolfinx_cuas/matrix_assembly.hpp>
 #include <dolfinx_cuas/surface_kernels.hpp>
 #include <dolfinx_cuas/utils.hpp>
+#include <dolfinx_cuas/vector_assembly.hpp>
 #include <dolfinx_cuas/vector_kernels.hpp>
 #include <iostream>
 #include <pybind11/functional.h>
@@ -62,8 +63,13 @@ PYBIND11_MODULE(cpp, m)
         });
   m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p, int bs)
         { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p, bs)); });
-  m.def("generate_vector_kernel", [](dolfinx_cuas::Kernel type, int p)
-        { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_vector_kernel(type, p)); });
+  m.def("generate_vector_kernel",
+        [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
+           int quad_degree)
+        {
+          return cuas_wrappers::KernelWrapper(
+              dolfinx_cuas::generate_vector_kernel(V, type, quad_degree));
+        });
   m.def("generate_coeff_kernel",
         [](dolfinx_cuas::Kernel type,
            std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int p,
@@ -72,9 +78,11 @@ PYBIND11_MODULE(cpp, m)
               dolfinx_cuas::generate_coeff_kernel(type, coeffs, p, q));
         });
   m.def("generate_surface_vector_kernel",
-        [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type, int p) {
+        [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
+           int quad_degree)
+        {
           return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_surface_vector_kernel(V, type, p));
+              dolfinx_cuas::generate_surface_vector_kernel(V, type, quad_degree));
         });
 
   m.def("assemble_matrix",
