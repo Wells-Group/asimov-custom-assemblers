@@ -20,7 +20,7 @@ See: `cpp/demo/main.cpp` for how to interface with the C++ layer.
 - `2 * ufl.inner(ufl.sym(ufl.grad(u)), ufl.sym(ufl.grad(v))) * ufl.dx` (3D)
 - `ufl.inner(ufl.sym(ufl.grad(u)), ufl.sym(ufl.grad(v))) * ufl.ds` (2D and 3D)
 - `2 * ufl.inner(ufl.sym(ufl.grad(u))) * ufl.FacetNormal(mesh), v) * ufl.ds` (2D and 3D)
-- `v*ufl.dx` (3D)
+- `1. * v * ufl.dx` (3D)
 - `v*ufl.ds` (2D and 3D)
 
 # Non-affine meshes (quadrilaterals and hexahedra)

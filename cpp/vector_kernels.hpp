@@ -54,6 +54,7 @@ kernel_fn generate_vector_kernel(dolfinx_cuas::Kernel type, int P)
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     std::array<std::size_t, 2> shape = {d, gdim};
+    // FIXME: These array should be views (when compute_jacobian doesn't use xtensor)
     xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
 
     // Compute Jacobian, its inverse and the determinant
@@ -101,7 +102,7 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   auto qp_ref_facet = quadrature_data.first;
   auto q_weights = quadrature_data.second;
 
-  // Tabulate coordinate elemetn of reference facet (used to compute Jacobian on
+  // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points
   auto f_tab = surface_element.tabulate(0, qp_ref_facet);
   xt::xtensor<double, 2> phi_f = xt::view(f_tab, 0, xt::all(), xt::all(), 0);
@@ -120,7 +121,6 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   int bs = element->block_size();
   std::uint32_t num_local_dofs = element->space_dimension() / bs;
   xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, num_local_dofs});
-  // xt::xtensor<double, 4> dphi({num_facets, tdim, num_quadrature_pts, num_local_dofs});
   xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, num_local_dofs, bs});
 
   // Structure needed for jacobian of cell basis function
@@ -135,12 +135,9 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
 
     // Tabulate at quadrature points on facet
     auto phi_i = xt::view(phi, i, xt::all(), xt::all());
-    // auto dphi_i = xt::view(dphi, i, xt::all(), xt::all(), xt::all());
     // replace with element->tabulate(cell_tab, q_facet, 1); for first order derivatives
     element->tabulate(cell_tab, q_facet, 0);
     phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
-    // only needed for derivatives
-    // dphi_i = xt::view(cell_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
 
     // Tabulate coordinate element of reference cell
     auto c_tab = basix_element.tabulate(1, q_facet);
