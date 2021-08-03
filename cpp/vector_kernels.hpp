@@ -123,7 +123,7 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, ndofs_cell});
   xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, ndofs_cell, bs});
 
-  // Structure needed for jacobian of cell basis function
+  // Structure needed for Jacobian of cell basis function
   xt::xtensor<double, 4> dphi_c({num_facets, tdim, num_quadrature_pts, basix_element.dim()});
 
   for (int i = 0; i < num_facets; ++i)
@@ -149,8 +149,6 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   // quadrature point
   auto ref_jacobians = basix::cell::facet_jacobians(basix_element.cell_type());
 
-  // Get facet normals on reference cell
-  auto facet_normals = basix::cell::facet_outward_normals(basix_element.cell_type());
 
   // Define kernels
   // v*ds, v TestFunction
@@ -176,7 +174,8 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
         = xt::view(dphi_c, facet_index, xt::all(), 0,
                    xt::all()); // FIXME: Assumed constant, i.e. only works for simplices
 
-    // Compute Jacobian and determinant at each quadrature point
+    // NOTE: Affine cell assumption
+    // Compute Jacobian and determinant at first quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
 
