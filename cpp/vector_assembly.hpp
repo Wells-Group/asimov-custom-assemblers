@@ -110,7 +110,7 @@ namespace dolfinx_cuas
 /// Assemble vector for given kernel function
 /// @param[in,out] b the vector to be assembled
 /// @param[in] V the function space
-/// @param[in] bcs Dirichlet boundary conditions
+/// @param[in] bcs List of Dirichlet boundary conditions
 /// @param[in] active_entities list of indices (local to process) of entities to be integrated over
 /// @param[in] kernel the custom integration kernel
 /// @param[in] coefficients used in the variational form
