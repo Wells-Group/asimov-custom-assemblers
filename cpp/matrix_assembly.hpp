@@ -109,7 +109,7 @@ namespace dolfinx_cuas
 /// Assemble matrix for given kernel function
 /// @param[in] mat_set the function for setting the values in the matrix
 /// @param[in] V the function space
-/// @param[in] bcs Dirichlet boundary conditions
+/// @param[in] bcs List of Dirichlet boundary conditions
 /// @param[in] active_entities list of indices (local to process) of entities to be integrated over
 /// @param[in] kernel the custom integration kernel
 /// @param[in] coefficients used in the variational form
