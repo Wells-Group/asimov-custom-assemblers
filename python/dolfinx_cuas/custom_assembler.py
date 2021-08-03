@@ -51,11 +51,9 @@ def assemble_vector(b: np.ndarray, V: dolfinx.FunctionSpace,
                     kernel: dolfinx_cuas.cpp.KernelWrapper,
                     coeffs: np.ndarray,
                     consts: np.ndarray,
-                    type: dolfinx.cpp.fem.IntegralType,
-                    bcs: typing.List[dolfinx.DirichletBC] = [],
-                    diagonal: float = 1.0):
+                    type: dolfinx.cpp.fem.IntegralType):
     """Assemble linear form into a vector. """
-    dolfinx_cuas.cpp.assemble_vector(b, V._cpp_object, bcs, active_cells, kernel, coeffs, consts, type)
+    dolfinx_cuas.cpp.assemble_vector(b, V._cpp_object, active_cells, kernel, coeffs, consts, type)
 
 
 def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: str = "mass",

@@ -110,18 +110,15 @@ namespace dolfinx_cuas
 /// Assemble vector for given kernel function
 /// @param[in,out] b the vector to be assembled
 /// @param[in] V the function space
-/// @param[in] bcs List of Dirichlet boundary conditions
 /// @param[in] active_entities list of indices (local to process) of entities to be integrated over
 /// @param[in] kernel the custom integration kernel
 /// @param[in] coefficients used in the variational form
 /// @param[in] constants used in the variational form
 /// @param[in] type the integral type
-void assemble_vector(
-    xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
-    const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<PetscScalar>>>& bcs,
-    const xtl::span<const std::int32_t>& active_entities, kernel_fn& kernel,
-    const dolfinx::array2d<PetscScalar>& coeffs, const xtl::span<const PetscScalar>& constants,
-    dolfinx::fem::IntegralType type)
+void assemble_vector(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                     const xtl::span<const std::int32_t>& active_entities, kernel_fn& kernel,
+                     const dolfinx::array2d<PetscScalar>& coeffs,
+                     const xtl::span<const PetscScalar>& constants, dolfinx::fem::IntegralType type)
 {
 
   // Assemble integral

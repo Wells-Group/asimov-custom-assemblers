@@ -105,7 +105,6 @@ PYBIND11_MODULE(cpp, m)
   m.def("assemble_vector",
         [](py::array_t<PetscScalar, py::array::c_style>& b,
            std::shared_ptr<dolfinx::fem::FunctionSpace> V,
-           const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<PetscScalar>>>& bcs,
            const py::array_t<std::int32_t, py::array::c_style>& active_cells,
            cuas_wrappers::KernelWrapper& kernel,
            const py::array_t<PetscScalar, py::array::c_style>& coeffs,
@@ -116,7 +115,7 @@ PYBIND11_MODULE(cpp, m)
           std::copy_n(coeffs.data(), coeffs.size(), _coeffs.data());
           auto ker = kernel.get();
           dolfinx_cuas::assemble_vector(
-              xtl::span(b.mutable_data(), b.shape(0)), V, bcs,
+              xtl::span(b.mutable_data(), b.shape(0)), V,
               xtl::span<const std::int32_t>(active_cells.data(), active_cells.size()), ker, _coeffs,
               xtl::span(constants.data(), constants.shape(0)), type);
         });
