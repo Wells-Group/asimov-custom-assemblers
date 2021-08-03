@@ -17,7 +17,14 @@ using kernel_fn = std::function<void(double*, const double*, const double*, cons
 // Helper functions for assembly in DOLFINx
 namespace
 {
-
+/// Assemble vector over exterior facets
+/// Provides easier interface to dolfinx::fem::impl::assemble_exterior_facets
+/// @param[in,out] b the vector to be assembled
+/// @param[in] V the function space
+/// @param[in] active_facets list of indices (local to process) of facets to be integrated over
+/// @param[in] kernel the custom integration kernel
+/// @param[in] coeffs coefficients used in the variational form
+/// @param[in] constants used in the variational form
 void assemble_exterior_facets(xtl::span<PetscScalar> b,
                               std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                               const xtl::span<const std::int32_t>& active_facets, kernel_fn& kernel,
@@ -55,6 +62,14 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
                                                             constants, coeffs, cell_info, perms);
 }
 
+/// Assemble vector over cells
+/// Provides easier interface to dolfinx::fem::impl::assemble_cells
+/// @param[in,out] b the vector to be assembled
+/// @param[in] V the function space
+/// @param[in] active_cells list of indices (local to process) of cells to be integrated over
+/// @param[in] kernel the custom integration kernel
+/// @param[in] coeffs coefficients used in the variational form
+/// @param[in] constants used in the variational form
 void assemble_cells(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                     const xtl::span<const std::int32_t>& active_cells, kernel_fn& kernel,
                     const dolfinx::array2d<PetscScalar>& coeffs,

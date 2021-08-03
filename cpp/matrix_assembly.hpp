@@ -18,6 +18,15 @@ using kernel_fn = std::function<void(double*, const double*, const double*, cons
 // Helper functions for assembly in DOLFINx
 namespace
 {
+
+/// Assemble matrix over exterior facets
+/// Provides easier interface to dolfinx::fem::impl::assemble_exterior_facets
+/// @param[in] mat_set the function for setting the values in the matrix
+/// @param[in] V the function space
+/// @param[in] active_facets list of indices (local to process) of facets to be integrated over
+/// @param[in] kernel the custom integration kernel
+/// @param[in] coeffs coefficients used in the variational form
+/// @param[in] constants used in the variational form
 void assemble_exterior_facets(
     const std::function<int(std::int32_t, const std::int32_t*, std::int32_t, const std::int32_t*,
                             const PetscScalar*)>& mat_set,
@@ -61,6 +70,14 @@ void assemble_exterior_facets(
       perms);
 }
 
+/// Assemble vector over cells
+/// Provides easier interface to dolfinx::fem::impl::assemble_cells
+/// @param[in] mat_set the function for setting the values in the matrix
+/// @param[in] V the function space
+/// @param[in] active_cells list of indices (local to process) of cells to be integrated over
+/// @param[in] kernel the custom integration kernel
+/// @param[in] coeffs coefficients used in the variational form
+/// @param[in] constants used in the variational form
 void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, std::int32_t,
                                             const std::int32_t*, const PetscScalar*)>& mat_set,
                     std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<bool>& bc,
