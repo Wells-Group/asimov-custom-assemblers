@@ -11,7 +11,7 @@
 #include <dolfinx/fem/petsc.h>
 #include <dolfinx/io/XDMFFile.h>
 #include <dolfinx/mesh/utils.h>
-#include <dolfinx_cuas/assembly.hpp>
+#include <dolfinx_cuas/matrix_assembly.hpp>
 #include <dolfinx_cuas/surface_kernels.hpp>
 #include <xtensor/xio.hpp>
 

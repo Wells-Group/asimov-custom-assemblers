@@ -25,7 +25,8 @@ enum Kernel
   Stiffness,
   SymGrad,
   TrEps,
-  Normal
+  Normal,
+  Rhs
 };
 }
 
