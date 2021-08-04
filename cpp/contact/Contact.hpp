@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include "../kernels.hpp"
 #include "../math.hpp"
 #include <basix/cell.h>
 #include <basix/finite-element.h>
@@ -17,7 +16,7 @@
 #include <dolfinx/graph/AdjacencyList.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/mesh/MeshTags.h>
-#include <dolfinx_cuas/utils.hpp>
+#include <dolfinx_cuas/utils.h>
 #include <iostream>
 #include <xtensor-blas/xlinalg.hpp>
 #include <xtensor/xindex_view.hpp>

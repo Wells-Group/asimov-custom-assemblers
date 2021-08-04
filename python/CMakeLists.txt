@@ -17,7 +17,9 @@ find_package(DOLFINX REQUIRED)
 
 
 # Create the binding library
-pybind11_add_module(cpp SHARED dolfinx_cuas/wrappers.cpp)
+pybind11_add_module(cpp SHARED 
+  dolfinx_cuas/wrappers.cpp
+  dolfinx_cuas/contact/wrappers.cpp)
 
 
 target_link_libraries(cpp PUBLIC pybind11::module)

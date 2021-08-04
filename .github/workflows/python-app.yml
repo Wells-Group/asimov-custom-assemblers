@@ -79,6 +79,8 @@ jobs:
         run: |
           cd python/tests
           python3 -m pytest . -vs
+          cd ../dolfinx_cuas/contact/tests
+          python3 -m pytest . -vs
 
       - name: Run demos
         run: |

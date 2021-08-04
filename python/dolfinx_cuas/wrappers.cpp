@@ -9,7 +9,6 @@
 #include "kernelwrapper.h"
 #include <dolfinx/la/PETScMatrix.h>
 #include <dolfinx/mesh/MeshTags.h>
-#include <dolfinx_cuas/contact/Contact.hpp>
 #include <dolfinx_cuas/kernels_non_const_coefficient.hpp>
 #include <dolfinx_cuas/matrix_assembly.hpp>
 #include <dolfinx_cuas/surface_kernels.hpp>
@@ -27,6 +26,11 @@
 
 namespace py = pybind11;
 
+namespace dolfinx_cuas_wrappers
+{
+void contact(py::module& m);
+}
+
 PYBIND11_MODULE(cpp, m)
 {
   // Create module for C++ wrappers
@@ -36,24 +40,14 @@ PYBIND11_MODULE(cpp, m)
 #else
   m.attr("__version__") = "dev";
 #endif
+
+  // Create contact submodule [contact]
+  py::module contact = m.def_submodule("contact", "contact module");
+  dolfinx_cuas_wrappers::contact(contact);
+
   py::class_<cuas_wrappers::KernelWrapper, std::shared_ptr<cuas_wrappers::KernelWrapper>>(
       m, "KernelWrapper", "Wrapper for C++ integration kernels");
 
-  py::class_<dolfinx_cuas::contact::Contact, std::shared_ptr<dolfinx_cuas::contact::Contact>>(
-      m, "Contact", "Contact object")
-      .def(py::init<std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>>, int, int,
-                    std::shared_ptr<dolfinx::fem::FunctionSpace>>(),
-           py::arg("marker"), py::arg("suface_0"), py::arg("surface_1"), py::arg("V"))
-      .def("create_distance_map",
-           [](dolfinx_cuas::contact::Contact& self, int origin_meshtag)
-           {
-             self.create_distance_map(origin_meshtag);
-             return;
-           })
-      .def("map_0_to_1", &dolfinx_cuas::contact::Contact::map_0_to_1)
-      .def("map_1_to_0", &dolfinx_cuas::contact::Contact::map_1_to_0)
-      .def("facet_0", &dolfinx_cuas::contact::Contact::facet_0)
-      .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1);
   m.def("generate_surface_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
            int quadrature_degree)
