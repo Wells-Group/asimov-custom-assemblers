@@ -22,8 +22,10 @@ enum Kernel
   NitscheRigidSurface
 };
 
-kernel_fn generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
-                              dolfinx_cuas::contact::Kernel type, int quadrature_degree)
+kernel_fn
+generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
+                    dolfinx_cuas::contact::Kernel type, int quadrature_degree,
+                    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
 {
 
   auto mesh = V->mesh();
@@ -64,11 +66,24 @@ kernel_fn generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace>
   int bs = element->block_size();
   std::uint32_t ndofs_cell = element->space_dimension() / bs;
   xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, ndofs_cell});
+  xt::xtensor<double, 4> dphi({num_facets, tdim, num_quadrature_pts, ndofs_cell});
   xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, ndofs_cell, bs});
 
   // Structure needed for Jacobian of cell basis function
   xt::xtensor<double, 4> dphi_c({num_facets, tdim, num_quadrature_pts, basix_element.dim()});
 
+  // Structures for coefficient data
+  int num_coeffs = coeffs.size();
+  std::vector<int> offsets(num_coeffs + 1);
+  offsets[0] = 0;
+  for (int i = 1; i < num_coeffs + 1; i++)
+  {
+    std::shared_ptr<const dolfinx::fem::FiniteElement> coeff_element
+        = coeffs[i - 1]->function_space()->element();
+    offsets[i] = offsets[i - 1] + coeff_element->space_dimension() / coeff_element->block_size();
+  }
+  xt::xtensor<double, 3> phi_coeffs({num_facets, q_weights.size(), offsets[num_coeffs]});
+  xt::xtensor<double, 4> dphi_coeffs({num_facets, tdim, q_weights.size(), offsets[num_coeffs]});
   for (int i = 0; i < num_facets; ++i)
   {
     // Push quadrature points forward
@@ -78,14 +93,30 @@ kernel_fn generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace>
 
     // Tabulate at quadrature points on facet
     auto phi_i = xt::view(phi, i, xt::all(), xt::all());
-    // replace with element->tabulate(cell_tab, q_facet, 1); for first order derivatives
-    element->tabulate(cell_tab, q_facet, 0);
+    element->tabulate(cell_tab, q_facet, 1);
     phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
+    auto dphi_i = xt::view(dphi, i, xt::all(), xt::all(), xt::all());
+    dphi_i = xt::view(cell_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
 
     // Tabulate coordinate element of reference cell
     auto c_tab = basix_element.tabulate(1, q_facet);
     auto dphi_ci = xt::view(dphi_c, i, xt::all(), xt::all(), xt::all());
     dphi_ci = xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
+    // Create Finite elements for coefficient functions and tabulate shape functions
+    for (int j = 0; j < num_coeffs; j++)
+    {
+      std::shared_ptr<const dolfinx::fem::FiniteElement> coeff_element
+          = coeffs[j]->function_space()->element();
+      xt::xtensor<double, 4> coeff_basis(
+          {tdim + 1, q_weights.size(),
+           coeff_element->space_dimension() / coeff_element->block_size(), 1});
+      coeff_element->tabulate(coeff_basis, q_facet, 1);
+      auto phi_ij = xt::view(phi_coeffs, i, xt::all(), xt::range(offsets[j], offsets[j + 1]));
+      phi_ij = xt::view(coeff_basis, 0, xt::all(), xt::all(), 0);
+      auto dphi_ij
+          = xt::view(dphi_coeffs, i, xt::all(), xt::all(), xt::range(offsets[j], offsets[j + 1]));
+      dphi_ij = xt::view(coeff_basis, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
+    }
   }
 
   // As reference facet and reference cell are affine, we do not need to compute this per
@@ -96,10 +127,15 @@ kernel_fn generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace>
   // v*ds, v TestFunction
   // =====================================================================================
   kernel_fn nitsche_rigid_rhs
-      = [dphi_c, phi, gdim, tdim, fdim, q_weights, num_coordinate_dofs,
-         ref_jacobians](double* b, const double* c, const double* w, const double* coordinate_dofs,
-                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [dphi_c, phi, dphi, phi_coeffs, dphi_coeffs, offsets, num_coeffs, gdim, tdim, fdim,
+         q_weights, num_coordinate_dofs, ref_jacobians,
+         bs](double* b, const double* c, const double* w, const double* coordinate_dofs,
+             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
+    // assumption that the vector function space has block size tdim
+    assert(bs == gdim);
+    // assumption that u lives in the same space as v
+    assert(phi.shape(2) == offsets[1] - offset[0]);
     std::size_t facet_index = size_t(*entity_local_index);
 
     // Reshape coordinate dofs to two dimensional array
@@ -119,7 +155,9 @@ kernel_fn generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace>
     // NOTE: Affine cell assumption
     // Compute Jacobian and determinant at first quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
+    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    dolfinx_cuas::math::compute_inv(J, K);
 
     // Compute det(J_C J_f) as it is the mapping to the reference facet
     xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
@@ -129,19 +167,37 @@ kernel_fn generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace>
     // Get number of dofs per cell
     // FIXME: Should be templated
     std::int32_t ndofs_cell = phi.shape(2);
+    // Temporary variable for grad(phi) on physical cell
+    xt::xtensor<double, 2> dphi_phys({bs, ndofs_cell});
 
     // Loop over quadrature points
     for (std::size_t q = 0; q < phi.shape(1); q++)
     {
-      // Scale at each quadrature point
-      const double w0 = q_weights[q] * detJ;
 
-      for (int i = 0; i < ndofs_cell; i++)
+      xt::xtensor<double, 2> tr = xt::zeros<double>({offsets[1] - offsets[0], gdim});
+      // precompute tr(eps(phi_j e_l))
+      for (int j = 0; j < offsets[1] - offsets[0]; j++)
       {
-        // Compute a weighted phi_i(p_q),  i.e. phi_i(p_q) det(J) w_q
-        double w1 = w0 * phi(facet_index, q, i);
+        for (int l = 0; l < bs; l++)
+        {
+          for (int k = 0; k < tdim; k++)
+          {
+            tr(j, l) += K(k, l) * dphi(facet_index, k, q, j);
+          }
+        }
+      }
+      // compute tr(eps(u)) at q
+      double tr_u = 0;
+      for (int i = 0; i < offsets[1] - offsets[0]; i++)
+        for (int j = 0; j < bs; j++)
+          tr_u += c[(i + offsets[0]) * bs + j] * tr(i, j);
+      // Multiply tr_u by weight
+      tr_u *= q_weights[q] * detJ;
+      for (int j = 0; j < ndofs_cell; j++)
+      {
         // Insert over block size in matrix
-        b[i] += w1;
+        for (int l = 0; l < bs; l++)
+          b[j * bs + l] += tr(j, l) * tr_u;
       }
     }
   };

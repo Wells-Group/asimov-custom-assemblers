@@ -31,10 +31,20 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
-    V = dolfinx.FunctionSpace(mesh, ("CG", P))
+    V = dolfinx.VectorFunctionSpace(mesh, ("CG", P))
+
+    def f(x):
+        values = np.zeros((mesh.geometry.dim, x.shape[1]))
+        for i in range(x.shape[1]):
+            for j in range(mesh.geometry.dim):
+                values[j, i] = np.sin(x[j, i])
+        return values
+
+    u = dolfinx.Function(V)
+    u.interpolate(f)
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
-    L = v * ds(1)
+    L = ufl.tr(ufl.sym(ufl.grad(u))) * ufl.tr(ufl.sym(ufl.grad(v))) * ds(1)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
     L = dolfinx.fem.Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
@@ -46,12 +56,13 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     b.assemble()
 
     # Custom assembly
-    num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
-    consts = np.zeros(0)
-    coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
+    # num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    consts = np.array([1.0, 2.0])
+    coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object])
 
     b2 = dolfinx.fem.create_vector(L)
-    kernel = dolfinx_cuas.cpp.contact.generate_rhs_kernel(V._cpp_object, kernel_type, P + 1)
+    kernel = dolfinx_cuas.cpp.contact.generate_rhs_kernel(V._cpp_object, kernel_type, 2 * P + 1,
+                                                          [u._cpp_object])
     b2.zeroEntries()
     dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     b2.assemble()
