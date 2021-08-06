@@ -5,7 +5,7 @@
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
 #pragma once
-#include <dolfinx_cuas/assembly.hpp>
+#include <dolfinx_cuas/matrix_assembly.hpp>
 
 namespace cuas_wrappers
 {

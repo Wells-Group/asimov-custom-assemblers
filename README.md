@@ -1,4 +1,7 @@
 # DOLFINx_CUAS
+[![Test Python assemblers](https://github.com/Wells-Group/asimov-custom-assemblers/actions/workflows/python-app.yml/badge.svg)](https://github.com/Wells-Group/asimov-custom-assemblers/actions/workflows/python-app.yml)
+[![Test C++ assemblers](https://github.com/Wells-Group/asimov-custom-assemblers/actions/workflows/cpp-app.yml/badge.svg)](https://github.com/Wells-Group/asimov-custom-assemblers/actions/workflows/cpp-app.yml)
+
 Authors: Igor A. Baratta, Jørgen S. Dokken, Sarah Roggendorf
 
 Add-on to DOLFINx for assembly of custom kernels.
@@ -8,7 +11,7 @@ See: `python/tests/test_cpp_kernels.py` for examples on how to interface with th
 See: `cpp/demo/main.cpp` for how to interface with the C++ layer.
 
 # Affine meshes (triangles and tetrahedra)
-## Lagrange elements (degree 1-5)
+## Lagrange elements (Scalar and Vector) (degree 1-5)
 - `ufl.inner(u, v) * ufl.dx` (3D)
 - `ufl.inner(u, v) * ufl.ds` (2D and 3D)
 - `ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx` (3D)
@@ -17,6 +20,8 @@ See: `cpp/demo/main.cpp` for how to interface with the C++ layer.
 - `2 * ufl.inner(ufl.sym(ufl.grad(u)), ufl.sym(ufl.grad(v))) * ufl.dx` (3D)
 - `ufl.inner(ufl.sym(ufl.grad(u)), ufl.sym(ufl.grad(v))) * ufl.ds` (2D and 3D)
 - `2 * ufl.inner(ufl.sym(ufl.grad(u))) * ufl.FacetNormal(mesh), v) * ufl.ds` (2D and 3D)
+- `1. * v * ufl.dx` (2D and 3D)
+- `1. * v * ufl.ds` (2D and 3D)
 
 # Non-affine meshes (quadrilaterals and hexahedra)
 ## Lagrange elements (degree 1-5)

@@ -18,7 +18,7 @@ namespace dolfinx_cuas
 
 kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
                                   dolfinx_cuas::Kernel type,
-                                  dolfinx_cuas::QuadratureRule quadrature_rule)
+                                  dolfinx_cuas::QuadratureRule& quadrature_rule)
 {
 
   auto mesh = V->mesh();
@@ -34,8 +34,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   const int num_coordinate_dofs = basix_element.dim();
 
   // Create quadrature points on reference facet
-  auto qp_ref_facet = quadrature_rule.points();
-  auto q_weights = quadrature_rule.weights();
+  xt::xarray<double>& qp_ref_facet = quadrature_rule.points_ref();
+  xt::xarray<double>& q_weights = quadrature_rule.weights_ref();
 
   // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points

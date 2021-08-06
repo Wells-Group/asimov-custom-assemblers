@@ -27,7 +27,7 @@ template <int P>
 kernel_fn generate_coefficient_kernel(
     dolfinx_cuas::Kernel type,
     std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs,
-    dolfinx_cuas::QuadratureRule q_rule)
+    dolfinx_cuas::QuadratureRule& q_rule)
 {
   // Problem specific parameters
   std::string family = "Lagrange";
@@ -37,8 +37,8 @@ kernel_fn generate_coefficient_kernel(
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  auto points = q_rule.points();
-  auto weights = q_rule.weights();
+  xt::xarray<double>& points = q_rule.points_ref();
+  xt::xarray<double>& weights = q_rule.weights_ref();
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element = basix::create_element(family, cell, P);
@@ -126,7 +126,7 @@ namespace dolfinx_cuas
 kernel_fn generate_coeff_kernel(
     dolfinx_cuas::Kernel type,
     std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int P,
-    dolfinx_cuas::QuadratureRule q_rule)
+    dolfinx_cuas::QuadratureRule& q_rule)
 {
   switch (P)
   {

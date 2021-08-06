@@ -30,16 +30,23 @@ public:
         = basix::quadrature::make_quadrature(
             type, basix::cell::str_to_type(dolfinx::mesh::to_string(ct)), degree);
     // NOTE: Conversion could be easier if return-type had been nicer from Basix
+    // Currently we need to determine the dimension of the quadrature rule and reshape data
+    // accordingly
     if (quadrature.first.dimension() == 1)
       _points = xt::empty<double>({quadrature.first.shape(0)});
     else
       _points = xt::empty<double>({quadrature.first.shape(0), quadrature.first.shape(1)});
     for (std::size_t i = 0; i < quadrature.first.size(); i++)
       _points[i] = quadrature.first[i];
-    _weights = xt::empty<double>({quadrature.second.size()});
-    for (std::size_t i = 0; i < quadrature.second.size(); i++)
-      _weights[i] = quadrature.second[i];
+
+    _weights = xt::adapt(quadrature.second);
   }
+
+  /// Return quadrature points
+  xt::xarray<double>& points_ref() { return _points; }
+
+  /// Return quadrature weights
+  xt::xarray<double>& weights_ref() { return _weights; }
 
   /// Return quadrature points
   xt::xarray<double> points() { return _points; }

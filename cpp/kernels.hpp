@@ -26,7 +26,8 @@ enum Kernel
   Stiffness,
   SymGrad,
   TrEps,
-  Normal
+  Normal,
+  Rhs
 };
 }
 
@@ -38,7 +39,7 @@ namespace
 /// @return The integration kernel
 template <int P, int bs>
 kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
-                              dolfinx_cuas::QuadratureRule quadrature_rule)
+                              dolfinx_cuas::QuadratureRule& quadrature_rule)
 {
   // Problem specific parameters
   std::string family = "Lagrange";
@@ -48,8 +49,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  auto weights = quadrature_rule.weights();
-  auto points = quadrature_rule.points();
+  xt::xarray<double>& weights = quadrature_rule.weights_ref();
+  xt::xarray<double>& points = quadrature_rule.points_ref();
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element = basix::create_element(family, cell, P);
@@ -155,7 +156,14 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
       {
         double w1 = w0 * phi.unchecked(q, i);
         for (int j = 0; j < ndofs_cell; j++)
-          A[i * ndofs_cell + j] += w1 * phi.unchecked(q, j);
+        {
+          // Special handling of scalar space
+          if constexpr (bs == 1)
+            A[i * ndofs_cell + j] += w1 * phi.unchecked(q, j);
+          else
+            for (int b = 0; b < bs; b++)
+              A[(i * bs + b) * (ndofs_cell * bs) + bs * j + b] += w1 * phi.unchecked(q, j);
+        }
       }
     }
   };
@@ -330,7 +338,7 @@ namespace dolfinx_cuas
 /// @param[in] bs The block size
 /// @return The integration kernel
 kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs,
-                          dolfinx_cuas::QuadratureRule quadrature_rule)
+                          dolfinx_cuas::QuadratureRule& quadrature_rule)
 {
   switch (P)
   {

@@ -236,7 +236,7 @@ def test_volume_kernels(kernel_type, P):
     compare_matrices(A, B)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.TrEps, kt.SymGrad, kt.Stiffness])
+@pytest.mark.parametrize("kernel_type", [kt.TrEps, kt.SymGrad, kt.Stiffness, kt.Mass])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_cell_kernel(kernel_type, P):
     N = 5
