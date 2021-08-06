@@ -49,6 +49,14 @@ void contact(py::module& m)
           return cuas_wrappers::KernelWrapper(
               dolfinx_cuas::contact::generate_rhs_kernel(V, type, quad_degree, coeffs));
         });
+  m.def("generate_jacobian_kernel",
+        [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::contact::Kernel type,
+           int quad_degree,
+           std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
+        {
+          return cuas_wrappers::KernelWrapper(
+              dolfinx_cuas::contact::generate_jacobian_kernel(V, type, quad_degree, coeffs));
+        });
   py::enum_<dolfinx_cuas::contact::Kernel>(m, "Kernel")
       .value("NitscheRigidSurface", dolfinx_cuas::contact::Kernel::NitscheRigidSurface);
 }
