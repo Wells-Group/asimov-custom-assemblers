@@ -224,14 +224,21 @@ generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
           tr_u += c[(i + offsets[0]) * bs + j] * tr(i, j);
           epsn_u += c[(i + offsets[0]) * bs + j] * epsn(i, j);
         }
+      double mu = 0;
+      int c_offset = (bs - 1) * offsets[1];
+      for (int j = offsets[1]; j < offsets[2]; j++)
+        mu += c[j + c_offset] * phi_coeffs(facet_index, q, j);
+      double lmbda = 0;
+      for (int j = offsets[2]; j < offsets[3]; j++)
+        lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
       // Multiply  by weight
-      tr_u *= q_weights[q] * detJ * n_dot;
-      epsn_u *= 0.5 * q_weights[q] * detJ;
+      tr_u *= lmbda * q_weights[q] * detJ * n_dot;
+      epsn_u *= mu * q_weights[q] * detJ;
       for (int j = 0; j < ndofs_cell; j++)
       {
         // Insert over block size in matrix
         for (int l = 0; l < bs; l++)
-          b[j * bs + l] += (tr(j, l) * n_dot + epsn(j, l)) * (tr_u + epsn_u);
+          b[j * bs + l] += (lmbda * tr(j, l) * n_dot + mu * epsn(j, l)) * (tr_u + epsn_u);
       }
     }
   };
@@ -437,17 +444,24 @@ kernel_fn generate_jacobian_kernel(
           }
         }
       }
+      double mu = 0;
+      int c_offset = (bs - 1) * offsets[1];
+      for (int j = offsets[1]; j < offsets[2]; j++)
+        mu += c[j + c_offset] * phi_coeffs(facet_index, q, j);
+      double lmbda = 0;
+      for (int j = offsets[2]; j < offsets[3]; j++)
+        lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
       const double w0 = q_weights[q] * detJ;
       for (int j = 0; j < ndofs_cell; j++)
       {
         for (int l = 0; l < bs; l++)
         {
-          double w1 = w0 * (tr(j, l) * n_dot + epsn(j, l));
+          double w1 = w0 * (lmbda * tr(j, l) * n_dot + mu * epsn(j, l));
           for (int i = 0; i < ndofs_cell; i++)
           { // Insert over block size in matrix
             for (int b = 0; b < bs; b++)
               A[(l + j * bs) * ndofs_cell * bs + b + i * bs]
-                  += (tr(i, b) * n_dot + epsn(i, b)) * w1;
+                  += (lmbda * tr(i, b) * n_dot + mu * epsn(i, b)) * w1;
           }
         }
       }
