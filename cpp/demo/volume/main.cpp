@@ -97,7 +97,7 @@ int main(int argc, char* argv[])
   MatZeroEntries(B.mat());
 
   // Generate Kernel
-  dolfinx_cuas::QuadratureRule& q_rule(mesh->topology().cell_type(), q_degree, "default");
+  dolfinx_cuas::QuadratureRule q_rule(mesh->topology().cell_type(), q_degree, "default");
   auto kernel
       = dolfinx_cuas::generate_kernel(kernel_type, degree, V->dofmap()->index_map_bs(), q_rule);
 
