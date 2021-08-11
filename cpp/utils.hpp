@@ -21,6 +21,11 @@
 
 namespace dolfinx_cuas
 {
+/// Convert DOLFINx CellType to basix cell type
+const basix::cell::type to_basix_celltype(dolfinx::mesh::CellType celltype)
+{
+  return basix::cell::str_to_type(dolfinx::mesh::to_string(celltype));
+}
 
 /// Given a mesh and an entity dimension, return the corresponding basix element of the entity
 /// @param[in] mesh The mesh
@@ -43,21 +48,16 @@ basix::FiniteElement mesh_to_basix_element(std::shared_ptr<const dolfinx::mesh::
   {
     const dolfinx::mesh::CellType dolfinx_facet
         = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim);
-    const std::string dolfinx_facet_str = dolfinx::mesh::to_string(dolfinx_facet);
-    return basix::create_element("Lagrange", dolfinx_facet_str, degree);
+    return basix::create_element(basix::element::family::P, to_basix_celltype(dolfinx_facet),
+                                 degree, basix::lattice::type::equispaced);
   }
   if (dim == tdim)
   {
-    return basix::create_element("Lagrange", dolfinx::mesh::to_string(dolfinx_cell), degree);
+    return basix::create_element(basix::element::family::P, to_basix_celltype(dolfinx_cell), degree,
+                                 basix::lattice::type::equispaced);
   }
   else
     throw std::runtime_error("Does not support elements of edges and vertices");
-}
-
-/// Convert DOLFINx CellType to basix cell type
-const basix::cell::type to_basix_celltype(dolfinx::mesh::CellType celltype)
-{
-  return basix::cell::str_to_type(dolfinx::mesh::to_string(celltype));
 }
 
 // Compute quadrature points and weights on all facets of the reference cell
