@@ -84,7 +84,7 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
 
     L = sigma_n(u) * sigma_n(v) * ds(1)
     # Compile UFL form
-    cffi_options = ["-Ofast", "-march=native"]
+    cffi_options = ["-O2", "-march=native"]
     L = dolfinx.fem.Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     b = dolfinx.fem.create_vector(L)
 
@@ -177,7 +177,7 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
 
     a = sigma_n(du) * sigma_n(v) * ds(1)
     # Compile UFL form
-    cffi_options = ["-Ofast", "-march=native"]
+    cffi_options = ["-O2", "-march=native"]
     a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     A = dolfinx.fem.create_matrix(a)
 
