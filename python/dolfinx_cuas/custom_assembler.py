@@ -90,14 +90,17 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
     ufc_family = ufl_c_el.family()
     if ufc_family == "Q":
         ufc_family = "Lagrange"
-    is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type) and ufl_c_el.degree() == 1)
+    is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type)
+                 and ufl_c_el.degree() == 1)
 
     # Create basix element based on function space
     family = V.ufl_element().family()
     if family == "Q":
         family = "Lagrange"
-    ct = dolfinx.cpp.mesh.to_string(V.mesh.topology.cell_type)
-    element = basix.create_element(family, ct, V.ufl_element().degree())
+    ct_string = dolfinx.cpp.mesh.to_string(V.mesh.topology.cell_type)
+    ct = basix.cell.string_to_type(ct_string)
+    element = basix.create_element(basix.finite_element.string_to_family(
+        family, ct_string), ct, V.ufl_element().degree(), basix.LatticeType.equispaced)
 
     # Extract data required for dof transformations
     # NOTE: this is untested since now only relevant for non-Lagrange spaces.
@@ -128,7 +131,8 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
         q_w = q_w.reshape(q_w.size, 1)  # Reshape as nd array to use efficiently in kernels
 
         # Create coordinate element and tabulate basis functions for pullback
-        c_element = basix.create_element(ufc_family, ct, ufl_c_el.degree())
+        c_element = basix.create_element(basix.finite_element.string_to_family(
+            ufc_family, ct_string), ct, ufl_c_el.degree(), basix.LatticeType.equispaced)
         c_tab = c_element.tabulate_x(1, q_p)
 
         if int_type == "mass":
@@ -146,7 +150,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
             basis_functions = tabulated_data[1:, :, :, 0]
 
         # Assemble kernel into data
-        kernel(data, ct, num_cells, is_affine, block_size, num_dofs_per_cell,
+        kernel(data, ct_string, num_cells, is_affine, block_size, num_dofs_per_cell,
                num_dofs_x, x_dofs, x, gdim, tdim, q_p, q_w, c_tab, basis_functions, entity_transformations,
                entity_dofs, perm_info, needs_transformations)
 
@@ -156,9 +160,11 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
         num_dofs_x = facet_geom.shape[1]
 
         # Create coordinate element for facet
-        surface_cell_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
-        surface_str = dolfinx.cpp.mesh.to_string(surface_cell_type)
-        surface_element = basix.create_element(family, surface_str, ufl_c_el.degree())
+        surface_str = dolfinx.cpp.mesh.to_string(dolfinx.cpp.mesh.cell_entity_type(
+            mesh.topology.cell_type, mesh.topology.dim - 1))
+        surface_cell_type = basix.cell.string_to_type(surface_str)
+        surface_element = basix.create_element(basix.finite_element.string_to_family(
+            family, surface_str), surface_cell_type, ufl_c_el.degree(), basix.LatticeType.equispaced)
 
         # Tabulate reference coordinate element basis functions for facets at quadrature points.
         # Shape is (derivatives, num_quadrature_point, num_basis_functions, value_size)
@@ -167,7 +173,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
         q_w = q_w.reshape(q_w.size, 1)
         c_tab = surface_element.tabulate_x(1, q_p)
         # Get the coordinates for the facets of the reference cell
-        _cell = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.to_type(ct)]
+        _cell = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.to_type(ct_string)]
         facet_topology = basix.topology(_cell)[mesh.topology.dim - 1]
         ref_geometry = basix.geometry(_cell)
 
@@ -190,7 +196,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
             q_cell[i] = phi_s @ coords
             phi[i] = element.tabulate_x(0, q_cell[i])[0, :, :, 0]
         # Assemble surface integral
-        surface_kernel(data, ct, is_affine, block_size, num_dofs_per_cell, num_dofs_x, facet_geom,
+        surface_kernel(data, ct_string, is_affine, block_size, num_dofs_per_cell, num_dofs_x, facet_geom,
                        x, gdim, tdim, q_cell, q_w, c_tab, phi, ref_jacobians, entity_transformations,
                        entity_dofs, perm_info, needs_transformations, facet_info)
     else:
