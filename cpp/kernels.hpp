@@ -8,6 +8,7 @@
 
 #include "QuadratureRule.hpp"
 #include "math.hpp"
+#include <basix/element-families.h>
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <string>
@@ -42,8 +43,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
                               dolfinx_cuas::QuadratureRule& quadrature_rule)
 {
   // Problem specific parameters
-  std::string family = "Lagrange";
-  std::string cell = "tetrahedron";
+  basix::element::family family = basix::element::family::P;
+  basix::cell::type cell = basix::cell::type::tetrahedron;
   constexpr std::int32_t gdim = 3;
   constexpr std::int32_t tdim = 3;
   constexpr std::int32_t d = 4;
@@ -52,14 +53,17 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
   xt::xarray<double>& weights = quadrature_rule.weights_ref();
   xt::xarray<double>& points = quadrature_rule.points_ref();
 
+
   // Create Finite element for test and trial functions and tabulate shape functions
-  basix::FiniteElement element = basix::create_element(family, cell, P);
+  basix::FiniteElement element
+      = basix::create_element(family, cell, P, basix::lattice::type::equispaced);
   xt::xtensor<double, 4> basis = element.tabulate(1, points);
   xt::xtensor<double, 2> phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
   xt::xtensor<double, 3> dphi = xt::view(basis, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
 
   // Get coordinate element from dolfinx
-  basix::FiniteElement coordinate_element = basix::create_element("Lagrange", cell, 1);
+  basix::FiniteElement coordinate_element
+      = basix::create_element(basix::element::family::P, cell, 1, basix::lattice::type::equispaced);
   xt::xtensor<double, 4> coordinate_basis = coordinate_element.tabulate(1, points);
 
   xt::xtensor<double, 2> dphi0_c

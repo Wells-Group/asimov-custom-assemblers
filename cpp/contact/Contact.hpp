@@ -177,8 +177,9 @@ public:
     // auto degree = mesh->geometry().cmap()._element->degree;
     int degree = 1;
     auto dolfinx_cell = _marker->mesh()->topology().cell_type();
-    auto coordinate_element
-        = basix::create_element("Lagrange", dolfinx::mesh::to_string(dolfinx_cell), degree);
+    auto coordinate_element = basix::create_element(basix::element::family::P,
+                                                    dolfinx_cuas::to_basix_celltype(dolfinx_cell),
+                                                    degree, basix::lattice::type::equispaced);
 
     _phi_ref_facets = tabulate_on_ref_cell(coordinate_element);
     // Compute quadrature points on physical facet _qp_phys_"origin_meshtag"
