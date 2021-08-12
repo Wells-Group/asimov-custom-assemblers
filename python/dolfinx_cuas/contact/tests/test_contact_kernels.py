@@ -199,4 +199,4 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
 
     # Compare matrices, first norm, then entries
     assert np.isclose(A.norm(), B.norm())
-    compare_matrices(A, B, atol=1e-10)
+    compare_matrices(A, B, atol=1e-8)
