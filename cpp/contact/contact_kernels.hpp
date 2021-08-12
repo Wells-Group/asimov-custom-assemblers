@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "../math.hpp"
 #include "../utils.h"
 #include <dolfinx/fem/FiniteElement.h>
 #include <dolfinx/fem/FunctionSpace.h>
@@ -138,7 +139,7 @@ generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
     // assumption that the vector function space has block size tdim
     assert(bs == gdim);
     // assumption that u lives in the same space as v
-    assert(phi.shape(2) == offsets[1] - offset[0]);
+    assert(phi.shape(2) == offsets[1] - offsets[0]);
 
     std::size_t facet_index = size_t(*entity_local_index);
 
@@ -175,9 +176,10 @@ generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
 
     // FIXME: Normal of rigid surface hard coded for now
     xt::xarray<double> n_surf = xt::zeros<double>({gdim});
-    n_surf(gdim - 1) = -1;
+    for (int i = 0; i < gdim; i++)
+      n_surf(i) = w[i];
 
-    // (n_phys * n_surf)^2
+    // (n_phys * n_surf)
     double n_dot = 0;
     for (int i = 0; i < gdim; i++)
       n_dot += n_phys(i) * n_surf(i);
@@ -197,9 +199,18 @@ generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
     for (std::size_t q = 0; q < phi.shape(1); q++)
     {
 
+      double mu = 0;
+      int c_offset = (bs - 1) * offsets[1];
+      for (int j = offsets[1]; j < offsets[2]; j++)
+        mu += c[j + c_offset] * phi_coeffs(facet_index, q, j);
+      double lmbda = 0;
+      for (int j = offsets[2]; j < offsets[3]; j++)
+        lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
+
       xt::xtensor<double, 2> tr = xt::zeros<double>({offsets[1] - offsets[0], gdim});
       xt::xtensor<double, 2> epsn = xt::zeros<double>({offsets[1] - offsets[0], gdim});
-      // precompute tr(eps(phi_j e_l)), eps(phi^j e_l)n*n2
+      xt::xtensor<double, 2> v_dot_nsurf = xt::zeros<double>({offsets[1] - offsets[0], gdim});
+      // precompute tr(eps(phi_j e_l)), eps(phi^j e_l)n*n2, ufl.dot(v, n_surf)
       for (int j = 0; j < offsets[1] - offsets[0]; j++)
       {
         for (int l = 0; l < bs; l++)
@@ -218,27 +229,31 @@ generate_rhs_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
       // compute tr(eps(u)), epsn at q
       double tr_u = 0;
       double epsn_u = 0;
+      double u_dot_nsurf = 0;
       for (int i = 0; i < offsets[1] - offsets[0]; i++)
+      {
+        const std::int32_t block_index = (i + offsets[0]) * bs;
         for (int j = 0; j < bs; j++)
         {
-          tr_u += c[(i + offsets[0]) * bs + j] * tr(i, j);
-          epsn_u += c[(i + offsets[0]) * bs + j] * epsn(i, j);
+          tr_u += c[block_index + j] * tr(i, j);
+          epsn_u += c[block_index + +j] * epsn(i, j);
+          u_dot_nsurf += c[block_index + j] * n_surf(j) * phi(facet_index, q, i);
         }
-      double mu = 0;
-      int c_offset = (bs - 1) * offsets[1];
-      for (int j = offsets[1]; j < offsets[2]; j++)
-        mu += c[j + c_offset] * phi_coeffs(facet_index, q, j);
-      double lmbda = 0;
-      for (int j = offsets[2]; j < offsets[3]; j++)
-        lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
+      }
+
       // Multiply  by weight
-      tr_u *= lmbda * q_weights[q] * detJ * n_dot;
-      epsn_u *= mu * q_weights[q] * detJ;
+      double sign_u = (lmbda * n_dot * tr_u + mu * epsn_u) * detJ * q_weights[q];
+      u_dot_nsurf *= detJ * q_weights[q];
+      double R_minus = 0.5 * (sign_u + u_dot_nsurf - std::abs(sign_u + u_dot_nsurf));
       for (int j = 0; j < ndofs_cell; j++)
       {
         // Insert over block size in matrix
         for (int l = 0; l < bs; l++)
-          b[j * bs + l] += (lmbda * tr(j, l) * n_dot + mu * epsn(j, l)) * (tr_u + epsn_u);
+        {
+          double sign_v = lmbda * tr(j, l) * n_dot + mu * epsn(j, l);
+          double v_dot_nsurf = n_surf(l) * phi(facet_index, q, j);
+          b[j * bs + l] += sign_v * sign_u + R_minus * (sign_v + v_dot_nsurf);
+        }
       }
     }
   };
@@ -367,7 +382,7 @@ kernel_fn generate_jacobian_kernel(
     // assumption that the vector function space has block size tdim
     assert(bs == gdim);
     // assumption that u lives in the same space as v
-    assert(phi.shape(2) == offsets[1] - offset[0]);
+    assert(phi.shape(2) == offsets[1] - offsets[0]);
 
     std::size_t facet_index = size_t(*entity_local_index);
 
@@ -403,13 +418,12 @@ kernel_fn generate_jacobian_kernel(
     n_phys /= xt::linalg::norm(n_phys);
 
     // FIXME: Normal of rigid surface hard coded for now
-    xt::xarray<double> n_surf = xt::zeros<double>({gdim});
-    n_surf(gdim - 1) = -1;
+    auto n_surf = w;
 
-    // (n_phys * n_surf)^2
+    // (n_phys * n_surf)
     double n_dot = 0;
     for (int i = 0; i < gdim; i++)
-      n_dot += n_phys(i) * n_surf(i);
+      n_dot += n_phys(i) * n_surf[i];
 
     // Compute det(J_C J_f) as it is the mapping to the reference facet
     xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
@@ -439,7 +453,7 @@ kernel_fn generate_jacobian_kernel(
             for (int s = 0; s < gdim; s++)
             {
               epsn(j, l) += K(k, s) * dphi(facet_index, k, q, j)
-                            * (n_phys(s) * n_surf(l) + n_phys(l) * n_surf(s));
+                            * (n_phys(s) * n_surf[l] + n_phys(l) * n_surf[s]);
             }
           }
         }

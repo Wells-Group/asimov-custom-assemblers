@@ -15,6 +15,12 @@ it = dolfinx.cpp.fem.IntegralType
 compare_matrices = dolfinx_cuas.utils.compare_matrices
 
 
+# R_minus(x) returns x if negative zero else
+def R_minus(x):
+    abs_x = abs(x)
+    return 0.5 * (x - abs_x)
+
+
 @pytest.mark.parametrize("kernel_type", [kt.NitscheRigidSurface])
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
@@ -35,27 +41,27 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
 
     def f(x):
         values = np.zeros((mesh.geometry.dim, x.shape[1]))
-        for i in range(x.shape[1]):
-            for j in range(mesh.geometry.dim):
-                values[j, i] = np.sin(x[j, i]) + x[j, i]
+        for i in range(mesh.geometry.dim):
+            values[i] = 0.5 - x[i]
         return values
 
     def lmbda_func(x):
         values = np.zeros((1, x.shape[1]))
         for i in range(x.shape[1]):
             for j in range(1):
-                values[j, i] = x[j, i]
+                values[j, i] = x[j, i] + 2
         return values
 
     def mu_func(x):
         values = np.zeros((1, x.shape[1]))
         for i in range(x.shape[1]):
             for j in range(1):
-                values[j, i] = np.sin(x[j, i])
+                values[j, i] = np.sin(x[j, i]) + 2
         return values
 
     u = dolfinx.Function(V)
     u.interpolate(f)
+
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
 
@@ -82,7 +88,7 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
         # NOTE: Different normals, see summary paper
         return ufl.dot(sigma(v) * n, n_2)
 
-    L = sigma_n(u) * sigma_n(v) * ds(1)
+    L = sigma_n(u) * sigma_n(v) * ds(1) + R_minus(sigma_n(u) + ufl.dot(u, n_2)) * (sigma_n(v) + ufl.dot(v, n_2)) * ds(1)
     # Compile UFL form
     cffi_options = ["-O2", "-march=native"]
     L = dolfinx.fem.Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
@@ -99,10 +105,10 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
 
     b2 = dolfinx.fem.create_vector(L)
-    kernel = dolfinx_cuas.cpp.contact.generate_rhs_kernel(V._cpp_object, kernel_type, 2 * P + Q - 1,
+    kernel = dolfinx_cuas.cpp.contact.generate_rhs_kernel(V._cpp_object, kernel_type, 2 * P + Q + 1,
                                                           [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     b2.zeroEntries()
-    dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+    dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, n_2, it.exterior_facet)
     b2.assemble()
 
     assert np.allclose(b.array, b2.array)
@@ -194,7 +200,7 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     kernel = dolfinx_cuas.cpp.contact.generate_jacobian_kernel(
         V._cpp_object, kernel_type, 2 * P + Q - 1, [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     B.zeroEntries()
-    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, n_2, it.exterior_facet)
     B.assemble()
 
     # Compare matrices, first norm, then entries
