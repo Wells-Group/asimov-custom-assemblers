@@ -6,16 +6,16 @@
 
 #pragma once
 
+#include "QuadratureRule.hpp"
 #include "kernels.hpp"
 #include "utils.hpp"
 #include <dolfinx/fem/FiniteElement.h>
 #include <dolfinx/fem/FunctionSpace.h>
-
 namespace dolfinx_cuas
 {
 
 kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
-                                 dolfinx_cuas::Kernel type, int quadrature_degree)
+                                 dolfinx_cuas::Kernel type, dolfinx_cuas::QuadratureRule& q_rule)
 {
   auto mesh = V->mesh();
 
@@ -26,9 +26,8 @@ kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpa
   const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
   const int num_coordinate_dofs = basix_element.dim();
 
-  auto [points, weight]
-      = basix::quadrature::make_quadrature("default", basix_element.cell_type(), quadrature_degree);
-  std::vector<double> weights(weight);
+  xt::xarray<double>& points = q_rule.points_ref();
+  xt::xarray<double>& weights = q_rule.weights_ref();
 
   // Create Finite element for test and trial functions and tabulate shape functions
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
@@ -80,7 +79,8 @@ kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpa
 }
 
 kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
-                                         dolfinx_cuas::Kernel type, int quadrature_degree)
+                                         dolfinx_cuas::Kernel type,
+                                         dolfinx_cuas::QuadratureRule& q_rule)
 {
 
   auto mesh = V->mesh();
@@ -95,16 +95,13 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
   const int num_coordinate_dofs = basix_element.dim();
 
-  // Create quadrature points on reference facet
-  const basix::cell::type basix_facet = surface_element.cell_type();
-  auto quadrature_data
-      = basix::quadrature::make_quadrature("default", basix_facet, quadrature_degree);
-  auto qp_ref_facet = quadrature_data.first;
-  auto q_weights = quadrature_data.second;
+  // Get quadrature on reference facet
+  xt::xarray<double>& points = q_rule.points_ref();
+  xt::xarray<double>& weights = q_rule.weights_ref();
 
   // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points
-  auto f_tab = surface_element.tabulate(0, qp_ref_facet);
+  auto f_tab = surface_element.tabulate(0, points);
   xt::xtensor<double, 2> phi_f = xt::view(f_tab, 0, xt::all(), xt::all(), 0);
 
   // Structures required for pushing forward quadrature points
@@ -113,7 +110,7 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   const xt::xtensor<double, 2> x
       = basix::cell::geometry(basix_element.cell_type()); // Geometry of basix cell
   const std::uint32_t num_facets = facets.size();
-  const std::uint32_t num_quadrature_pts = qp_ref_facet.shape(0);
+  const std::uint32_t num_quadrature_pts = points.shape(0);
 
   // Structures needed for basis function tabulation
   // phi and grad(phi) at quadrature points
@@ -149,12 +146,11 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   // quadrature point
   auto ref_jacobians = basix::cell::facet_jacobians(basix_element.cell_type());
 
-
   // Define kernels
   // v*ds, v TestFunction
   // =====================================================================================
   kernel_fn rhs_surface
-      = [dphi_c, phi, gdim, tdim, fdim, q_weights, num_coordinate_dofs,
+      = [dphi_c, phi, gdim, tdim, fdim, weights, num_coordinate_dofs,
          ref_jacobians](double* b, const double* c, const double* w, const double* coordinate_dofs,
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
@@ -192,7 +188,7 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
     for (std::size_t q = 0; q < phi.shape(1); q++)
     {
       // Scale at each quadrature point
-      const double w0 = q_weights[q] * detJ;
+      const double w0 = weights[q] * detJ;
 
       for (int i = 0; i < ndofs_cell; i++)
       {

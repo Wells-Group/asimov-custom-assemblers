@@ -45,7 +45,9 @@ def test_vector_kernels(dim, kernel_type, P):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     b2 = dolfinx.fem.create_vector(L)
-    kernel = dolfinx_cuas.cpp.generate_vector_kernel(V._cpp_object, kernel_type, P + 1)
+
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1, "default")
+    kernel = dolfinx_cuas.cpp.generate_vector_kernel(V._cpp_object, kernel_type, q_rule)
     b2.zeroEntries()
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
@@ -91,7 +93,9 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     b2 = dolfinx.fem.create_vector(L)
-    kernel = dolfinx_cuas.cpp.generate_surface_vector_kernel(V._cpp_object, kernel_type, P + 1)
+    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, P + 1, "default")
+    kernel = dolfinx_cuas.cpp.generate_surface_vector_kernel(V._cpp_object, kernel_type, q_rule)
     b2.zeroEntries()
     dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     b2.assemble()

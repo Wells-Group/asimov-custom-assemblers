@@ -60,7 +60,9 @@ def test_volume_kernels(kernel_type, P, Q):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.generate_coeff_kernel(kernel_type, [mu._cpp_object, lam._cpp_object], P, Q)
+    quadrature_degree = 2 * P + Q
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, quadrature_degree, "default")
+    kernel = dolfinx_cuas.cpp.generate_coeff_kernel(kernel_type, [mu._cpp_object, lam._cpp_object], P, q_rule)
     B.zeroEntries()
     consts = np.zeros(0)
     coeffs = dolfinx_cuas.cpp.pack_coefficients([mu._cpp_object, lam._cpp_object])

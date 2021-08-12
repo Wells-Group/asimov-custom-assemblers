@@ -26,7 +26,8 @@ namespace
 template <int P>
 kernel_fn generate_coefficient_kernel(
     dolfinx_cuas::Kernel type,
-    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int Q)
+    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs,
+    dolfinx_cuas::QuadratureRule& q_rule)
 {
   // Problem specific parameters
   basix::element::family family = basix::element::family::P;
@@ -36,10 +37,8 @@ kernel_fn generate_coefficient_kernel(
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  const int quad_degree = 2 * P + Q;
-
-  auto [points, weight] = basix::quadrature::make_quadrature("default", cell, quad_degree);
-  std::vector<double> weights(weight);
+  xt::xarray<double>& points = q_rule.points_ref();
+  xt::xarray<double>& weights = q_rule.weights_ref();
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element
@@ -128,20 +127,21 @@ namespace dolfinx_cuas
 /// @return The integration kernel
 kernel_fn generate_coeff_kernel(
     dolfinx_cuas::Kernel type,
-    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int P, int Q)
+    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int P,
+    dolfinx_cuas::QuadratureRule& q_rule)
 {
   switch (P)
   {
   case 1:
-    return generate_coefficient_kernel<1>(type, coeffs, Q);
+    return generate_coefficient_kernel<1>(type, coeffs, q_rule);
   case 2:
-    return generate_coefficient_kernel<2>(type, coeffs, Q);
+    return generate_coefficient_kernel<2>(type, coeffs, q_rule);
   case 3:
-    return generate_coefficient_kernel<3>(type, coeffs, Q);
+    return generate_coefficient_kernel<3>(type, coeffs, q_rule);
   case 4:
-    return generate_coefficient_kernel<4>(type, coeffs, Q);
+    return generate_coefficient_kernel<4>(type, coeffs, q_rule);
   case 5:
-    return generate_coefficient_kernel<5>(type, coeffs, Q);
+    return generate_coefficient_kernel<5>(type, coeffs, q_rule);
   default:
     throw std::runtime_error("Custom kernel only supported up to 5th order");
   }
