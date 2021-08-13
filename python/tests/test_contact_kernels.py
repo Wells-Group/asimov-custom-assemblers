@@ -21,7 +21,7 @@ def R_minus(x):
     return 0.5 * (x - abs_x)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.NitscheRigidSurface])
+@pytest.mark.parametrize("kernel_type", [kt.NitscheRigidSurfaceRhs])
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 @pytest.mark.parametrize("Q", [0, 1, 2])
@@ -71,6 +71,10 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     mu = dolfinx.Function(V2)
     mu.interpolate(mu_func)
 
+    # Nitsche parameters
+    theta = 1.0
+    gamma = 20
+
     n_vec = np.zeros(mesh.geometry.dim)
     n_vec[mesh.geometry.dim - 1] = -1
     # FIXME: more general definition of n_2 needed for surface that is not a horizontal rectangular box.
@@ -88,7 +92,9 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
         # NOTE: Different normals, see summary paper
         return ufl.dot(sigma(v) * n, n_2)
 
-    L = sigma_n(u) * sigma_n(v) * ds(1) + R_minus(sigma_n(u) + ufl.dot(u, n_2)) * (sigma_n(v) + ufl.dot(v, n_2)) * ds(1)
+    L = - theta / gamma * sigma_n(u) * sigma_n(v) * ds(1)
+    L += 1 / gamma * R_minus(sigma_n(u) + gamma * ufl.dot(u, n_2)) * \
+        (theta * sigma_n(v) + gamma * ufl.dot(v, n_2)) * ds(1)
     # Compile UFL form
     cffi_options = ["-O2", "-march=native"]
     L = dolfinx.fem.Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
@@ -101,20 +107,21 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
 
     # Custom assembly
     # num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
-    consts = np.array([1.0, 2.0])
+    consts = np.array([gamma, theta])
+    consts = np.hstack((consts, n_vec))
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
 
     b2 = dolfinx.fem.create_vector(L)
-    kernel = dolfinx_cuas.cpp.contact.generate_rhs_kernel(V._cpp_object, kernel_type, 2 * P + Q + 1,
-                                                          [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
+    kernel = dolfinx_cuas.cpp.contact.generate_contact_kernel(V._cpp_object, kernel_type, 2 * P + Q + 1,
+                                                              [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     b2.zeroEntries()
-    dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, n_2, it.exterior_facet)
+    dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     b2.assemble()
 
     assert np.allclose(b.array, b2.array)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.NitscheRigidSurface])
+@pytest.mark.parametrize("kernel_type", [kt.NitscheRigidSurfaceJac])
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 @pytest.mark.parametrize("Q", [0, 1, 2])
@@ -164,6 +171,10 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     mu = dolfinx.Function(V2)
     mu.interpolate(mu_func)
 
+    # Nitsche parameters
+    theta = 1.0
+    gamma = 20
+
     n_vec = np.zeros(mesh.geometry.dim)
     n_vec[mesh.geometry.dim - 1] = -1
     # FIXME: more general definition of n_2 needed for surface that is not a horizontal rectangular box.
@@ -181,7 +192,10 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
         # NOTE: Different normals, see summary paper
         return ufl.dot(sigma(v) * n, n_2)
 
-    a = sigma_n(du) * sigma_n(v) * ds(1)
+    q = sigma_n(u) + gamma * (ufl.dot(u, n_2))
+    a = - theta / gamma * sigma_n(du) * sigma_n(v) * ds(1)
+    a += 1 / gamma * 0.5 * (1 - ufl.sign(q)) * (sigma_n(du) + gamma * ufl.dot(du, n_2)) * \
+        (theta * sigma_n(v) + gamma * ufl.dot(v, n_2)) * ds(1)
     # Compile UFL form
     cffi_options = ["-O2", "-march=native"]
     a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
@@ -193,14 +207,15 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     A.assemble()
 
     # Custom assembly
-    consts = np.zeros(0)
+    consts = np.array([gamma, theta])
+    consts = np.hstack((consts, n_vec))
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
 
     B = dolfinx.fem.create_matrix(a)
-    kernel = dolfinx_cuas.cpp.contact.generate_jacobian_kernel(
-        V._cpp_object, kernel_type, 2 * P + Q - 1, [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
+    kernel = dolfinx_cuas.cpp.contact.generate_contact_kernel(
+        V._cpp_object, kernel_type, 2 * P + Q + 1, [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     B.zeroEntries()
-    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, n_2, it.exterior_facet)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     B.assemble()
 
     # Compare matrices, first norm, then entries
