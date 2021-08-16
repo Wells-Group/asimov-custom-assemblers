@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "../QuadratureRule.hpp"
 #include "../math.hpp"
 #include "../utils.h"
 #include <dolfinx/fem/FiniteElement.h>
@@ -26,7 +27,7 @@ enum Kernel
 
 kernel_fn generate_contact_kernel(
     std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::contact::Kernel type,
-    int quadrature_degree,
+    dolfinx_cuas::QuadratureRule& quadrature_rule,
     std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
 {
 
@@ -43,11 +44,8 @@ kernel_fn generate_contact_kernel(
   const int num_coordinate_dofs = basix_element.dim();
 
   // Create quadrature points on reference facet
-  const basix::cell::type basix_facet = surface_element.cell_type();
-  auto quadrature_data
-      = basix::quadrature::make_quadrature("default", basix_facet, quadrature_degree);
-  auto qp_ref_facet = quadrature_data.first;
-  auto q_weights = quadrature_data.second;
+  xt::xarray<double>& q_weights = quadrature_rule.weights_ref();
+  xt::xarray<double>& qp_ref_facet = quadrature_rule.points_ref();
 
   // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points

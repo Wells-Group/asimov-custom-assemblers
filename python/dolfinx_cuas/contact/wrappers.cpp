@@ -43,11 +43,11 @@ void contact(py::module& m)
       .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1);
   m.def("generate_contact_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::contact::Kernel type,
-           int quad_degree,
+           dolfinx_cuas::QuadratureRule& q_rule,
            std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
         {
           return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::contact::generate_contact_kernel(V, type, quad_degree, coeffs));
+              dolfinx_cuas::contact::generate_contact_kernel(V, type, q_rule, coeffs));
         });
   py::enum_<dolfinx_cuas::contact::Kernel>(m, "Kernel")
       .value("NitscheRigidSurfaceRhs", dolfinx_cuas::contact::Kernel::NitscheRigidSurfaceRhs)
