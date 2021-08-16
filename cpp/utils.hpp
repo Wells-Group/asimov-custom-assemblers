@@ -220,4 +220,147 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<Petsc
 
   return c;
 }
+
+/// Prepare a coefficient (dolfinx::fem::Function) for assembly with custom kernels
+/// by packing them as a 2D array, where the ith row maps to the ith local cell.
+/// There are num_q_points*block_size*value_size columns, where
+/// column[q * (block_size * value_size) + k + c] = sum_i c^i[k] * phi^i(x_q)[c]
+/// where c^i[k] is the ith coefficient's kth vector component, phi^i(x_q)[c] is the ith basis
+/// function's c-th value compoenent at the quadrature point x_q.
+/// @param[in] coeff The coefficient to pack
+/// @param[out] c The packed coefficients
+dolfinx::array2d<PetscScalar>
+pack_coefficient_quadrature(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff,
+                            const int q)
+{
+  const dolfinx::fem::DofMap* dofmap = coeff->function_space()->dofmap().get();
+  const dolfinx::fem::FiniteElement* element = coeff->function_space()->element().get();
+  const std::vector<double>& data = coeff->x()->array();
+
+  // Get mesh
+  std::shared_ptr<const dolfinx::mesh::Mesh> mesh = coeff->function_space()->mesh();
+  assert(mesh);
+  const std::size_t tdim = mesh->topology().dim();
+  const std::size_t gdim = mesh->geometry().dim();
+  const std::int32_t num_cells = mesh->topology().index_map(tdim)->size_local()
+                                 + mesh->topology().index_map(tdim)->num_ghosts();
+
+  // Get dof transformations
+  const bool needs_dof_transformations = element->needs_dof_transformations();
+  xtl::span<const std::uint32_t> cell_info;
+  if (needs_dof_transformations)
+  {
+    cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
+    mesh->topology_mutable().create_entity_permutations();
+  }
+  const std::function<void(const xtl::span<PetscScalar>&, const xtl::span<const std::uint32_t>&,
+                           std::int32_t, int)>
+      transformation = element->get_dof_transformation_function<PetscScalar>();
+
+  // Tabulate element at quadrature points
+  // NOTE: Assuming no derivatives for now, should be reconsidered later
+  const std::string cell_type = dolfinx::mesh::to_string(mesh->topology().cell_type());
+  const std::size_t num_dofs = element->space_dimension();
+  const std::size_t bs = dofmap->bs();
+  const std::size_t vs = element->reference_value_size() / element->block_size();
+
+  // Tabulate function at quadrature points
+  auto [points, weights]
+      = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell_type), q);
+  const std::size_t num_points = weights.size();
+  xt::xtensor<double, 4> coeff_basis({1, num_points, num_dofs, vs});
+  element->tabulate(coeff_basis, points, 0);
+  dolfinx::array2d<PetscScalar> c(num_cells, vs * bs * num_points, 0);
+  auto basis_reference_values = xt::view(coeff_basis, 0, xt::all(), xt::all(), xt::all());
+
+  if (needs_dof_transformations)
+  {
+    // Prepare basis function data structures
+    xt::xtensor<double, 3> basis_values({num_points, num_dofs / bs, vs});
+    xt::xtensor<double, 3> cell_basis_values({num_points, num_dofs / bs, vs});
+
+    // Get geometry data
+    const dolfinx::graph::AdjacencyList<std::int32_t>& x_dofmap = mesh->geometry().dofmap();
+
+    // FIXME: Add proper interface for num coordinate dofs
+    const std::size_t num_dofs_g = x_dofmap.num_links(0);
+    const xt::xtensor<double, 2>& x_g = mesh->geometry().x();
+
+    // Prepare geometry data structures
+    xt::xtensor<double, 2> X({num_points, tdim});
+    xt::xtensor<double, 3> J = xt::zeros<double>({num_points, gdim, tdim});
+    xt::xtensor<double, 3> K = xt::zeros<double>({num_points, tdim, gdim});
+    xt::xtensor<double, 1> detJ = xt::zeros<double>({num_points});
+    xt::xtensor<double, 2> coordinate_dofs = xt::zeros<double>({num_dofs_g, gdim});
+
+    // Get coordinate map
+    const dolfinx::fem::CoordinateElement& cmap = mesh->geometry().cmap();
+
+    // Compute first derivative of basis function of coordinate map
+    xt::xtensor<double, 4> cmap_basis_functions = cmap.tabulate(1, points);
+    xt::xtensor<double, 4> dphi_c = xt::view(cmap_basis_functions, xt::xrange(1, int(tdim) + 1),
+                                             xt::all(), xt::all(), xt::all());
+
+    for (std::int32_t cell = 0; cell < num_cells; ++cell)
+    {
+
+      // NOTE Add two separate loops here, one for and one without dof transforms
+
+      // Get cell geometry (coordinate dofs)
+      auto x_dofs = x_dofmap.links(cell);
+      for (std::size_t i = 0; i < num_dofs_g; ++i)
+        for (std::size_t j = 0; j < gdim; ++j)
+          coordinate_dofs(i, j) = x_g(x_dofs[i], j);
+      cmap.compute_jacobian(dphi_c, coordinate_dofs, J);
+      cmap.compute_jacobian_inverse(J, K);
+      cmap.compute_jacobian_determinant(J, detJ);
+
+      // Permute the reference values to account for the cell's orientation
+      cell_basis_values = basis_reference_values;
+      for (std::size_t q = 0; q < num_points; ++q)
+      {
+        transformation(
+            xtl::span(cell_basis_values.data() + q * num_dofs / bs * vs, num_dofs / bs * vs),
+            cell_info, cell, vs);
+      }
+      // Push basis forward to physical element
+      element->transform_reference_basis(basis_values, cell_basis_values, J, detJ, K);
+
+      // Sum up quadrature contributions
+      auto cell_coeff = c.row(cell);
+      auto dofs = dofmap->cell_dofs(cell);
+      for (std::size_t i = 0; i < dofs.size(); ++i)
+      {
+        const int pos_v = bs * dofs[i];
+
+        for (int q = 0; q < num_points; ++q)
+          for (int k = 0; k < bs; ++k)
+            for (int c = 0; c < vs; c++)
+              cell_coeff[q * (bs * vs) + k + c] += basis_values(q, i, c) * data[pos_v + k];
+      }
+    }
+  }
+  else
+  {
+    for (std::int32_t cell = 0; cell < num_cells; ++cell)
+    {
+
+      // Sum up quadrature contributions
+      auto cell_coeff = c.row(cell);
+      auto dofs = dofmap->cell_dofs(cell);
+      for (std::size_t i = 0; i < dofs.size(); ++i)
+      {
+        const int pos_v = bs * dofs[i];
+
+        for (int q = 0; q < num_points; ++q)
+          for (int k = 0; k < bs; ++k)
+            for (int c = 0; c < vs; c++)
+              cell_coeff[q * (bs * vs) + k + c]
+                  += basis_reference_values(q, i, c) * data[pos_v + k];
+      }
+    }
+  }
+  return c;
+}
+
 } // namespace dolfinx_cuas
