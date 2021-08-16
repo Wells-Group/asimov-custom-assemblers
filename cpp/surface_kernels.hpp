@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "QuadratureRule.hpp"
 #include "kernels.hpp"
 #include "utils.hpp"
 #include <dolfinx/fem/FiniteElement.h>
@@ -16,7 +17,8 @@ namespace dolfinx_cuas
 {
 
 kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
-                                  dolfinx_cuas::Kernel type, int quadrature_degree)
+                                  dolfinx_cuas::Kernel type,
+                                  dolfinx_cuas::QuadratureRule& quadrature_rule)
 {
 
   auto mesh = V->mesh();
@@ -32,13 +34,10 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   const int num_coordinate_dofs = basix_element.dim();
 
   // Create quadrature points on reference facet
-  const basix::cell::type basix_facet = surface_element.cell_type();
-  auto quadrature_data
-      = basix::quadrature::make_quadrature("default", basix_facet, quadrature_degree);
-  auto qp_ref_facet = quadrature_data.first;
-  auto q_weights = quadrature_data.second;
+  xt::xarray<double>& qp_ref_facet = quadrature_rule.points_ref();
+  xt::xarray<double>& q_weights = quadrature_rule.weights_ref();
 
-  // Tabulate coordinate elemetn of reference facet (used to compute Jacobian on
+  // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points
   auto f_tab = surface_element.tabulate(0, qp_ref_facet);
   xt::xtensor<double, 2> phi_f = xt::view(f_tab, 0, xt::all(), xt::all(), 0);

@@ -9,6 +9,7 @@
 #include "kernelwrapper.h"
 #include <dolfinx/la/PETScMatrix.h>
 #include <dolfinx/mesh/MeshTags.h>
+#include <dolfinx_cuas/QuadratureRule.hpp>
 #include <dolfinx_cuas/kernels_non_const_coefficient.hpp>
 #include <dolfinx_cuas/matrix_assembly.hpp>
 #include <dolfinx_cuas/surface_kernels.hpp>
@@ -45,38 +46,53 @@ PYBIND11_MODULE(cpp, m)
   py::module contact = m.def_submodule("contact", "contact module");
   dolfinx_cuas_wrappers::contact(contact);
 
+  // Kernel wrapper class
   py::class_<cuas_wrappers::KernelWrapper, std::shared_ptr<cuas_wrappers::KernelWrapper>>(
       m, "KernelWrapper", "Wrapper for C++ integration kernels");
 
+  // Quadrature rule class
+  py::class_<dolfinx_cuas::QuadratureRule, std::shared_ptr<dolfinx_cuas::QuadratureRule>>(
+      m, "QuadratureRule", "QuadratureRule object")
+      .def(py::init<dolfinx::mesh::CellType, int, std::string>(), py::arg("cell_type"),
+           py::arg("degree"), py::arg("type") = "default")
+      .def_property_readonly("points", [](dolfinx_cuas::QuadratureRule& self)
+                             { return dolfinx_cuas_wrappers::xt_as_pyarray(self.points()); })
+      .def_property_readonly("weights", [](dolfinx_cuas::QuadratureRule& self)
+                             { return dolfinx_cuas_wrappers::xt_as_pyarray(self.weights()); });
+
   m.def("generate_surface_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
-           int quadrature_degree)
+           dolfinx_cuas::QuadratureRule& quadrature_rule)
         {
           return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_surface_kernel(V, type, quadrature_degree));
+              dolfinx_cuas::generate_surface_kernel(V, type, quadrature_rule));
         });
-  m.def("generate_kernel", [](dolfinx_cuas::Kernel type, int p, int bs)
-        { return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p, bs)); });
+  m.def("generate_kernel",
+        [](dolfinx_cuas::Kernel type, int p, int bs, dolfinx_cuas::QuadratureRule& q_rule) {
+          return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p, bs, q_rule));
+        });
   m.def("generate_vector_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
-           int quad_degree)
+           dolfinx_cuas::QuadratureRule& quadrature_rule)
         {
           return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_vector_kernel(V, type, quad_degree));
+              dolfinx_cuas::generate_vector_kernel(V, type, quadrature_rule));
         });
+
   m.def("generate_coeff_kernel",
         [](dolfinx_cuas::Kernel type,
            std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int p,
-           int q) {
+           dolfinx_cuas::QuadratureRule& q_rule)
+        {
           return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_coeff_kernel(type, coeffs, p, q));
+              dolfinx_cuas::generate_coeff_kernel(type, coeffs, p, q_rule));
         });
   m.def("generate_surface_vector_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
-           int quad_degree)
+           dolfinx_cuas::QuadratureRule& quadrature_rule)
         {
           return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_surface_vector_kernel(V, type, quad_degree));
+              dolfinx_cuas::generate_surface_vector_kernel(V, type, quadrature_rule));
         });
 
   m.def("assemble_matrix",
