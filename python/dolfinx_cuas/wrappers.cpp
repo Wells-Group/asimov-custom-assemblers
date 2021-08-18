@@ -138,6 +138,11 @@ PYBIND11_MODULE(cpp, m)
           return dolfinx_cuas_wrappers::as_pyarray2d(
               dolfinx_cuas::pack_coefficient_quadrature(coeff, q));
         });
+  m.def("pack_coefficient_facet",
+        [](std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff, int q) {
+          return dolfinx_cuas_wrappers::as_pyarray2d(
+              dolfinx_cuas::pack_coefficient_facet(coeff, q));
+        });
 
   py::enum_<dolfinx_cuas::Kernel>(m, "Kernel")
       .value("Mass", dolfinx_cuas::Kernel::Mass)

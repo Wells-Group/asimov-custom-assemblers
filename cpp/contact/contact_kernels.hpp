@@ -352,48 +352,48 @@ kernel_fn generate_contact_kernel(
           }
         }
       }
-      double mu = 0;
-      int c_offset = (bs - 1) * offsets[1];
-      for (int j = offsets[1]; j < offsets[2]; j++)
-        mu += c[j + c_offset] * phi_coeffs(facet_index, q, j);
-      double lmbda = 0;
-      for (int j = offsets[2]; j < offsets[3]; j++)
-        lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
+      // double mu = 0;
+      // int c_offset = (bs - 1) * offsets[1];
+      // for (int j = offsets[1]; j < offsets[2]; j++)
+      //   mu += c[j + c_offset] * phi_coeffs(facet_index, q, j);
+      // double lmbda = 0;
+      // for (int j = offsets[2]; j < offsets[3]; j++)
+      //   lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
 
-      // compute tr(eps(u)), epsn at q
-      double tr_u = 0;
-      double epsn_u = 0;
-      double u_dot_nsurf = 0;
-      for (int i = 0; i < offsets[1] - offsets[0]; i++)
-      {
-        const std::int32_t block_index = (i + offsets[0]) * bs;
-        for (int j = 0; j < bs; j++)
-        {
-          tr_u += c[block_index + j] * tr(i, j);
-          epsn_u += c[block_index + +j] * epsn(i, j);
-          u_dot_nsurf += c[block_index + j] * n_surf(j) * phi(facet_index, q, i);
-        }
-      }
-      double temp = (lmbda * n_dot * tr_u + mu * epsn_u) + gamma * u_dot_nsurf;
+      // // compute tr(eps(u)), epsn at q
+      // double tr_u = 0;
+      // double epsn_u = 0;
+      // double u_dot_nsurf = 0;
+      // for (int i = 0; i < offsets[1] - offsets[0]; i++)
+      // {
+      //   const std::int32_t block_index = (i + offsets[0]) * bs;
+      //   for (int j = 0; j < bs; j++)
+      //   {
+      //     tr_u += c[block_index + j] * tr(i, j);
+      //     epsn_u += c[block_index + +j] * epsn(i, j);
+      //     u_dot_nsurf += c[block_index + j] * n_surf(j) * phi(facet_index, q, i);
+      //   }
+      // }
+      // double temp = (lmbda * n_dot * tr_u + mu * epsn_u) + gamma * u_dot_nsurf;
       const double w0 = q_weights[q] * detJ;
       for (int j = 0; j < ndofs_cell; j++)
       {
         for (int l = 0; l < bs; l++)
         {
-          double sign_u = (lmbda * tr(j, l) * n_dot + mu * epsn(j, l));
-          double term2 = 0;
-          if (temp < 0)
-            term2 = 1. / gamma * (sign_u + gamma * n_surf(l) * phi(facet_index, q, j)) * w0;
+          double mu = c[facet_index * phi.shape(1) + q];
+          double sign_u = mu * epsn(j, l); //(lmbda * tr(j, l) * n_dot + mu * epsn(j, l));
+          // double term2 = 0;
+          // if (temp < 0)
+          //   term2 = 1. / gamma * (sign_u + gamma * n_surf(l) * phi(facet_index, q, j)) * w0;
           sign_u *= w0;
           for (int i = 0; i < ndofs_cell; i++)
           { // Insert over block size in matrix
             for (int b = 0; b < bs; b++)
             {
               double v_dot_nsurf = n_surf(b) * phi(facet_index, q, i);
-              double sign_v = (lmbda * tr(i, b) * n_dot + mu * epsn(i, b));
-              A[(b + i * bs) * ndofs_cell * bs + l + j * bs]
-                  += -theta / gamma * sign_u * sign_v
-                     + term2 * (theta * sign_v + gamma * v_dot_nsurf);
+              double sign_v = mu * epsn(i, b); //(lmbda * tr(i, b) * n_dot + mu * epsn(i, b));
+              A[(b + i * bs) * ndofs_cell * bs + l + j * bs] += -theta / gamma * sign_u * sign_v;
+              //+ term2 * (theta * sign_v + gamma * v_dot_nsurf);
             }
           }
         }

@@ -187,7 +187,7 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
         return ufl.sym(ufl.grad(v))
 
     def sigma(v):
-        return (2.0 * mu * epsilon(v) + lmbda * ufl.tr(epsilon(v)) * ufl.Identity(len(v)))
+        return (2.0 * mu * epsilon(v))  # + lmbda * ufl.tr(epsilon(v)) * ufl.Identity(len(v)))
         # return ufl.tr(epsilon(v)) * ufl.Identity(len(v))
 
     def sigma_n(v):
@@ -196,8 +196,8 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
 
     q = sigma_n(u) + gamma * (ufl.dot(u, n_2))
     a = - theta / gamma * sigma_n(du) * sigma_n(v) * ds(1)
-    a += 1 / gamma * 0.5 * (1 - ufl.sign(q)) * (sigma_n(du) + gamma * ufl.dot(du, n_2)) * \
-        (theta * sigma_n(v) + gamma * ufl.dot(v, n_2)) * ds(1)
+    # a += 1 / gamma * 0.5 * (1 - ufl.sign(q)) * (sigma_n(du) + gamma * ufl.dot(du, n_2)) * \
+    #     (theta * sigma_n(v) + gamma * ufl.dot(v, n_2)) * ds(1)
     # Compile UFL form
     cffi_options = ["-O2", "-march=native"]
     a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
@@ -211,8 +211,7 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     # Custom assembly
     consts = np.array([gamma, theta])
     consts = np.hstack((consts, n_vec))
-    coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
-
+    coeffs = dolfinx_cuas.cpp.pack_coefficient_facet(mu._cpp_object, 2 * P + Q + 1)
     B = dolfinx.fem.create_matrix(a)
     facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, 2 * P + Q + 1, "default")
