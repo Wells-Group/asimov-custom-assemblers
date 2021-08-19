@@ -54,12 +54,11 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
     cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
   }
 
-  const std::vector<std::uint8_t>& perms = mesh->topology().get_facet_permutations();
-
+  auto get_perm = [](std::size_t) { return 0; };
   // Assemble using dolfinx
   dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(apply_dof_transformation, b, *mesh,
                                                             active_facets, dofs, bs, kernel,
-                                                            constants, coeffs, cell_info, perms);
+                                                            constants, coeffs, cell_info, get_perm);
 }
 
 /// Assemble vector over cells
