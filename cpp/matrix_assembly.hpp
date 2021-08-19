@@ -60,14 +60,13 @@ void assemble_exterior_facets(
     mesh->topology_mutable().create_entity_permutations();
     cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
   }
-
-  const std::vector<std::uint8_t>& perms = mesh->topology().get_facet_permutations();
-
+  // FIXME: Need to reconsider facet permutations for jump integrals
+  auto get_perm = [](std::size_t) { return 0; };
   // Assemble using dolfinx
   dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(
       mat_set, *mesh, active_facets, apply_dof_transformation, dofs, bs,
       apply_dof_transformation_to_transpose, dofs, bs, bc, bc, kernel, coeffs, constants, cell_info,
-      perms);
+      get_perm);
 }
 
 /// Assemble vector over cells
