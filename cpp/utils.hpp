@@ -455,8 +455,12 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
     // Get coordinate map
     const dolfinx::fem::CoordinateElement& cmap = mesh->geometry().cmap();
 
+    // FIXME: only working for affine meshes?
+    auto [pts, wts]
+        = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell_type), q);
     // Compute first derivative of basis function of coordinate map
-    xt::xtensor<double, 4> cmap_basis_functions = cmap.tabulate(1, points);
+    xt::xtensor<double, 4> cmap_basis_functions = cmap.tabulate(1, pts);
+
     xt::xtensor<double, 4> dphi_c = xt::view(cmap_basis_functions, xt::xrange(1, int(tdim) + 1),
                                              xt::all(), xt::all(), xt::all());
 
