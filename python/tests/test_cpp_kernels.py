@@ -27,7 +27,7 @@ def test_manifold(kernel_type):
     x = np.array([[0.0, 0.0, 0.1], [2, 0., 0.0], [0, 1.5, 0.3]])
     cells = np.array([[0, 1, 2]], dtype=np.int32)
     mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
-    mesh.topology.create_connectivity_all()
+    mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
     facets = np.arange(mesh.topology.index_map(mesh.topology.dim - 1).size_local, dtype=np.int32)
     values = np.ones(len(facets), dtype=np.int32)
     ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
