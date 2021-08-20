@@ -139,9 +139,20 @@ PYBIND11_MODULE(cpp, m)
               dolfinx_cuas::pack_coefficient_quadrature(coeff, q));
         });
   m.def("pack_coefficient_facet",
-        [](std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff, int q) {
-          return dolfinx_cuas_wrappers::as_pyarray2d(
-              dolfinx_cuas::pack_coefficient_facet(coeff, q));
+        [](std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff, int q,
+           const py::array_t<std::int32_t, py::array::c_style>& active_facets)
+        {
+          return dolfinx_cuas_wrappers::as_pyarray2d(dolfinx_cuas::pack_coefficient_facet(
+              coeff, q, xtl::span<const std::int32_t>(active_facets.data(), active_facets.size())));
+        });
+
+  // FIXME: Currently exposed for debugging. Possibly not wanted?
+  m.def("create_reference_facet_qp",
+        [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int quadrature_degree)
+        {
+          auto [qp, w] = dolfinx_cuas::create_reference_facet_qp(mesh, quadrature_degree);
+          return std::pair(py::array_t<double>(qp.shape(), qp.data()),
+                           py::array_t<double>(w.size(), w.data()));
         });
 
   py::enum_<dolfinx_cuas::Kernel>(m, "Kernel")

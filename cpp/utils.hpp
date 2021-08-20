@@ -364,16 +364,18 @@ pack_coefficient_quadrature(std::shared_ptr<const dolfinx::fem::Function<PetscSc
 }
 
 /// Prepare a coefficient (dolfinx::fem::Function) for assembly with custom kernels
-/// by packing them as a 2D array, where the ith row maps to the ith local cell.
+/// by packing them as a 2D array, where the ith row maps to the ith facet int active_facets.
 /// There are num_q_points*block_size*value_size columns, where
 /// column[q * (block_size * value_size) + k + c] = sum_i c^i[k] * phi^i(x_q)[c]
 /// where c^i[k] is the ith coefficient's kth vector component, phi^i(x_q)[c] is the ith basis
 /// function's c-th value compoenent at the quadrature point x_q.
 /// @param[in] coeff The coefficient to pack
+/// @param[in] active_facets List of active facets
+/// @param[in] q the quadrature degree
 /// @param[out] c The packed coefficients
 dolfinx::array2d<PetscScalar>
-pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff,
-                       const int q)
+pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff, int q,
+                       const xtl::span<const std::int32_t>& active_facets)
 {
   const dolfinx::fem::DofMap* dofmap = coeff->function_space()->dofmap().get();
   const dolfinx::fem::FiniteElement* element = coeff->function_space()->element().get();
@@ -384,8 +386,15 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
   assert(mesh);
   const std::size_t tdim = mesh->topology().dim();
   const std::size_t gdim = mesh->geometry().dim();
-  const std::int32_t num_cells = mesh->topology().index_map(tdim)->size_local()
-                                 + mesh->topology().index_map(tdim)->num_ghosts();
+  const std::size_t fdim = tdim - 1;
+  const std::int32_t num_facets = active_facets.size();
+
+  // Connectivity to evaluate at quadrature points
+  // FIXME: Move create_connectivity out of this function and call before calling the function...
+  mesh->topology_mutable().create_connectivity(fdim, tdim);
+  auto f_to_c = mesh->topology().connectivity(fdim, tdim);
+  mesh->topology_mutable().create_connectivity(tdim, fdim);
+  auto c_to_f = mesh->topology().connectivity(tdim, fdim);
 
   // Get dof transformations
   const bool needs_dof_transformations = element->needs_dof_transformations();
@@ -409,10 +418,11 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
   // Tabulate function at quadrature points
   auto [points, weights] = create_reference_facet_qp(mesh, q);
   const std::size_t num_points = weights.size();
-  const std::size_t num_facets = points.shape(0);
-  xt::xtensor<double, 4> coeff_basis({1, num_points, num_dofs, vs});
-  xt::xtensor<double, 4> basis_reference_values({num_facets, num_points, num_dofs, vs});
-  for (int i = 0; i < num_facets; i++)
+  const std::size_t num_local_facets = points.shape(0);
+  xt::xtensor<double, 4> coeff_basis({1, num_points, num_dofs / bs, vs});
+  xt::xtensor<double, 4> basis_reference_values({num_local_facets, num_points, num_dofs / bs, vs});
+
+  for (int i = 0; i < num_local_facets; i++)
   {
     auto q_facet = xt::view(points, i, xt::all(), xt::all());
     element->tabulate(coeff_basis, q_facet, 0);
@@ -420,7 +430,7 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
     basis_ref = xt::view(coeff_basis, 0, xt::all(), xt::all(), xt::all());
   }
 
-  dolfinx::array2d<PetscScalar> c(num_cells, num_facets * vs * bs * num_points, 0);
+  dolfinx::array2d<PetscScalar> c(num_facets, vs * bs * num_points, 0);
 
   if (needs_dof_transformations)
   {
@@ -450,11 +460,18 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
     xt::xtensor<double, 4> dphi_c = xt::view(cmap_basis_functions, xt::xrange(1, int(tdim) + 1),
                                              xt::all(), xt::all(), xt::all());
 
-    for (std::int32_t cell = 0; cell < num_cells; ++cell)
+    for (int facet = 0; facet < num_facets; facet++)
     {
 
       // NOTE Add two separate loops here, one for and one without dof transforms
 
+      // FIXME: Assuming exterior facets
+      // get cell/local facet index
+      int global_facet = active_facets[facet]; // extract facet
+      auto cells = f_to_c->links(global_facet);
+      // since the facet is on the boundary it should only link to one cell
+      assert(cells.size() == 1);
+      auto cell = cells[0]; // extract cell
       // Get cell geometry (coordinate dofs)
       auto x_dofs = x_dofmap.links(cell);
       for (std::size_t i = 0; i < num_dofs_g; ++i)
@@ -464,54 +481,67 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
       cmap.compute_jacobian_inverse(J, K);
       cmap.compute_jacobian_determinant(J, detJ);
 
-      for (std::int32_t facet = 0; facet < num_facets; ++facet)
-      { // Permute the reference values to account for the cell's orientation
-        cell_basis_values
-            = xt::view(basis_reference_values, facet, xt::all(), xt::all(), xt::all());
-        for (std::size_t q = 0; q < num_points; ++q)
-        {
-          transformation(
-              xtl::span(cell_basis_values.data() + q * num_dofs / bs * vs, num_dofs / bs * vs),
-              cell_info, cell, vs);
-        }
-        // Push basis forward to physical element
-        element->transform_reference_basis(basis_values, cell_basis_values, J, detJ, K);
+      // find local index of facet
+      auto cell_facets = c_to_f->links(cell);
+      auto local_facet = std::find(cell_facets.begin(), cell_facets.end(), global_facet);
+      const std::int32_t local_index = std::distance(cell_facets.data(), local_facet);
+      // Permute the reference values to account for the cell's orientation
+      cell_basis_values
+          = xt::view(basis_reference_values, local_index, xt::all(), xt::all(), xt::all());
+      for (std::size_t q = 0; q < num_points; ++q)
+      {
+        transformation(
+            xtl::span(cell_basis_values.data() + q * num_dofs / bs * vs, num_dofs / bs * vs),
+            cell_info, cell, vs);
+      }
+      // Push basis forward to physical element
+      element->transform_reference_basis(basis_values, cell_basis_values, J, detJ, K);
 
-        // Sum up quadrature contributions
-        auto cell_coeff = c.row(cell);
-        auto dofs = dofmap->cell_dofs(cell);
-        for (std::size_t i = 0; i < dofs.size(); ++i)
-        {
-          const int pos_v = bs * dofs[i];
+      // Sum up quadrature contributions
+      auto facet_coeff = c.row(facet);
+      auto dofs = dofmap->cell_dofs(cell);
+      for (std::size_t i = 0; i < dofs.size(); ++i)
+      {
+        const int pos_v = bs * dofs[i];
 
-          for (int q = 0; q < num_points; ++q)
-            for (int k = 0; k < bs; ++k)
-              for (int c = 0; c < vs; c++)
-                cell_coeff[facet * (num_points * bs * vs) + q * (bs * vs) + k + c]
-                    += basis_values(q, i, c) * data[pos_v + k];
-        }
+        for (int q = 0; q < num_points; ++q)
+          for (int k = 0; k < bs; ++k)
+            for (int c = 0; c < vs; c++)
+              facet_coeff[q * (bs * vs) + k + c] += basis_values(q, i, c) * data[pos_v + k];
       }
     }
   }
   else
   {
 
-    for (std::int32_t cell = 0; cell < num_cells; ++cell)
-    {
-      for (std::int32_t facet = 0; facet < num_facets; ++facet)
-      { // Sum up quadrature contributions
-        auto cell_coeff = c.row(cell);
-        auto dofs = dofmap->cell_dofs(cell);
-        for (std::size_t i = 0; i < dofs.size(); ++i)
-        {
-          const int pos_v = bs * dofs[i];
+    for (int facet = 0; facet < num_facets; facet++)
+    { // Sum up quadrature contributions
+      // FIXME: Assuming exterior facets
+      // get cell/local facet index
+      int global_facet = active_facets[facet]; // extract facet
+      auto cells = f_to_c->links(global_facet);
+      // since the facet is on the boundary it should only link to one cell
+      assert(cells.size() == 1);
+      auto cell = cells[0]; // extract cell
 
-          for (int q = 0; q < num_points; ++q)
-            for (int k = 0; k < bs; ++k)
-              for (int c = 0; c < vs; c++)
-                cell_coeff[facet * (num_points * bs * vs) + q * (bs * vs) + k + c]
-                    += basis_reference_values(facet, q, i, c) * data[pos_v + k];
-        }
+      // find local index of facet
+      auto cell_facets = c_to_f->links(cell);
+      auto local_facet = std::find(cell_facets.begin(), cell_facets.end(), global_facet);
+      const std::int32_t local_index = std::distance(cell_facets.data(), local_facet);
+
+      auto facet_coeff = c.row(facet);
+      auto dofs = dofmap->cell_dofs(cell);
+      for (std::size_t i = 0; i < dofs.size(); ++i)
+      {
+        const int pos_v = bs * dofs[i];
+
+        for (int q = 0; q < num_points; ++q)
+          for (int k = 0; k < bs; ++k)
+            for (int l = 0; l < vs; l++)
+            {
+              facet_coeff[q * (bs * vs) + k + l]
+                  += basis_reference_values(local_index, q, i, l) * data[pos_v + k];
+            }
       }
     }
   }
