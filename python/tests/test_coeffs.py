@@ -69,7 +69,7 @@ def test_pack_coeff_at_quadrature(quadrature_degree, space, degree):
 
 @pytest.mark.parametrize("quadrature_degree", range(1, 6))
 @pytest.mark.parametrize("degree", range(1, 6))
-@pytest.mark.parametrize("space", ["CG", "DG"])
+@pytest.mark.parametrize("space", ["N1curl"])
 def test_pack_coeff_on_facet(quadrature_degree, space, degree):
     N = 15
     mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N)
