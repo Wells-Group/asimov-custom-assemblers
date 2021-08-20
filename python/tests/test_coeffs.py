@@ -101,7 +101,6 @@ def test_pack_coeff_on_facet(quadrature_degree, space, degree):
     x_g = mesh.geometry.x
     tdim = mesh.topology.dim
     fdim = tdim - 1
-    num_cells = mesh.topology.index_map(tdim).size_local
     coord_dofs = mesh.geometry.dofmap
 
     # Connectivity to evaluate at quadrature points
