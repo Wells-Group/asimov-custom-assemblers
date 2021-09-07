@@ -100,4 +100,5 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     b2.assemble()
 
+    print(np.max(np.abs(b.array - b2.array)))
     assert np.allclose(b.array, b2.array)
