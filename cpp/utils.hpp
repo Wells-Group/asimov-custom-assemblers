@@ -455,7 +455,7 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
     // Get coordinate map
     const dolfinx::fem::CoordinateElement& cmap = mesh->geometry().cmap();
 
-    xt::xtensor<double, 5> dphi_c({num_local_facets, int(tdim), num_points, num_dofs / bs, vs});
+    xt::xtensor<double, 5> dphi_c({num_local_facets, int(tdim), num_points, num_dofs_g / bs, 1});
     for (int i = 0; i < num_local_facets; i++)
     {
       auto q_facet = xt::view(points, i, xt::all(), xt::all());
