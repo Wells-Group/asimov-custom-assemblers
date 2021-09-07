@@ -455,14 +455,15 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
     // Get coordinate map
     const dolfinx::fem::CoordinateElement& cmap = mesh->geometry().cmap();
 
-    // FIXME: only working for affine meshes?
-    auto [pts, wts]
-        = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell_type), q);
-    // Compute first derivative of basis function of coordinate map
-    xt::xtensor<double, 4> cmap_basis_functions = cmap.tabulate(1, pts);
-
-    xt::xtensor<double, 4> dphi_c = xt::view(cmap_basis_functions, xt::xrange(1, int(tdim) + 1),
-                                             xt::all(), xt::all(), xt::all());
+    xt::xtensor<double, 5> dphi_c({num_local_facets, int(tdim), num_points, num_dofs / bs, vs});
+    for (int i = 0; i < num_local_facets; i++)
+    {
+      auto q_facet = xt::view(points, i, xt::all(), xt::all());
+      xt::xtensor<double, 4> cmap_basis_functions = cmap.tabulate(1, q_facet);
+      auto dphi_ci = xt::view(dphi_c, i, xt::all(), xt::all(), xt::all(), xt::all());
+      dphi_ci = xt::view(cmap_basis_functions, xt::xrange(1, int(tdim) + 1), xt::all(), xt::all(),
+                         xt::all());
+    }
 
     for (int facet = 0; facet < num_facets; facet++)
     {
@@ -476,19 +477,24 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
       // since the facet is on the boundary it should only link to one cell
       assert(cells.size() == 1);
       auto cell = cells[0]; // extract cell
-      // Get cell geometry (coordinate dofs)
-      auto x_dofs = x_dofmap.links(cell);
-      for (std::size_t i = 0; i < num_dofs_g; ++i)
-        for (std::size_t j = 0; j < gdim; ++j)
-          coordinate_dofs(i, j) = x_g(x_dofs[i], j);
-      cmap.compute_jacobian(dphi_c, coordinate_dofs, J);
-      cmap.compute_jacobian_inverse(J, K);
-      cmap.compute_jacobian_determinant(J, detJ);
 
       // find local index of facet
       auto cell_facets = c_to_f->links(cell);
       auto local_facet = std::find(cell_facets.begin(), cell_facets.end(), global_facet);
       const std::int32_t local_index = std::distance(cell_facets.data(), local_facet);
+      // Get cell geometry (coordinate dofs)
+      auto x_dofs = x_dofmap.links(cell);
+
+      for (std::size_t i = 0; i < num_dofs_g; ++i)
+        for (std::size_t j = 0; j < gdim; ++j)
+          coordinate_dofs(i, j) = x_g(x_dofs[i], j);
+
+      auto dphi_ci = xt::view(dphi_c, local_index, xt::all(), xt::all(), xt::all(), xt::all());
+
+      cmap.compute_jacobian(dphi_ci, coordinate_dofs, J);
+      cmap.compute_jacobian_inverse(J, K);
+      cmap.compute_jacobian_determinant(J, detJ);
+
       // Permute the reference values to account for the cell's orientation
       cell_basis_values
           = xt::view(basis_reference_values, local_index, xt::all(), xt::all(), xt::all());
