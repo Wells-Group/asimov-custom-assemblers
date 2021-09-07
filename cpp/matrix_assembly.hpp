@@ -62,9 +62,37 @@ void assemble_exterior_facets(
   }
   // FIXME: Need to reconsider facet permutations for jump integrals
   auto get_perm = [](std::size_t) { return 0; };
+
+  // FIXME: Not sure if this is the right place to do this.
+  const std::size_t tdim = mesh->topology().dim();
+  const std::size_t gdim = mesh->geometry().dim();
+  const std::size_t fdim = tdim - 1;
+  const std::int32_t num_facets = active_facets.size();
+  // FIXME: move out of function
+  mesh->topology_mutable().create_connectivity(fdim, tdim);
+  auto f_to_c = mesh->topology().connectivity(fdim, tdim);
+  mesh->topology_mutable().create_connectivity(tdim, fdim);
+  auto c_to_f = mesh->topology().connectivity(tdim, fdim);
+  std::vector<std::pair<std::int32_t, int>> facets(num_facets);
+  for (int i; i < num_facets; i++)
+  {
+    auto facet = active_facets[i];
+    auto cells = f_to_c->links(facet);
+    // since the facet is on the boundary it should only link to one cell
+    assert(cells.size() == 1);
+    auto cell = cells[0]; // extract cell
+
+    // find local index of facet
+    auto cell_facets = c_to_f->links(cell);
+    auto local_facet = std::find(cell_facets.begin(), cell_facets.end(), facet);
+    const std::int32_t local_index = std::distance(cell_facets.data(), local_facet);
+    facets[i].first = cell;
+    facets[i].second = local_index;
+  }
+
   // Assemble using dolfinx
   dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(
-      mat_set, *mesh, active_facets, apply_dof_transformation, dofs, bs,
+      mat_set, *mesh, facets, apply_dof_transformation, dofs, bs,
       apply_dof_transformation_to_transpose, dofs, bs, bc, bc, kernel, coeffs, constants, cell_info,
       get_perm);
 }
