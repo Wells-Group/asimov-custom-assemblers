@@ -59,11 +59,13 @@ def facet_master_puppet_relation(mesh, puppet_facets, candidate_facets, quadratu
 
     # Create facet quadrature points
     if quadrature_degree is not None:
-        basix_facet = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.cell_entity_type(cell_type, fdim)]
+        # FIXME: assuming all facets are the same type
+        basix_facet = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.cell_entity_type(cell_type, fdim, 0)]
         quadrature_points, _ = basix.make_quadrature("default", basix_facet, quadrature_degree)
 
         # Tabulate basis functions at quadrature points
-        surface_cell_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
+        # FIXME: assuming all facets are the same type
+        surface_cell_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
         surface_str = dolfinx.cpp.mesh.to_string(surface_cell_type)
 
         # Push forward quadrature points on reference facet to reference cell

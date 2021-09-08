@@ -112,7 +112,8 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
 
     b2 = dolfinx.fem.create_vector(L)
-    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
+    # FIXME: assuming all facets are the same type
+    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, 2 * P + Q + 1, "default")
     kernel = dolfinx_cuas.cpp.contact.generate_contact_kernel(V._cpp_object, kernel_type, q_rule,
                                                               [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
@@ -214,7 +215,8 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
 
     B = dolfinx.fem.create_matrix(a)
-    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1)
+    # FIXME: assuming all facets are the same type
+    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, 2 * P + Q + 1, "default")
     kernel = dolfinx_cuas.cpp.contact.generate_contact_kernel(
         V._cpp_object, kernel_type, q_rule, [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
