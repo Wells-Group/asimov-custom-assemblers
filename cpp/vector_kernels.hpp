@@ -155,6 +155,7 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
+    std::cout << "local index " << facet_index << "\n";
 
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx has 3D input coordinate dofs
@@ -194,6 +195,7 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
       {
         // Compute a weighted phi_i(p_q),  i.e. phi_i(p_q) det(J) w_q
         double w1 = w0 * phi(facet_index, q, i);
+        std::cout << "dof " << i << "\n";
         // Insert over block size in matrix
         b[i] += w1;
       }

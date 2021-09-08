@@ -78,8 +78,8 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     L = v * ds(1)
     kernel_type = kt.Rhs
     # Compile UFL form
-    cffi_options = ["-Ofast", "-march=native"]
-    L = dolfinx.fem.Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    cffi_options = []  # ["-Ofast", "-march=native"]
+    L = dolfinx.fem.Form(L)  # , jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     b = dolfinx.fem.create_vector(L)
 
     # Normal assembly
