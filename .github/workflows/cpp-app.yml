@@ -75,3 +75,7 @@ jobs:
           cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer .
           ninja -C build-dir
           ./build-dir/volume
+          cd cpp/demo/surface
+          cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer .
+          ninja -C build-dir
+          ./build-dir/custom-assembler
