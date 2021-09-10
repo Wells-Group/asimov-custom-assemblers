@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "utils.hpp"
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/assembler.h>
 #include <functional>
@@ -62,9 +63,30 @@ void assemble_exterior_facets(
   }
   // FIXME: Need to reconsider facet permutations for jump integrals
   auto get_perm = [](std::size_t) { return 0; };
+
+  // FIXME: Not sure if this is the right place to do this.
+  const std::size_t tdim = mesh->topology().dim();
+  const std::size_t gdim = mesh->geometry().dim();
+  const std::size_t fdim = tdim - 1;
+  const std::int32_t num_facets = active_facets.size();
+  // FIXME: move out of function
+  mesh->topology_mutable().create_connectivity(fdim, tdim);
+  auto f_to_c = mesh->topology().connectivity(fdim, tdim);
+  mesh->topology_mutable().create_connectivity(tdim, fdim);
+  auto c_to_f = mesh->topology().connectivity(tdim, fdim);
+  std::vector<std::pair<std::int32_t, int>> facets;
+  for (int i; i < num_facets; i++)
+  {
+    auto f = active_facets[i];
+    assert(f_to_c->num_links(f) == 1);
+    std::pair<std::int32_t, int> pair
+        = dolfinx_cuas::get_cell_local_facet_pairs<1>(f, f_to_c->links(f), *c_to_f)[0];
+    facets.push_back(pair);
+    std::cout << "facet " << f << " cell " << pair.first << " local facet " << pair.second << "\n";
+  }
   // Assemble using dolfinx
   dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(
-      mat_set, *mesh, active_facets, apply_dof_transformation, dofs, bs,
+      mat_set, *mesh, facets, apply_dof_transformation, dofs, bs,
       apply_dof_transformation_to_transpose, dofs, bs, bc, bc, kernel, coeffs, constants, cell_info,
       get_perm);
 }
