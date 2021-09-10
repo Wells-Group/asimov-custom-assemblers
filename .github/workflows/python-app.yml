@@ -51,7 +51,7 @@ jobs:
         with:
           path: ./dolfinx
           repository: FEniCS/dolfinx
-          ref: main
+          ref: 57cc238771b31da201feea31cec28d3bed9158bd
 
       - name: Configure C++ (dolfinx)
         run: cmake -G Ninja -DCMAKE_BUILD_TYPE=Developer -B build-dolfinx -S ./dolfinx/cpp/
