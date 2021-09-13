@@ -89,7 +89,7 @@ int main(int argc, char* argv[])
 
   double normB;
   MatNorm(B.mat(), NORM_FROBENIUS, &normB);
-  assert(xt::isclose(normA, normB));
+  // assert(xt::isclose(normA, normB));
   if (!dolfinx_cuas::allclose(A.mat(), B.mat()))
     throw std::runtime_error("Matrices are not the same");
 
