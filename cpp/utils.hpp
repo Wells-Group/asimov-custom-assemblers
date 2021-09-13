@@ -586,4 +586,153 @@ pack_coefficient_facet(std::shared_ptr<const dolfinx::fem::Function<PetscScalar>
   return c;
 }
 
+/// Prepare circumradii of triangle/tetrahedron for assembly with custom kernels
+/// by packing them as a 2D array, where the ith row maps to the ith facet int active_facets.
+/// @param[in] mesh
+/// @param[in] active_facets List of active facets
+/// @param[out] c The packed coefficients
+dolfinx::array2d<PetscScalar>
+pack_circumradius_facet(std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
+                        const xtl::span<const std::int32_t>& active_facets)
+{
+  // // Get mesh
+  // std::shared_ptr<const dolfinx::mesh::Mesh> mesh = coeff->function_space()->mesh();
+  // assert(mesh);
+  const std::size_t tdim = mesh->topology().dim();
+  const std::size_t gdim = mesh->geometry().dim();
+  const std::size_t fdim = tdim - 1;
+  const std::int32_t num_facets = active_facets.size();
+
+  // Connectivity to evaluate at quadrature points
+  // FIXME: Move create_connectivity out of this function and call before calling the function...
+  mesh->topology_mutable().create_connectivity(fdim, tdim);
+  auto f_to_c = mesh->topology().connectivity(fdim, tdim);
+  mesh->topology_mutable().create_connectivity(tdim, fdim);
+  auto c_to_f = mesh->topology().connectivity(tdim, fdim);
+
+  // Tabulate element at quadrature points
+  // NOTE: Assuming no derivatives for now, should be reconsidered later
+  const std::string cell_type = dolfinx::mesh::to_string(mesh->topology().cell_type());
+
+  // Quadrature points for piecewise constant
+  auto [points, weights] = create_reference_facet_qp(mesh, 0);
+  const std::size_t num_points = weights.size();
+  const std::size_t num_local_facets = points.shape(0);
+
+  dolfinx::array2d<PetscScalar> c(num_facets, 1, 0);
+
+  // Get geometry data
+  const dolfinx::graph::AdjacencyList<std::int32_t>& x_dofmap = mesh->geometry().dofmap();
+
+  // FIXME: Add proper interface for num coordinate dofs
+  const std::size_t num_dofs_g = x_dofmap.num_links(0);
+  const xt::xtensor<double, 2>& x_g = mesh->geometry().x();
+
+  // Prepare geometry data structures
+  // xt::xtensor<double, 2> X({num_points, tdim});
+  xt::xtensor<double, 3> J = xt::zeros<double>({num_points, gdim, tdim});
+  xt::xtensor<double, 3> K = xt::zeros<double>({num_points, tdim, gdim});
+  xt::xtensor<double, 1> detJ = xt::zeros<double>({num_points});
+  xt::xtensor<double, 2> coordinate_dofs = xt::zeros<double>({num_dofs_g, gdim});
+
+  // Get coordinate map
+  const dolfinx::fem::CoordinateElement& cmap = mesh->geometry().cmap();
+
+  xt::xtensor<double, 5> dphi_c({num_local_facets, int(tdim), num_points, num_dofs_g, 1});
+  for (int i = 0; i < num_local_facets; i++)
+  {
+    auto q_facet = xt::view(points, i, xt::all(), xt::all());
+    xt::xtensor<double, 4> cmap_basis_functions = cmap.tabulate(1, q_facet);
+    auto dphi_ci = xt::view(dphi_c, i, xt::all(), xt::all(), xt::all(), xt::all());
+    dphi_ci = xt::view(cmap_basis_functions, xt::xrange(1, int(tdim) + 1), xt::all(), xt::all(),
+                       xt::all());
+  }
+
+  for (int facet = 0; facet < num_facets; facet++)
+  {
+
+    // NOTE Add two separate loops here, one for and one without dof transforms
+
+    // FIXME: Assuming exterior facets
+    // get cell/local facet index
+    int global_facet = active_facets[facet]; // extract facet
+    auto cells = f_to_c->links(global_facet);
+    // since the facet is on the boundary it should only link to one cell
+    assert(cells.size() == 1);
+    auto cell = cells[0]; // extract cell
+
+    // find local index of facet
+    auto cell_facets = c_to_f->links(cell);
+    auto local_facet = std::find(cell_facets.begin(), cell_facets.end(), global_facet);
+    const std::int32_t local_index = std::distance(cell_facets.data(), local_facet);
+    // Get cell geometry (coordinate dofs)
+    auto x_dofs = x_dofmap.links(cell);
+
+    for (std::size_t i = 0; i < num_dofs_g; ++i)
+      for (std::size_t j = 0; j < gdim; ++j)
+        coordinate_dofs(i, j) = x_g(x_dofs[i], j);
+
+    auto dphi_ci = xt::view(dphi_c, local_index, xt::all(), xt::all(), xt::all(), xt::all());
+
+    cmap.compute_jacobian(dphi_ci, coordinate_dofs, J);
+    cmap.compute_jacobian_inverse(J, K);
+    cmap.compute_jacobian_determinant(J, detJ);
+
+    double h = 0;
+    if (cell_type == "triangle")
+    {
+      double cellvolume = 0.5 * std::abs(detJ[0]); // reference triangle has area 0.5
+      double a = 0, b = 0, c = 0;
+      for (int i = 0; i < gdim; i++)
+      {
+        a += (coordinate_dofs(0, i) - coordinate_dofs(1, i))
+             * (coordinate_dofs(0, i) - coordinate_dofs(1, i));
+        b += (coordinate_dofs(1, i) - coordinate_dofs(2, i))
+             * (coordinate_dofs(1, i) - coordinate_dofs(2, i));
+        c += (coordinate_dofs(2, i) - coordinate_dofs(0, i))
+             * (coordinate_dofs(2, i) - coordinate_dofs(0, i));
+      }
+      a = std::sqrt(a);
+      b = std::sqrt(b);
+      c = std::sqrt(c);
+      h = a * b * c / (4 * cellvolume);
+    }
+    else if (cell_type == "tetrahedron")
+    {
+      double cellvolume = detJ[0] / 6; // reference tetrahedron has volume 1/6 = 0.5*1/3
+      double a = 0, b = 0, c = 0, A = 0, B = 0, C = 0;
+      for (int i = 0; i < gdim; i++)
+      {
+        a += (coordinate_dofs(0, i) - coordinate_dofs(1, i))
+             * (coordinate_dofs(0, i) - coordinate_dofs(1, i));
+        b += (coordinate_dofs(0, i) - coordinate_dofs(2, i))
+             * (coordinate_dofs(0, i) - coordinate_dofs(2, i));
+        c += (coordinate_dofs(0, i) - coordinate_dofs(3, i))
+             * (coordinate_dofs(0, i) - coordinate_dofs(3, i));
+        A += (coordinate_dofs(2, i) - coordinate_dofs(3, i))
+             * (coordinate_dofs(2, i) - coordinate_dofs(3, i));
+        B += (coordinate_dofs(1, i) - coordinate_dofs(3, i))
+             * (coordinate_dofs(1, i) - coordinate_dofs(3, i));
+        C += (coordinate_dofs(1, i) - coordinate_dofs(2, i))
+             * (coordinate_dofs(1, i) - coordinate_dofs(2, i));
+      }
+      a = std::sqrt(a);
+      b = std::sqrt(b);
+      c = std::sqrt(c);
+      A = std::sqrt(A);
+      B = std::sqrt(B);
+      C = std::sqrt(C);
+      h = std::sqrt((a * A + b * B + c * C) * (a * A + b * B - c * C) * (a * A - b * B + c * C)
+                    * (b * B + c * C - a * A))
+          / (24 * cellvolume);
+    }
+    // Sum up quadrature contributions
+    auto facet_coeff = c.row(facet);
+
+    facet_coeff[0] = h;
+  }
+
+  return c;
+}
+
 } // namespace dolfinx_cuas

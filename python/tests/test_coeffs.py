@@ -1,4 +1,4 @@
-# Copyright (C) 2021 Jørgen S. Dokken
+# Copyright (C) 2021 Jørgen S. Dokken, Sarah Roggendorf
 #
 # SPDX-License-Identifier:   LGPL-3.0-or-later
 
