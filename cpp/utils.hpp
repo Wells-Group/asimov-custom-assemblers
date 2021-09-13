@@ -73,8 +73,9 @@ basix::FiniteElement mesh_to_basix_element(std::shared_ptr<const dolfinx::mesh::
   const dolfinx::mesh::CellType dolfinx_cell = mesh->topology().cell_type();
   if (dim == fdim)
   {
+    // FIXME: assuming all facets have the same cell type
     const dolfinx::mesh::CellType dolfinx_facet
-        = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim);
+        = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim, 0);
     return basix::create_element(basix::element::family::P, to_basix_celltype(dolfinx_facet),
                                  degree, basix::lattice::type::equispaced);
   }

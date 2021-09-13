@@ -160,8 +160,9 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
         num_dofs_x = facet_geom.shape[1]
 
         # Create coordinate element for facet
+        # FIXME: assuming all facets have the same cell type
         surface_str = dolfinx.cpp.mesh.to_string(dolfinx.cpp.mesh.cell_entity_type(
-            mesh.topology.cell_type, mesh.topology.dim - 1))
+            mesh.topology.cell_type, mesh.topology.dim - 1, 0))
         surface_cell_type = basix.cell.string_to_type(surface_str)
         surface_element = basix.create_element(basix.finite_element.string_to_family(
             family, surface_str), surface_cell_type, ufl_c_el.degree(), basix.LatticeType.equispaced)

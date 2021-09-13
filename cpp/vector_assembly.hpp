@@ -74,7 +74,6 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
     std::pair<std::int32_t, int> pair
         = dolfinx_cuas::get_cell_local_facet_pairs<1>(f, f_to_c->links(f), *c_to_f)[0];
     facets.push_back(pair);
-    std::cout << "facet " << f << " cell " << pair.first << " local facet " << pair.second << "\n";
   }
   // Assemble using dolfinx
   dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(apply_dof_transformation, b, *mesh,
