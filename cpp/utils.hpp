@@ -21,6 +21,33 @@
 
 namespace dolfinx_cuas
 {
+// Helper function to get a std::vector of (cell, local_facet) pairs
+// corresponding to a given facet index.
+// @param[in] f Facet index
+// @param[in] f_to_c Facet to cell connectivity
+// @param[in] c_to_f Cell to facet connectivity
+// @return Vector of (cell, local_facet) pairs
+template <int num_cells>
+static std::array<std::pair<std::int32_t, int>, num_cells>
+get_cell_local_facet_pairs(std::int32_t f, const xtl::span<const std::int32_t>& cells,
+                           const dolfinx::graph::AdjacencyList<std::int32_t>& c_to_f)
+{
+  // Loop over cells sharing facet
+  assert(cells.size() == num_cells);
+  std::array<std::pair<std::int32_t, int>, num_cells> cell_local_facet_pairs;
+  for (int c = 0; c < num_cells; ++c)
+  {
+    // Get local index of facet with respect to the cell
+    std::int32_t cell = cells[c];
+    auto cell_facets = c_to_f.links(cell);
+    auto facet_it = std::find(cell_facets.begin(), cell_facets.end(), f);
+    assert(facet_it != cell_facets.end());
+    int local_f = std::distance(cell_facets.begin(), facet_it);
+    cell_local_facet_pairs[c] = {cell, local_f};
+  }
+
+  return cell_local_facet_pairs;
+}
 /// Convert DOLFINx CellType to basix cell type
 const basix::cell::type to_basix_celltype(dolfinx::mesh::CellType celltype)
 {
@@ -46,8 +73,7 @@ basix::FiniteElement mesh_to_basix_element(std::shared_ptr<const dolfinx::mesh::
   const dolfinx::mesh::CellType dolfinx_cell = mesh->topology().cell_type();
   if (dim == fdim)
   {
-
-    // FIXME: assuming all cells are the same
+    // FIXME: assuming all facets have the same cell type
     const dolfinx::mesh::CellType dolfinx_facet
         = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim, 0);
     return basix::create_element(basix::element::family::P, to_basix_celltype(dolfinx_facet),

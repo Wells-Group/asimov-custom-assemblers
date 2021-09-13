@@ -16,52 +16,52 @@ it = dolfinx.cpp.fem.IntegralType
 compare_matrices = dolfinx_cuas.utils.compare_matrices
 
 
-# @pytest.mark.parametrize("kernel_type", [kt.Rhs])
-# @pytest.mark.parametrize("dim", [2, 3])
-# @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
-# def test_vector_kernels(dim, kernel_type, P):
-#     N = 30 if dim == 2 else 10
-#     mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+@pytest.mark.parametrize("kernel_type", [kt.Rhs])
+@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
+def test_vector_kernels(dim, kernel_type, P):
+    N = 30 if dim == 2 else 10
+    mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
 
-#     # Define variational form
-#     V = dolfinx.FunctionSpace(mesh, ("CG", P))
+    # Define variational form
+    V = dolfinx.FunctionSpace(mesh, ("CG", P))
 
-#     v = ufl.TestFunction(V)
-#     dx = ufl.Measure("dx", domain=mesh)
-#     L = v * dx
-#     kernel_type = kt.Rhs
+    v = ufl.TestFunction(V)
+    dx = ufl.Measure("dx", domain=mesh)
+    L = v * dx
+    kernel_type = kt.Rhs
 
-#     # Compile UFL form
-#     cffi_options = ["-Ofast", "-march=native"]
-#     L = dolfinx.fem.Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-#     b = dolfinx.fem.create_vector(L)
+    # Compile UFL form
+    cffi_options = ["-Ofast", "-march=native"]
+    L = dolfinx.fem.Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    b = dolfinx.fem.create_vector(L)
 
-#     # Normal assembly
-#     b.zeroEntries()
-#     dolfinx.fem.assemble_vector(b, L)
-#     b.assemble()
+    # Normal assembly
+    b.zeroEntries()
+    dolfinx.fem.assemble_vector(b, L)
+    b.assemble()
 
-#     # Custom assembly
-#     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
-#     active_cells = np.arange(num_local_cells, dtype=np.int32)
-#     b2 = dolfinx.fem.create_vector(L)
+    # Custom assembly
+    num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    active_cells = np.arange(num_local_cells, dtype=np.int32)
+    b2 = dolfinx.fem.create_vector(L)
 
-#     q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1, "default")
-#     kernel = dolfinx_cuas.cpp.generate_vector_kernel(V._cpp_object, kernel_type, q_rule)
-#     b2.zeroEntries()
-#     consts = np.zeros(0)
-#     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
-#     dolfinx_cuas.assemble_vector(b2, V, active_cells, kernel, coeffs, consts, it.cell)
-#     b2.assemble()
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1, "default")
+    kernel = dolfinx_cuas.cpp.generate_vector_kernel(V._cpp_object, kernel_type, q_rule)
+    b2.zeroEntries()
+    consts = np.zeros(0)
+    coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
+    dolfinx_cuas.assemble_vector(b2, V, active_cells, kernel, coeffs, consts, it.cell)
+    b2.assemble()
 
-#     assert np.allclose(b.array, b2.array)
+    assert np.allclose(b.array, b2.array)
 
 
 @pytest.mark.parametrize("kernel_type", [kt.Rhs])
-@pytest.mark.parametrize("dim", [2])
-@pytest.mark.parametrize("P", [1])
+@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_surface_kernel(dim, kernel_type, P):
-    N = 2 if dim == 2 else 10
+    N = 30 if dim == 2 else 10
     mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
 
     # Find facets on boundary to integrate over
@@ -93,7 +93,8 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     b2 = dolfinx.fem.create_vector(L)
-    # FIXME: assuming all facets are the same type
+
+    # FIXME: assuming all facets have the same cell type
     facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, P + 1, "default")
     kernel = dolfinx_cuas.cpp.generate_surface_vector_kernel(V._cpp_object, kernel_type, q_rule)
@@ -101,7 +102,4 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     b2.assemble()
 
-    print(b.array)
-    print(b2.array)
-    print(np.max(np.abs(b.array - b2.array)))
     assert np.allclose(b.array, b2.array)

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "utils.hpp"
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/assembler.h>
 #include <functional>
@@ -73,21 +74,14 @@ void assemble_exterior_facets(
   auto f_to_c = mesh->topology().connectivity(fdim, tdim);
   mesh->topology_mutable().create_connectivity(tdim, fdim);
   auto c_to_f = mesh->topology().connectivity(tdim, fdim);
-  std::vector<std::pair<std::int32_t, int>> facets(num_facets);
-  for (int i; i < num_facets; i++)
+  std::vector<std::pair<std::int32_t, int>> facets;
+  for (int i = 0; i < num_facets; i++)
   {
-    auto facet = active_facets[i];
-    auto cells = f_to_c->links(facet);
-    // since the facet is on the boundary it should only link to one cell
-    assert(cells.size() == 1);
-    auto cell = cells[0]; // extract cell
-
-    // find local index of facet
-    auto cell_facets = c_to_f->links(cell);
-    auto local_facet = std::find(cell_facets.begin(), cell_facets.end(), facet);
-    const std::int32_t local_index = std::distance(cell_facets.data(), local_facet);
-    facets[i].first = cell;
-    facets[i].second = local_index;
+    auto f = active_facets[i];
+    assert(f_to_c->num_links(f) == 1);
+    std::pair<std::int32_t, int> pair
+        = dolfinx_cuas::get_cell_local_facet_pairs<1>(f, f_to_c->links(f), *c_to_f)[0];
+    facets.push_back(pair);
   }
 
   // Assemble using dolfinx
