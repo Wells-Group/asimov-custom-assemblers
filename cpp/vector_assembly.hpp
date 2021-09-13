@@ -67,7 +67,7 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
   mesh->topology_mutable().create_connectivity(tdim, fdim);
   auto c_to_f = mesh->topology().connectivity(tdim, fdim);
   std::vector<std::pair<std::int32_t, int>> facets;
-  for (int i; i < num_facets; i++)
+  for (int i = 0; i < num_facets; i++)
   {
     auto f = active_facets[i];
     assert(f_to_c->num_links(f) == 1);
