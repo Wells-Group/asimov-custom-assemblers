@@ -153,6 +153,17 @@ PYBIND11_MODULE(cpp, m)
           return dolfinx_cuas_wrappers::as_pyarray2d(dolfinx_cuas::pack_circumradius_facet(
               mesh, xtl::span<const std::int32_t>(active_facets.data(), active_facets.size())));
         });
+  m.def("facet_to_cell_data",
+        [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
+           const py::array_t<std::int32_t, py::array::c_style>& active_facets,
+           const py::array_t<PetscScalar, py::array::c_style>& data, int num_cols)
+        {
+          dolfinx::array2d<PetscScalar> _data(data.shape()[0], data.shape()[1]);
+          std::copy_n(data.data(), data.size(), _data.data());
+          return dolfinx_cuas_wrappers::as_pyarray2d(dolfinx_cuas::facet_to_cell_data(
+              mesh, xtl::span<const std::int32_t>(active_facets.data(), active_facets.size()),
+              _data, num_cols));
+        });
   // FIXME: Currently exposed for debugging. Possibly not wanted?
   m.def("create_reference_facet_qp",
         [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int quadrature_degree)

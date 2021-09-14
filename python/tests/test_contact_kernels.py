@@ -61,7 +61,7 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
 
     u = dolfinx.Function(V)
     u.interpolate(f)
-
+    h = ufl.Circumradius(mesh)
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
 
@@ -92,9 +92,9 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
         # NOTE: Different normals, see summary paper
         return ufl.dot(sigma(v) * n, n_2)
 
-    L = - theta / gamma * sigma_n(u) * sigma_n(v) * ds(1)
-    L += 1 / gamma * R_minus(sigma_n(u) + gamma * ufl.dot(u, n_2)) * \
-        (theta * sigma_n(v) + gamma * ufl.dot(v, n_2)) * ds(1)
+    L = - h * theta / gamma * sigma_n(u) * sigma_n(v) * ds(1)
+    L += h / gamma * R_minus(sigma_n(u) + (gamma / h) * ufl.dot(u, n_2)) * \
+        (theta * sigma_n(v) + (gamma / h) * ufl.dot(v, n_2)) * ds(1)
     # Compile UFL form
     cffi_options = ["-O2", "-march=native"]
     L = dolfinx.fem.Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
@@ -110,7 +110,9 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     consts = np.array([gamma, theta])
     consts = np.hstack((consts, n_vec))
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
-
+    h_facets = dolfinx_cuas.cpp.pack_circumradius_facet(mesh, facets)
+    h_cells = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, h_facets, 1)
+    coeffs = np.hstack([coeffs, h_cells])
     b2 = dolfinx.fem.create_vector(L)
     # FIXME: assuming all facets are the same type
     facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
@@ -120,7 +122,6 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     b2.zeroEntries()
     dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     b2.assemble()
-
     assert np.allclose(b.array, b2.array)
 
 
@@ -194,11 +195,11 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     def sigma_n(v):
         # NOTE: Different normals, see summary paper
         return ufl.dot(sigma(v) * n, n_2)
-
-    q = sigma_n(u) + gamma * (ufl.dot(u, n_2))
-    a = - theta / gamma * sigma_n(du) * sigma_n(v) * ds(1)
-    a += 1 / gamma * 0.5 * (1 - ufl.sign(q)) * (sigma_n(du) + gamma * ufl.dot(du, n_2)) * \
-        (theta * sigma_n(v) + gamma * ufl.dot(v, n_2)) * ds(1)
+    h = ufl.Circumradius(mesh)
+    q = sigma_n(u) + gamma / h * (ufl.dot(u, n_2))
+    a = - h * theta / gamma * sigma_n(du) * sigma_n(v) * ds(1)
+    a += h / gamma * 0.5 * (1 - ufl.sign(q)) * (sigma_n(du) + gamma / h * ufl.dot(du, n_2)) * \
+        (theta * sigma_n(v) + gamma / h * ufl.dot(v, n_2)) * ds(1)
     # Compile UFL form
     cffi_options = ["-O2", "-march=native"]
     a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
@@ -213,6 +214,9 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     consts = np.array([gamma, theta])
     consts = np.hstack((consts, n_vec))
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
+    h_facets = dolfinx_cuas.cpp.pack_circumradius_facet(mesh, facets)
+    h_cells = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, h_facets, 1)
+    coeffs = np.hstack([coeffs, h_cells])
 
     B = dolfinx.fem.create_matrix(a)
     # FIXME: assuming all facets are the same type

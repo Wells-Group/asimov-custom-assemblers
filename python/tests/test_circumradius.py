@@ -10,8 +10,9 @@ import ufl
 
 
 @pytest.mark.parametrize("dim", [2, 3])
+# Caution this test is very slow. Use small N!!
 def test_circumradius(dim):
-    if dim == 2:
+    if dim == 3:
         N = 5
         mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
     else:
@@ -33,8 +34,7 @@ def test_circumradius(dim):
         L = h1 * v * ds(i)
 
         # Compile UFL form
-        # cffi_options = []  # ["-Ofast", "-march=native"]
-        L = dolfinx.fem.Form(L)  # , jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+        L = dolfinx.fem.Form(L)
         b = dolfinx.fem.create_vector(L)
 
         # Normal assembly
@@ -44,8 +44,6 @@ def test_circumradius(dim):
         L2 = v * ds(i)
 
         # Compile UFL form
-        # cffi_options = []  # ["-Ofast", "-march=native"]
-        # , jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
         L2 = dolfinx.fem.Form(L2)
         b2 = dolfinx.fem.create_vector(L2)
 

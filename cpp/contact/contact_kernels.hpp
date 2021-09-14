@@ -177,7 +177,8 @@ kernel_fn generate_contact_kernel(
     xt::xarray<double> n_surf = xt::zeros<double>({gdim});
     for (int i = 0; i < gdim; i++)
       n_surf(i) = w[i + 2];
-    double gamma = w[0];
+    int c_offset = (bs - 1) * offsets[1];
+    double gamma = w[0] / c[c_offset + offsets[3] + facet_index]; // This is gamma/h
     double theta = w[1];
 
     // (n_phys * n_surf)
@@ -201,7 +202,6 @@ kernel_fn generate_contact_kernel(
     {
 
       double mu = 0;
-      int c_offset = (bs - 1) * offsets[1];
       for (int j = offsets[1]; j < offsets[2]; j++)
         mu += c[j + c_offset] * phi_coeffs(facet_index, q, j);
       double lmbda = 0;
@@ -311,7 +311,9 @@ kernel_fn generate_contact_kernel(
     xt::xarray<double> n_surf = xt::zeros<double>({gdim});
     for (int i = 0; i < gdim; i++)
       n_surf(i) = w[i + 2];
-    double gamma = w[0];
+    int c_offset = (bs - 1) * offsets[1];
+    double gamma
+        = w[0] / c[c_offset + offsets[3] + facet_index]; // This is gamma/hdouble gamma = w[0];
     double theta = w[1];
 
     // (n_phys * n_surf)
