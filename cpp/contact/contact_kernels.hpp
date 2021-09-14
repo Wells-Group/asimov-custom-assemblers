@@ -74,7 +74,7 @@ kernel_fn generate_contact_kernel(
 
   // Structures for coefficient data
   int num_coeffs = coeffs.size();
-  std::vector<int> offsets(num_coeffs + 1);
+  std::vector<int> offsets(num_coeffs + 3);
   offsets[0] = 0;
   for (int i = 1; i < num_coeffs + 1; i++)
   {
@@ -82,6 +82,8 @@ kernel_fn generate_contact_kernel(
         = coeffs[i - 1]->function_space()->element();
     offsets[i] = offsets[i - 1] + coeff_element->space_dimension() / coeff_element->block_size();
   }
+  offsets[num_coeffs + 1] = offsets[num_coeffs] + num_facets;
+  offsets[num_coeffs + 2] = offsets[num_coeffs + 1] + gdim * num_quadrature_pts * num_facets;
   xt::xtensor<double, 3> phi_coeffs({num_facets, q_weights.size(), offsets[num_coeffs]});
   xt::xtensor<double, 4> dphi_coeffs({num_facets, tdim, q_weights.size(), offsets[num_coeffs]});
   for (int i = 0; i < num_facets; ++i)
@@ -198,7 +200,8 @@ kernel_fn generate_contact_kernel(
     xt::xtensor<double, 2> dphi_phys({bs, ndofs_cell});
 
     // Loop over quadrature points
-    for (std::size_t q = 0; q < phi.shape(1); q++)
+    int num_points = phi.shape(1);
+    for (std::size_t q = 0; q < num_points; q++)
     {
 
       double mu = 0;
@@ -207,6 +210,12 @@ kernel_fn generate_contact_kernel(
       double lmbda = 0;
       for (int j = offsets[2]; j < offsets[3]; j++)
         lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
+      double gap = 0;
+      int facet_offset = c_offset + offsets[4] + facet_index * num_points * gdim;
+      for (int i = 0; i < gdim; i++)
+      {
+        gap += c[facet_offset + q * gdim + i] * n_surf(i);
+      }
 
       xt::xtensor<double, 2> tr = xt::zeros<double>({offsets[1] - offsets[0], gdim});
       xt::xtensor<double, 2> epsn = xt::zeros<double>({offsets[1] - offsets[0], gdim});
@@ -245,7 +254,8 @@ kernel_fn generate_contact_kernel(
       // Multiply  by weight
       double sign_u = (lmbda * n_dot * tr_u + mu * epsn_u);
       double R_minus = 1. / gamma * 0.5
-                       * (sign_u + gamma * u_dot_nsurf - std::abs(sign_u + gamma * u_dot_nsurf))
+                       * (sign_u + gamma * (gap + u_dot_nsurf)
+                          - std::abs(sign_u + gamma * (gap + u_dot_nsurf)))
                        * detJ * q_weights[q];
       sign_u *= -theta / gamma * detJ * q_weights[q];
       for (int j = 0; j < ndofs_cell; j++)
@@ -332,8 +342,8 @@ kernel_fn generate_contact_kernel(
     // Temporary variable for grad(phi) on physical cell
     xt::xtensor<double, 2> dphi_phys({bs, ndofs_cell});
 
-    // Loop over quadrature points
-    for (std::size_t q = 0; q < phi.shape(1); q++)
+    int num_points = phi.shape(1);
+    for (std::size_t q = 0; q < num_points; q++)
     {
 
       xt::xtensor<double, 2> tr = xt::zeros<double>({ndofs_cell, gdim});
@@ -361,7 +371,12 @@ kernel_fn generate_contact_kernel(
       double lmbda = 0;
       for (int j = offsets[2]; j < offsets[3]; j++)
         lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
-
+      double gap = 0;
+      int facet_offset = c_offset + offsets[4] + facet_index * num_points * gdim;
+      for (int i = 0; i < gdim; i++)
+      {
+        gap += c[facet_offset + q * gdim + i] * n_surf(i);
+      }
       // compute tr(eps(u)), epsn at q
       double tr_u = 0;
       double epsn_u = 0;
@@ -376,7 +391,7 @@ kernel_fn generate_contact_kernel(
           u_dot_nsurf += c[block_index + j] * n_surf(j) * phi(facet_index, q, i);
         }
       }
-      double temp = (lmbda * n_dot * tr_u + mu * epsn_u) + gamma * u_dot_nsurf;
+      double temp = (lmbda * n_dot * tr_u + mu * epsn_u) + gamma * (gap + u_dot_nsurf);
       const double w0 = q_weights[q] * detJ;
       for (int j = 0; j < ndofs_cell; j++)
       {

@@ -37,10 +37,13 @@ void contact(py::module& m)
              self.create_distance_map(origin_meshtag);
              return;
            })
+      .def("pack_gap_plane", [](dolfinx_cuas::contact::Contact& self, int origin_meshtag, double g)
+           { return dolfinx_cuas_wrappers::as_pyarray2d(self.pack_gap_plane(origin_meshtag, g)); })
       .def("map_0_to_1", &dolfinx_cuas::contact::Contact::map_0_to_1)
       .def("map_1_to_0", &dolfinx_cuas::contact::Contact::map_1_to_0)
       .def("facet_0", &dolfinx_cuas::contact::Contact::facet_0)
-      .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1);
+      .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1)
+      .def("set_quadrature_degree", &dolfinx_cuas::contact::Contact::set_quadrature_degree);
   m.def("generate_contact_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::contact::Kernel type,
            dolfinx_cuas::QuadratureRule& q_rule,

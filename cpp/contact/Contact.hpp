@@ -68,6 +68,7 @@ public:
   const int surface_1() const { return _surface_1; }
   // return quadrature degree
   const int quadrature_degree() const { return _quadrature_degree; }
+  void set_quadrature_degree(int deg) { _quadrature_degree = deg; }
 
   // Return meshtags
   std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>> meshtags() const { return _marker; }
@@ -283,6 +284,68 @@ public:
         auto dist_vec = dolfinx::geometry::compute_distance_gjk(master_coords, point);
       }
     }
+  }
+
+  /// Pack gap with rigid surface defined by x[gdim-1] = -g.
+  /// g_vec = zeros(gdim), g_vec[gdim-1] = -g
+  /// Gap = x - g_vec
+  /// @param[in] orgin_meshtag - surface on which to integrate
+  /// @param[in] g - defines location of plane
+  /// @param[out] c - gap packed on facets. c[i, gdim * k+ j] contains the jth component of the Gap
+  /// on the ith facet at kth quadrature point
+  dolfinx::array2d<PetscScalar> pack_gap_plane(int origin_meshtag, double g)
+  {
+    // Mesh info
+    auto mesh = _marker->mesh();             // mesh
+    const int gdim = mesh->geometry().dim(); // geometrical dimension
+    const int tdim = mesh->topology().dim();
+    const int fdim = tdim - 1;
+    auto mesh_geometry = mesh->geometry().x();
+    // Create _qp_ref_facet (quadrature points on reference facet)
+    auto facet_quadrature = create_reference_facet_qp(_marker->mesh(), _quadrature_degree);
+    _qp_ref_facet = facet_quadrature.first;
+    _qw_ref_facet = facet_quadrature.second;
+
+    // Tabulate basis function on reference cell (_phi_ref_facets)// Create coordinate element
+    // FIXME: For higher order geometry need basix element public in mesh
+    // auto degree = mesh->geometry().cmap()._element->degree;
+    int degree = 1;
+    auto dolfinx_cell = _marker->mesh()->topology().cell_type();
+    auto coordinate_element = basix::create_element(basix::element::family::P,
+                                                    dolfinx_cuas::to_basix_celltype(dolfinx_cell),
+                                                    degree, basix::lattice::type::equispaced);
+
+    _phi_ref_facets = tabulate_on_ref_cell(coordinate_element);
+    // Compute quadrature points on physical facet _qp_phys_"origin_meshtag"
+    create_q_phys(origin_meshtag);
+    std::vector<int32_t>* puppet_facets;
+    xt::xtensor<double, 3>* q_phys_pt;
+    if (origin_meshtag == 0)
+    {
+      puppet_facets = &_facet_0;
+      q_phys_pt = &_qp_phys_0;
+    }
+    else
+    {
+      puppet_facets = &_facet_1;
+      q_phys_pt = &_qp_phys_1;
+    }
+    int32_t num_facets = (*puppet_facets).size();
+    int32_t num_points = _qp_ref_facet.shape(1);
+    dolfinx::array2d<PetscScalar> c(num_facets, num_points * gdim, 0);
+    for (int i = 0; i < num_facets; i++)
+    {
+      auto row = c.row(i);
+      for (int k = 0; k < num_points; k++)
+      {
+        for (int j = 0; j < gdim; j++)
+        {
+          row[k * gdim + j] += (*q_phys_pt)(i, k, j);
+        }
+        row[(k + 1) * gdim - 1] += g;
+      }
+    }
+    return c;
   }
 
 private:

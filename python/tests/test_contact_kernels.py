@@ -76,7 +76,7 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     gamma = 20
 
     n_vec = np.zeros(mesh.geometry.dim)
-    n_vec[mesh.geometry.dim - 1] = -1
+    n_vec[mesh.geometry.dim - 1] = 1
     # FIXME: more general definition of n_2 needed for surface that is not a horizontal rectangular box.
     n_2 = ufl.as_vector(n_vec)  # Normal of plane (projection onto other body)
     n = ufl.FacetNormal(mesh)
@@ -92,8 +92,13 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
         # NOTE: Different normals, see summary paper
         return ufl.dot(sigma(v) * n, n_2)
 
+    # Mimicking the plane y=-g
+    g = 0.1
+    x = ufl.SpatialCoordinate(mesh)
+    gap = x[mesh.geometry.dim - 1] + g
+
     L = - h * theta / gamma * sigma_n(u) * sigma_n(v) * ds(1)
-    L += h / gamma * R_minus(sigma_n(u) + (gamma / h) * ufl.dot(u, n_2)) * \
+    L += h / gamma * R_minus(sigma_n(u) + (gamma / h) * (gap + ufl.dot(u, n_2))) * \
         (theta * sigma_n(v) + (gamma / h) * ufl.dot(v, n_2)) * ds(1)
     # Compile UFL form
     cffi_options = ["-O2", "-march=native"]
@@ -107,16 +112,20 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
 
     # Custom assembly
     # num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    # FIXME: assuming all facets are the same type
+    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, 2 * P + Q + 1, "default")
     consts = np.array([gamma, theta])
     consts = np.hstack((consts, n_vec))
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     h_facets = dolfinx_cuas.cpp.pack_circumradius_facet(mesh, facets)
     h_cells = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, h_facets, 1)
-    coeffs = np.hstack([coeffs, h_cells])
+    contact = dolfinx_cuas.cpp.contact.Contact(ft, 1, 1, V._cpp_object)
+    contact.set_quadrature_degree(2 * P + Q + 1)
+    g_vec = contact.pack_gap_plane(0, g)
+    g_vec_c = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, g_vec, dim * q_rule.weights.size)
+    coeffs = np.hstack([coeffs, h_cells, g_vec_c])
     b2 = dolfinx.fem.create_vector(L)
-    # FIXME: assuming all facets are the same type
-    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, 2 * P + Q + 1, "default")
     kernel = dolfinx_cuas.cpp.contact.generate_contact_kernel(V._cpp_object, kernel_type, q_rule,
                                                               [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     b2.zeroEntries()
@@ -180,7 +189,7 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     gamma = 20
 
     n_vec = np.zeros(mesh.geometry.dim)
-    n_vec[mesh.geometry.dim - 1] = -1
+    n_vec[mesh.geometry.dim - 1] = 1
     # FIXME: more general definition of n_2 needed for surface that is not a horizontal rectangular box.
     n_2 = ufl.as_vector(n_vec)  # Normal of plane (projection onto other body)
     n = ufl.FacetNormal(mesh)
@@ -195,8 +204,13 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     def sigma_n(v):
         # NOTE: Different normals, see summary paper
         return ufl.dot(sigma(v) * n, n_2)
+
+    # Mimicking the plane y=-g
+    g = 0.1
+    x = ufl.SpatialCoordinate(mesh)
+    gap = x[mesh.geometry.dim - 1] + g
     h = ufl.Circumradius(mesh)
-    q = sigma_n(u) + gamma / h * (ufl.dot(u, n_2))
+    q = sigma_n(u) + gamma / h * (gap + ufl.dot(u, n_2))
     a = - h * theta / gamma * sigma_n(du) * sigma_n(v) * ds(1)
     a += h / gamma * 0.5 * (1 - ufl.sign(q)) * (sigma_n(du) + gamma / h * ufl.dot(du, n_2)) * \
         (theta * sigma_n(v) + gamma / h * ufl.dot(v, n_2)) * ds(1)
@@ -211,17 +225,21 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     A.assemble()
 
     # Custom assembly
+    # FIXME: assuming all facets are the same type
+    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, 2 * P + Q + 1, "default")
     consts = np.array([gamma, theta])
     consts = np.hstack((consts, n_vec))
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     h_facets = dolfinx_cuas.cpp.pack_circumradius_facet(mesh, facets)
     h_cells = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, h_facets, 1)
-    coeffs = np.hstack([coeffs, h_cells])
+    contact = dolfinx_cuas.cpp.contact.Contact(ft, 1, 1, V._cpp_object)
+    contact.set_quadrature_degree(2 * P + Q + 1)
+    g_vec = contact.pack_gap_plane(0, g)
+    g_vec_c = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, g_vec, dim * q_rule.weights.size)
+    coeffs = np.hstack([coeffs, h_cells, g_vec_c])
 
     B = dolfinx.fem.create_matrix(a)
-    # FIXME: assuming all facets are the same type
-    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, 2 * P + Q + 1, "default")
     kernel = dolfinx_cuas.cpp.contact.generate_contact_kernel(
         V._cpp_object, kernel_type, q_rule, [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     B.zeroEntries()
