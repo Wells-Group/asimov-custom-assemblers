@@ -64,6 +64,7 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     h = ufl.Circumradius(mesh)
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
+    dx = ufl.Measure("dx", domain=mesh)
 
     V2 = dolfinx.FunctionSpace(mesh, ("DG", Q))
     lmbda = dolfinx.Function(V2)
@@ -96,8 +97,8 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     g = 0.1
     x = ufl.SpatialCoordinate(mesh)
     gap = x[mesh.geometry.dim - 1] + g
-
-    L = - h * theta / gamma * sigma_n(u) * sigma_n(v) * ds(1)
+    L = ufl.inner(sigma(u), epsilon(v)) * dx
+    L += - h * theta / gamma * sigma_n(u) * sigma_n(v) * ds(1)
     L += h / gamma * R_minus(sigma_n(u) + (gamma / h) * (gap + ufl.dot(u, n_2))) * \
         (theta * sigma_n(v) + (gamma / h) * ufl.dot(v, n_2)) * ds(1)
     # Compile UFL form
@@ -125,11 +126,14 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     g_vec = contact.pack_gap_plane(0, g)
     g_vec_c = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, g_vec, dim * q_rule.weights.size)
     coeffs = np.hstack([coeffs, h_cells, g_vec_c])
-    b2 = dolfinx.fem.create_vector(L)
+    L_cuas = ufl.inner(sigma(u), epsilon(v)) * dx
+    L_cuas = dolfinx.fem.Form(L_cuas)
+    b2 = dolfinx.fem.create_vector(L_cuas)
     kernel = dolfinx_cuas.cpp.contact.generate_contact_kernel(V._cpp_object, kernel_type, q_rule,
                                                               [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     b2.zeroEntries()
     dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+    dolfinx.fem.assemble_vector(b2, L_cuas)
     b2.assemble()
     assert np.allclose(b.array, b2.array)
 
@@ -154,6 +158,7 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     du = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
+    dx = ufl.Measure("dx", domain=mesh)
 
     def f(x):
         values = np.zeros((mesh.geometry.dim, x.shape[1]))
@@ -211,7 +216,8 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     gap = x[mesh.geometry.dim - 1] + g
     h = ufl.Circumradius(mesh)
     q = sigma_n(u) + gamma / h * (gap + ufl.dot(u, n_2))
-    a = - h * theta / gamma * sigma_n(du) * sigma_n(v) * ds(1)
+    a = ufl.inner(sigma(du), epsilon(v)) * dx
+    a += - h * theta / gamma * sigma_n(du) * sigma_n(v) * ds(1)
     a += h / gamma * 0.5 * (1 - ufl.sign(q)) * (sigma_n(du) + gamma / h * ufl.dot(du, n_2)) * \
         (theta * sigma_n(v) + gamma / h * ufl.dot(v, n_2)) * ds(1)
     # Compile UFL form
@@ -238,12 +244,14 @@ def test_matrix_surface_kernel(dim, kernel_type, P, Q):
     g_vec = contact.pack_gap_plane(0, g)
     g_vec_c = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, g_vec, dim * q_rule.weights.size)
     coeffs = np.hstack([coeffs, h_cells, g_vec_c])
-
-    B = dolfinx.fem.create_matrix(a)
+    a_cuas = ufl.inner(sigma(du), epsilon(v)) * dx
+    a_cuas = dolfinx.fem.Form(a_cuas)
+    B = dolfinx.fem.create_matrix(a_cuas)
     kernel = dolfinx_cuas.cpp.contact.generate_contact_kernel(
         V._cpp_object, kernel_type, q_rule, [u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+    dolfinx.fem.assemble_matrix(B, a_cuas)
     B.assemble()
 
     # Compare matrices, first norm, then entries
