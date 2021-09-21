@@ -253,10 +253,11 @@ kernel_fn generate_contact_kernel(
 
       // Multiply  by weight
       double sign_u = (lmbda * n_dot * tr_u + mu * epsn_u);
-      double R_minus = 1. / gamma * 0.5
-                       * (sign_u + gamma * (gap + u_dot_nsurf)
-                          - std::abs(sign_u + gamma * (gap + u_dot_nsurf)))
-                       * detJ * q_weights[q];
+      double R_minus = 1. / gamma * sign_u + (gap + u_dot_nsurf);
+      if (R_minus > 0)
+        R_minus = 0;
+      else
+        R_minus = R_minus * detJ * q_weights[q];
       sign_u *= -theta / gamma * detJ * q_weights[q];
       for (int j = 0; j < ndofs_cell; j++)
       {
