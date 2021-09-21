@@ -27,8 +27,8 @@ public:
   QuadratureRule(dolfinx::mesh::CellType ct, int degree, std::string type = "default")
   {
     std::pair<xt::xarray<double>, std::vector<double>> quadrature
-        = basix::quadrature::make_quadrature(
-            type, basix::cell::str_to_type(dolfinx::mesh::to_string(ct)), degree);
+        = basix::quadrature::make_quadrature(type, dolfinx::mesh::cell_type_to_basix_type(ct),
+                                             degree);
     // NOTE: Conversion could be easier if return-type had been nicer from Basix
     // Currently we need to determine the dimension of the quadrature rule and reshape data
     // accordingly
