@@ -48,11 +48,6 @@ get_cell_local_facet_pairs(std::int32_t f, const xtl::span<const std::int32_t>& 
 
   return cell_local_facet_pairs;
 }
-/// Convert DOLFINx CellType to basix cell type
-const basix::cell::type to_basix_celltype(dolfinx::mesh::CellType celltype)
-{
-  return basix::cell::str_to_type(dolfinx::mesh::to_string(celltype));
-}
 
 /// Given a mesh and an entity dimension, return the corresponding basix element of the entity
 /// @param[in] mesh The mesh
@@ -76,13 +71,15 @@ basix::FiniteElement mesh_to_basix_element(std::shared_ptr<const dolfinx::mesh::
     // FIXME: assuming all facets have the same cell type
     const dolfinx::mesh::CellType dolfinx_facet
         = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim, 0);
-    return basix::create_element(basix::element::family::P, to_basix_celltype(dolfinx_facet),
-                                 degree, basix::lattice::type::equispaced);
+    return basix::create_element(basix::element::family::P,
+                                 dolfinx::mesh::cell_type_to_basix_type(dolfinx_facet), degree,
+                                 basix::element::lagrange_variant::equispaced);
   }
   if (dim == tdim)
   {
-    return basix::create_element(basix::element::family::P, to_basix_celltype(dolfinx_cell), degree,
-                                 basix::lattice::type::equispaced);
+    return basix::create_element(basix::element::family::P,
+                                 dolfinx::mesh::cell_type_to_basix_type(dolfinx_cell), degree,
+                                 basix::element::lagrange_variant::equispaced);
   }
   else
     throw std::runtime_error("Does not support elements of edges and vertices");
@@ -99,7 +96,8 @@ create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int q
   const int tdim = mesh->topology().dim(); // topological dimension
   const int fdim = tdim - 1;               // topological dimesnion of facet
 
-  const basix::cell::type basix_cell = to_basix_celltype(mesh->topology().cell_type());
+  const basix::cell::type basix_cell
+      = dolfinx::mesh::cell_type_to_basix_type(mesh->topology().cell_type());
 
   // Create basix facet coordinate element
   const basix::FiniteElement surface_element = mesh_to_basix_element(mesh, fdim);
@@ -287,14 +285,14 @@ pack_coefficient_quadrature(std::shared_ptr<const dolfinx::fem::Function<PetscSc
 
   // Tabulate element at quadrature points
   // NOTE: Assuming no derivatives for now, should be reconsidered later
-  const std::string cell_type = dolfinx::mesh::to_string(mesh->topology().cell_type());
+  auto cell_type = mesh->topology().cell_type();
   const std::size_t num_dofs = element->space_dimension();
   const std::size_t bs = dofmap->bs();
   const std::size_t vs = element->reference_value_size() / element->block_size();
 
   // Tabulate function at quadrature points
-  auto [points, weights]
-      = basix::quadrature::make_quadrature("default", basix::cell::str_to_type(cell_type), q);
+  auto [points, weights] = basix::quadrature::make_quadrature(
+      "default", dolfinx::mesh::cell_type_to_basix_type(cell_type), q);
   const std::size_t num_points = weights.size();
   xt::xtensor<double, 4> coeff_basis({1, num_points, num_dofs, vs});
   element->tabulate(coeff_basis, points, 0);

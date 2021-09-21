@@ -29,9 +29,6 @@ namespace dolfinx_cuas
 basix::FiniteElement mesh_to_basix_element(std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
                                            const int dim);
 
-/// Convert DOLFINx CellType to basix cell type
-const basix::cell::type to_basix_celltype(dolfinx::mesh::CellType celltype);
-
 // Compute quadrature points and weights on all facets of the reference cell
 /// by pushing them forward from the reference facet.
 /// @param[in] mesh The mesh
