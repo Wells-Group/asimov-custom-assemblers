@@ -69,7 +69,7 @@ def facet_master_puppet_relation(mesh, puppet_facets, candidate_facets, quadratu
 
         # Push forward quadrature points on reference facet to reference cell
         surface_element = basix.create_element(basix.finite_element.string_to_family("Lagrange", surface_str),
-                                               basix.cell.string_to_type(surface_str), 
+                                               basix.cell.string_to_type(surface_str),
                                                degree, basix.LagrangeVariant.equispaced)
         c_tab = surface_element.tabulate_x(0, quadrature_points)
         phi_s = c_tab[0, :, :, 0]  # Assuming value_size == 1 for coordinate element
