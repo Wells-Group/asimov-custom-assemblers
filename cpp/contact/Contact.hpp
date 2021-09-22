@@ -240,11 +240,13 @@ public:
       _map_0_to_1 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
     else
       _map_1_to_0 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
-
-    evaluate(origin_meshtag);
   }
 
-  void evaluate(int origin_meshtag)
+  /// Pack initial gap
+  /// @param[in] orgin_meshtag - surface on which to integrate
+  /// @param[out] c - gap packed on facets. c[i, gdim * k+ j] contains the jth component of the Gap
+  /// on the ith facet at kth quadrature point
+  dolfinx::array2d<PetscScalar> pack_gap(int origin_meshtag)
   {
     // Mesh info
     auto mesh = _marker->mesh();             // mesh
@@ -267,12 +269,14 @@ public:
       map = _map_1_to_0;
       q_phys_pt = &_qp_phys_1;
     }
-
-    for (int i = 0; i < (*puppet_facets).size(); ++i)
+    int32_t num_facets = (*puppet_facets).size();
+    int32_t num_points = _qp_ref_facet.shape(1);
+    dolfinx::array2d<PetscScalar> c(num_facets, num_points * gdim, 0);
+    for (int i = 0; i < num_facets; ++i)
     {
       auto links = map->links(i);
       auto master_facet_geometry = dolfinx::mesh::entities_to_geometry(*mesh, fdim, links, false);
-
+      auto row = c.row(i);
       for (int j = 0; j < map->num_links(i); ++j)
       {
         xt::xtensor<double, 2> point = {{0, 0, 0}};
@@ -282,8 +286,13 @@ public:
         auto master_coords = xt::view(mesh_geometry, xt::keep(master_facet), xt::all());
 
         auto dist_vec = dolfinx::geometry::compute_distance_gjk(master_coords, point);
+        for (int k = 0; k < gdim; k++)
+        {
+          row[j * gdim + k] -= dist_vec(k);
+        }
       }
     }
+    return c;
   }
 
   /// Pack gap with rigid surface defined by x[gdim-1] = -g.
