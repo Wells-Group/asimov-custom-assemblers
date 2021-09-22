@@ -23,7 +23,7 @@ namespace
 /// Provides easier interface to dolfinx::fem::impl::assemble_exterior_facets
 /// @param[in] mat_set the function for setting the values in the matrix
 /// @param[in] V the function space
-/// @param[in] facets list of tuples; cell index (local to process) and facet index (local to cell)
+/// @param[in] active_facets list of indices (local to process) of facets to be integrated over
 /// @param[in] kernel the custom integration kernel
 /// @param[in] coeffs coefficients used in the variational form
 /// @param[in] constants used in the variational form
