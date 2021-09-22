@@ -17,6 +17,7 @@
 #include <dolfinx/graph/AdjacencyList.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/mesh/MeshTags.h>
+#include <dolfinx/mesh/cell_types.h>
 #include <dolfinx_cuas/utils.hpp>
 #include <iostream>
 #include <xtensor-blas/xlinalg.hpp>
@@ -177,9 +178,9 @@ public:
     // auto degree = mesh->geometry().cmap()._element->degree;
     int degree = 1;
     auto dolfinx_cell = _marker->mesh()->topology().cell_type();
-    auto coordinate_element = basix::create_element(basix::element::family::P,
-                                                    dolfinx_cuas::to_basix_celltype(dolfinx_cell),
-                                                    degree, basix::lattice::type::equispaced);
+    auto coordinate_element = basix::create_element(
+        basix::element::family::P, dolfinx::mesh::cell_type_to_basix_type(dolfinx_cell), degree,
+        basix::element::lagrange_variant::equispaced);
 
     _phi_ref_facets = tabulate_on_ref_cell(coordinate_element);
     // Compute quadrature points on physical facet _qp_phys_"origin_meshtag"
