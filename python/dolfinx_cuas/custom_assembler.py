@@ -100,7 +100,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
     ct_string = dolfinx.cpp.mesh.to_string(V.mesh.topology.cell_type)
     ct = basix.cell.string_to_type(ct_string)
     element = basix.create_element(basix.finite_element.string_to_family(
-        family, ct_string), ct, V.ufl_element().degree(), basix.LatticeType.equispaced)
+        family, ct_string), ct, V.ufl_element().degree(), basix.LagrangeVariant.equispaced)
 
     # Extract data required for dof transformations
     # NOTE: this is untested since now only relevant for non-Lagrange spaces.
@@ -132,7 +132,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
 
         # Create coordinate element and tabulate basis functions for pullback
         c_element = basix.create_element(basix.finite_element.string_to_family(
-            ufc_family, ct_string), ct, ufl_c_el.degree(), basix.LatticeType.equispaced)
+            ufc_family, ct_string), ct, ufl_c_el.degree(), basix.LagrangeVariant.equispaced)
         c_tab = c_element.tabulate_x(1, q_p)
 
         if int_type == "mass":
@@ -160,11 +160,12 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
         num_dofs_x = facet_geom.shape[1]
 
         # Create coordinate element for facet
+        # FIXME: Does not work for prism meshes
         surface_str = dolfinx.cpp.mesh.to_string(dolfinx.cpp.mesh.cell_entity_type(
-            mesh.topology.cell_type, mesh.topology.dim - 1))
+            mesh.topology.cell_type, mesh.topology.dim - 1, 0))
         surface_cell_type = basix.cell.string_to_type(surface_str)
         surface_element = basix.create_element(basix.finite_element.string_to_family(
-            family, surface_str), surface_cell_type, ufl_c_el.degree(), basix.LatticeType.equispaced)
+            family, surface_str), surface_cell_type, ufl_c_el.degree(), basix.LagrangeVariant.equispaced)
 
         # Tabulate reference coordinate element basis functions for facets at quadrature points.
         # Shape is (derivatives, num_quadrature_point, num_basis_functions, value_size)

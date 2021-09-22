@@ -62,9 +62,29 @@ void assemble_exterior_facets(
   }
   // FIXME: Need to reconsider facet permutations for jump integrals
   auto get_perm = [](std::size_t) { return 0; };
+
+  // Create facet tuple: cell_index (local to process) and facet_index (local to cell)
+  int tdim = mesh->topology().dim();
+  auto f_to_c = mesh->topology().connectivity(tdim - 1, tdim);
+  assert(f_to_c);
+  auto c_to_f = mesh->topology().connectivity(tdim, tdim - 1);
+  assert(c_to_f);
+  std::vector<std::pair<std::int32_t, int>> facets;
+  facets.reserve(active_facets.size());
+  for (auto facet : active_facets)
+  {
+    auto cells = f_to_c->links(facet);
+    assert(cells.size() == 1);
+    auto cell_facets = c_to_f->links(cells[0]);
+    const auto* it = std::find(cell_facets.data(), cell_facets.data() + cell_facets.size(), facet);
+    assert(it != (cell_facets.data() + cell_facets.size()));
+    const int local_facet = std::distance(cell_facets.data(), it);
+    facets.push_back({cells[0], local_facet});
+  }
+
   // Assemble using dolfinx
   dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(
-      mat_set, *mesh, active_facets, apply_dof_transformation, dofs, bs,
+      mat_set, *mesh, facets, apply_dof_transformation, dofs, bs,
       apply_dof_transformation_to_transpose, dofs, bs, bc, bc, kernel, coeffs, constants, cell_info,
       get_perm);
 }

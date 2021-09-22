@@ -42,7 +42,7 @@ kernel_fn generate_coefficient_kernel(
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element
-      = basix::create_element(family, cell, P, basix::lattice::type::equispaced);
+      = basix::create_element(family, cell, P, basix::element::lagrange_variant::equispaced);
   xt::xtensor<double, 4> basis = element.tabulate(1, points);
   xt::xtensor<double, 2> phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
 
@@ -65,7 +65,7 @@ kernel_fn generate_coefficient_kernel(
 
   // Get coordinate element from dolfinx
   basix::FiniteElement coordinate_element
-      = basix::create_element(family, cell, 1, basix::lattice::type::equispaced);
+      = basix::create_element(family, cell, 1, basix::element::lagrange_variant::equispaced);
   xt::xtensor<double, 4> coordinate_basis = coordinate_element.tabulate(1, points);
 
   xt::xtensor<double, 2> dphi0_c

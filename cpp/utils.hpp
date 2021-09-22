@@ -21,11 +21,6 @@
 
 namespace dolfinx_cuas
 {
-/// Convert DOLFINx CellType to basix cell type
-const basix::cell::type to_basix_celltype(dolfinx::mesh::CellType celltype)
-{
-  return basix::cell::str_to_type(dolfinx::mesh::to_string(celltype));
-}
 
 /// Given a mesh and an entity dimension, return the corresponding basix element of the entity
 /// @param[in] mesh The mesh
@@ -46,15 +41,19 @@ basix::FiniteElement mesh_to_basix_element(std::shared_ptr<const dolfinx::mesh::
   const dolfinx::mesh::CellType dolfinx_cell = mesh->topology().cell_type();
   if (dim == fdim)
   {
+    // FIXME: This will not be correct for prism meshes, as we would need to create multiple basix
+    // elements
     const dolfinx::mesh::CellType dolfinx_facet
-        = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim);
-    return basix::create_element(basix::element::family::P, to_basix_celltype(dolfinx_facet),
-                                 degree, basix::lattice::type::equispaced);
+        = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim, 0);
+    return basix::create_element(basix::element::family::P,
+                                 dolfinx::mesh::cell_type_to_basix_type(dolfinx_facet), degree,
+                                 basix::element::lagrange_variant::equispaced);
   }
   if (dim == tdim)
   {
-    return basix::create_element(basix::element::family::P, to_basix_celltype(dolfinx_cell), degree,
-                                 basix::lattice::type::equispaced);
+    return basix::create_element(basix::element::family::P,
+                                 dolfinx::mesh::cell_type_to_basix_type(dolfinx_cell), degree,
+                                 basix::element::lagrange_variant::equispaced);
   }
   else
     throw std::runtime_error("Does not support elements of edges and vertices");
@@ -71,7 +70,8 @@ create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int q
   const int tdim = mesh->topology().dim(); // topological dimension
   const int fdim = tdim - 1;               // topological dimesnion of facet
 
-  const basix::cell::type basix_cell = to_basix_celltype(mesh->topology().cell_type());
+  const basix::cell::type basix_cell
+      = dolfinx::mesh::cell_type_to_basix_type(mesh->topology().cell_type());
 
   // Create basix facet coordinate element
   const basix::FiniteElement surface_element = mesh_to_basix_element(mesh, fdim);
