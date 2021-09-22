@@ -78,7 +78,7 @@ jobs:
       - name: Run tests
         run: |
           cd python/tests
-          python3 -m pytest ./test_vector_kernels.py -vs
+          python3 -m pytest -vs
 
       - name: Run demos
         run: |

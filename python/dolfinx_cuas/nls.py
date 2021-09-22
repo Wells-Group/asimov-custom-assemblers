@@ -3,7 +3,6 @@
 # SPDX-License-Identifier:    MIT
 
 import typing
-import ufl
 from petsc4py import PETSc
 from dolfinx import fem, cpp
 import mpi4py
@@ -18,7 +17,9 @@ class NonlinearProblemCUAS:
     """
 
     def __init__(self, F: typing.Callable[[PETSc.Vec, PETSc.Vec], None],
-                 J: typing.Callable[[PETSc.Vec, PETSc.Mat], None], create_b: typing.Callable[[], PETSc.Vec], create_A: typing.Callable[[], PETSc.Mat], bcs: typing.List[fem.DirichletBC] = [], form_compiler_parameters={}, jit_parameters={}):
+                 J: typing.Callable[[PETSc.Vec, PETSc.Mat], None],
+                 create_b: typing.Callable[[], PETSc.Vec], create_A: typing.Callable[[], PETSc.Mat],
+                 bcs: typing.List[fem.DirichletBC] = [], form_compiler_parameters={}, jit_parameters={}):
         """Initialize class that sets up structures for solving the non-linear problem using Newton's method,
         dF/du(u) du = -F(u)
 

@@ -45,7 +45,8 @@ int main(int argc, char* argv[])
 
   // Generate boundary kernel
   const std::int32_t tdim = mesh->topology().dim();
-  // FIXME: assuming all facets have the same cell type
+
+  // NOTE: Does not work for prism meshes
   dolfinx::mesh::CellType facet_type
       = dolfinx::mesh::cell_entity_type(mesh->topology().cell_type(), tdim - 1, 0);
   dolfinx_cuas::QuadratureRule q_rule(facet_type, 2 * (Q - 1));

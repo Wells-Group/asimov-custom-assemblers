@@ -64,24 +64,23 @@ void assemble_exterior_facets(
   // FIXME: Need to reconsider facet permutations for jump integrals
   auto get_perm = [](std::size_t) { return 0; };
 
-  // FIXME: Not sure if this is the right place to do this.
-  const std::size_t tdim = mesh->topology().dim();
-  const std::size_t gdim = mesh->geometry().dim();
-  const std::size_t fdim = tdim - 1;
-  const std::int32_t num_facets = active_facets.size();
-  // FIXME: move out of function
-  mesh->topology_mutable().create_connectivity(fdim, tdim);
-  auto f_to_c = mesh->topology().connectivity(fdim, tdim);
-  mesh->topology_mutable().create_connectivity(tdim, fdim);
-  auto c_to_f = mesh->topology().connectivity(tdim, fdim);
+  // Create facet tuple: cell_index (local to process) and facet_index (local to cell)
+  int tdim = mesh->topology().dim();
+  auto f_to_c = mesh->topology().connectivity(tdim - 1, tdim);
+  assert(f_to_c);
+  auto c_to_f = mesh->topology().connectivity(tdim, tdim - 1);
+  assert(c_to_f);
   std::vector<std::pair<std::int32_t, int>> facets;
-  for (int i = 0; i < num_facets; i++)
+  facets.reserve(active_facets.size());
+  for (auto facet : active_facets)
   {
-    auto f = active_facets[i];
-    assert(f_to_c->num_links(f) == 1);
-    std::pair<std::int32_t, int> pair
-        = dolfinx_cuas::get_cell_local_facet_pairs<1>(f, f_to_c->links(f), *c_to_f)[0];
-    facets.push_back(pair);
+    auto cells = f_to_c->links(facet);
+    assert(cells.size() == 1);
+    auto cell_facets = c_to_f->links(cells[0]);
+    const auto* it = std::find(cell_facets.data(), cell_facets.data() + cell_facets.size(), facet);
+    assert(it != (cell_facets.data() + cell_facets.size()));
+    const int local_facet = std::distance(cell_facets.data(), it);
+    facets.push_back({cells[0], local_facet});
   }
 
   // Assemble using dolfinx

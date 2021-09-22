@@ -16,6 +16,7 @@
 #include <dolfinx/graph/AdjacencyList.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/mesh/MeshTags.h>
+#include <dolfinx/mesh/cell_types.h>
 #include <dolfinx_cuas/utils.h>
 #include <iostream>
 #include <xtensor-blas/xlinalg.hpp>

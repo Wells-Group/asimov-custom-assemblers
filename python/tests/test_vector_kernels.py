@@ -93,8 +93,7 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     b2 = dolfinx.fem.create_vector(L)
-
-    # FIXME: assuming all facets have the same cell type
+    # FIXME: Does not work for prism meshes
     facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, P + 1, "default")
     kernel = dolfinx_cuas.cpp.generate_surface_vector_kernel(V._cpp_object, kernel_type, q_rule)
