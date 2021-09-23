@@ -28,7 +28,8 @@ enum Kernel
 kernel_fn generate_contact_kernel(
     std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::contact::Kernel type,
     dolfinx_cuas::QuadratureRule& quadrature_rule,
-    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
+    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs,
+    bool constant_normal)
 {
 
   auto mesh = V->mesh();
@@ -133,9 +134,9 @@ kernel_fn generate_contact_kernel(
   // =====================================================================================
   kernel_fn nitsche_rigid_rhs
       = [dphi_c, phi, dphi, phi_coeffs, dphi_coeffs, offsets, num_coeffs, gdim, tdim, fdim,
-         q_weights, num_coordinate_dofs, ref_jacobians, bs,
-         facet_normals](double* b, const double* c, const double* w, const double* coordinate_dofs,
-                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+         q_weights, num_coordinate_dofs, ref_jacobians, bs, facet_normals, constant_normal](
+            double* b, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // assumption that the vector function space has block size tdim
     assert(bs == gdim);
@@ -175,18 +176,24 @@ kernel_fn generate_contact_kernel(
         n_phys[i] += K(j, i) * facet_normal[j];
     n_phys /= xt::linalg::norm(n_phys);
 
-    // FIXME: Normal of rigid surface hard coded for now
+    // Retrieve normal of rigid surface if constant
     xt::xarray<double> n_surf = xt::zeros<double>({gdim});
-    for (int i = 0; i < gdim; i++)
-      n_surf(i) = w[i + 2];
+    if (constant_normal)
+    {
+      for (int i = 0; i < gdim; i++)
+        n_surf(i) = w[i + 2];
+    }
     int c_offset = (bs - 1) * offsets[1];
     double gamma = w[0] / c[c_offset + offsets[3] + facet_index]; // This is gamma/h
     double theta = w[1];
 
-    // (n_phys * n_surf)
+    // If surface normal constant precompute (n_phys * n_surf)
     double n_dot = 0;
-    for (int i = 0; i < gdim; i++)
-      n_dot += n_phys(i) * n_surf(i);
+    if (constant_normal)
+    {
+      for (int i = 0; i < gdim; i++)
+        n_dot += n_phys(i) * n_surf(i);
+    }
 
     // Compute det(J_C J_f) as it is the mapping to the reference facet
     xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
@@ -211,10 +218,22 @@ kernel_fn generate_contact_kernel(
       for (int j = offsets[2]; j < offsets[3]; j++)
         lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
       double gap = 0;
-      int facet_offset = c_offset + offsets[4] + facet_index * num_points * gdim;
+      int gap_offset = c_offset + offsets[4] + facet_index * num_points * gdim;
+      // if normal not constant, get surface normal at current quadrature point
+      if (!constant_normal)
+      {
+        int normal_offset = c_offset + offsets[5] + facet_index * num_points * gdim;
+        n_dot = 0;
+        for (int i = 0; i < gdim; i++)
+        {
+
+          n_surf(i) = c[normal_offset + q * gdim + i];
+          n_dot += n_phys(i) * n_surf(i);
+        }
+      }
       for (int i = 0; i < gdim; i++)
       {
-        gap += c[facet_offset + q * gdim + i] * n_surf(i);
+        gap += c[gap_offset + q * gdim + i] * n_surf(i);
       }
 
       xt::xtensor<double, 2> tr = xt::zeros<double>({offsets[1] - offsets[0], gdim});
@@ -276,9 +295,9 @@ kernel_fn generate_contact_kernel(
   // =====================================================================================
   kernel_fn nitsche_rigid_jacobian
       = [dphi_c, phi, dphi, phi_coeffs, dphi_coeffs, offsets, num_coeffs, gdim, tdim, fdim,
-         q_weights, num_coordinate_dofs, ref_jacobians, bs,
-         facet_normals](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+         q_weights, num_coordinate_dofs, ref_jacobians, bs, facet_normals, constant_normal](
+            double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // assumption that the vector function space has block size tdim
     assert(bs == gdim);
@@ -318,19 +337,25 @@ kernel_fn generate_contact_kernel(
         n_phys[i] += K(j, i) * facet_normal[j];
     n_phys /= xt::linalg::norm(n_phys);
 
-    // FIXME: Normal of rigid surface hard coded for now
+    // Retrieve normal of rigid surface if constant
     xt::xarray<double> n_surf = xt::zeros<double>({gdim});
-    for (int i = 0; i < gdim; i++)
-      n_surf(i) = w[i + 2];
+    if (constant_normal)
+    {
+      for (int i = 0; i < gdim; i++)
+        n_surf(i) = w[i + 2];
+    }
     int c_offset = (bs - 1) * offsets[1];
     double gamma
         = w[0] / c[c_offset + offsets[3] + facet_index]; // This is gamma/hdouble gamma = w[0];
     double theta = w[1];
 
-    // (n_phys * n_surf)
+    // If surface normal constant precompute (n_phys * n_surf)
     double n_dot = 0;
-    for (int i = 0; i < gdim; i++)
-      n_dot += n_phys(i) * n_surf(i);
+    if (constant_normal)
+    {
+      for (int i = 0; i < gdim; i++)
+        n_dot += n_phys(i) * n_surf(i);
+    }
 
     // Compute det(J_C J_f) as it is the mapping to the reference facet
     xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
@@ -373,10 +398,22 @@ kernel_fn generate_contact_kernel(
       for (int j = offsets[2]; j < offsets[3]; j++)
         lmbda += c[j + c_offset] * phi_coeffs(facet_index, q, j);
       double gap = 0;
-      int facet_offset = c_offset + offsets[4] + facet_index * num_points * gdim;
+      int gap_offset = c_offset + offsets[4] + facet_index * num_points * gdim;
+      // if normal not constant, get surface normal at current quadrature point
+      if (!constant_normal)
+      {
+        int normal_offset = c_offset + offsets[5] + facet_index * num_points * gdim;
+        n_dot = 0;
+        for (int i = 0; i < gdim; i++)
+        {
+
+          n_surf(i) = c[normal_offset + q * gdim + i];
+          n_dot += n_phys(i) * n_surf(i);
+        }
+      }
       for (int i = 0; i < gdim; i++)
       {
-        gap += c[facet_offset + q * gdim + i] * n_surf(i);
+        gap += c[gap_offset + q * gdim + i] * n_surf(i);
       }
       // compute tr(eps(u)), epsn at q
       double tr_u = 0;
