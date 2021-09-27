@@ -361,7 +361,7 @@ def test_surface_non_affine(P, vector, dim):
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kt.MassNonAffine, q_rule)
 
     B.zeroEntries()
-    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, consts, coeffs, it.exterior_facet)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     B.assemble()
 
     # Compare matrices, first norm, then entries

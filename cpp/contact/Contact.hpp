@@ -244,9 +244,9 @@ public:
 
   /// Pack initial gap
   /// @param[in] orgin_meshtag - surface on which to integrate
-  /// @param[out] c - gap packed on facets. c[i, gdim * k+ j] contains the jth component of the Gap
-  /// on the ith facet at kth quadrature point
-  dolfinx::array2d<PetscScalar> pack_gap(int origin_meshtag)
+  /// @param[out] c - gap packed on facets. c[i*cstride +  gdim * k+ j] contains the jth component
+  /// of the Gap on the ith facet at kth quadrature point
+  std::pair<std::vector<PetscScalar>, int> pack_gap(int origin_meshtag)
   {
     // Mesh info
     auto mesh = _marker->mesh();             // mesh
@@ -271,12 +271,13 @@ public:
     }
     int32_t num_facets = (*puppet_facets).size();
     int32_t num_points = _qp_ref_facet.shape(1);
-    dolfinx::array2d<PetscScalar> c(num_facets, num_points * gdim, 0);
+    std::vector<PetscScalar> c(num_facets * num_points * gdim, 0.0);
+    const int cstride = num_points * gdim;
     for (int i = 0; i < num_facets; ++i)
     {
       auto links = map->links(i);
       auto master_facet_geometry = dolfinx::mesh::entities_to_geometry(*mesh, fdim, links, false);
-      auto row = c.row(i);
+      int offset = i * cstride;
       for (int j = 0; j < map->num_links(i); ++j)
       {
         xt::xtensor<double, 2> point = {{0, 0, 0}};
@@ -288,11 +289,11 @@ public:
         auto dist_vec = dolfinx::geometry::compute_distance_gjk(master_coords, point);
         for (int k = 0; k < gdim; k++)
         {
-          row[j * gdim + k] -= dist_vec(k);
+          c[offset + j * gdim + k] -= dist_vec(k);
         }
       }
     }
-    return c;
+    return {std::move(c), cstride};
   }
 
   /// Pack gap with rigid surface defined by x[gdim-1] = -g.
@@ -302,7 +303,7 @@ public:
   /// @param[in] g - defines location of plane
   /// @param[out] c - gap packed on facets. c[i, gdim * k+ j] contains the jth component of the Gap
   /// on the ith facet at kth quadrature point
-  dolfinx::array2d<PetscScalar> pack_gap_plane(int origin_meshtag, double g)
+  std::pair<std::vector<PetscScalar>, int> pack_gap_plane(int origin_meshtag, double g)
   {
     // Mesh info
     auto mesh = _marker->mesh();             // mesh
@@ -341,20 +342,21 @@ public:
     }
     int32_t num_facets = (*puppet_facets).size();
     int32_t num_points = _qp_ref_facet.shape(1);
-    dolfinx::array2d<PetscScalar> c(num_facets, num_points * gdim, 0);
+    std::vector<PetscScalar> c(num_facets * num_points * gdim, 0.0);
+    const int cstride = num_points * gdim;
     for (int i = 0; i < num_facets; i++)
     {
-      auto row = c.row(i);
+      int offset = i * cstride;
       for (int k = 0; k < num_points; k++)
       {
         for (int j = 0; j < gdim; j++)
         {
-          row[k * gdim + j] += (*q_phys_pt)(i, k, j);
+          c[offset + k * gdim + j] += (*q_phys_pt)(i, k, j);
         }
-        row[(k + 1) * gdim - 1] += g;
+        c[offset + (k + 1) * gdim - 1] += g;
       }
     }
-    return c;
+    return {std::move(c), cstride};
   }
 
 private:

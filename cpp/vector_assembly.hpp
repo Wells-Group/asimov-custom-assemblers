@@ -25,11 +25,12 @@ namespace
 /// @param[in] active_facets list of indices (local to process) of facets to be integrated over
 /// @param[in] kernel the custom integration kernel
 /// @param[in] coeffs coefficients used in the variational form
+/// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 void assemble_exterior_facets(xtl::span<PetscScalar> b,
                               std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                               const xtl::span<const std::int32_t>& active_facets, kernel_fn& kernel,
-                              const dolfinx::array2d<PetscScalar>& coeffs,
+                              const xtl::span<const PetscScalar> coeffs, int cstride,
                               const xtl::span<const PetscScalar>& constants)
 {
   // Extract mesh
@@ -79,7 +80,7 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
   // Assemble using dolfinx
   dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(apply_dof_transformation, b, *mesh,
                                                             facets, dofs, bs, kernel, constants,
-                                                            coeffs, cell_info, get_perm);
+                                                            coeffs, cstride, cell_info, get_perm);
 }
 
 /// Assemble vector over cells
@@ -89,10 +90,11 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
 /// @param[in] active_cells list of indices (local to process) of cells to be integrated over
 /// @param[in] kernel the custom integration kernel
 /// @param[in] coeffs coefficients used in the variational form
+/// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 void assemble_cells(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                     const xtl::span<const std::int32_t>& active_cells, kernel_fn& kernel,
-                    const dolfinx::array2d<PetscScalar>& coeffs,
+                    const xtl::span<const PetscScalar> coeffs, int cstride,
                     const xtl::span<const PetscScalar>& constants)
 {
   // Extract mesh
@@ -120,7 +122,7 @@ void assemble_cells(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::Func
 
   dolfinx::fem::impl::assemble_cells<PetscScalar>(apply_dof_transformation, b, mesh->geometry(),
                                                   active_cells, dofs, bs, kernel, constants, coeffs,
-                                                  cell_info);
+                                                  cstride, cell_info);
 }
 } // namespace
 
@@ -133,19 +135,20 @@ namespace dolfinx_cuas
 /// @param[in] active_entities list of indices (local to process) of entities to be integrated over
 /// @param[in] kernel the custom integration kernel
 /// @param[in] coefficients used in the variational form
+/// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 /// @param[in] type the integral type
 void assemble_vector(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                      const xtl::span<const std::int32_t>& active_entities, kernel_fn& kernel,
-                     const dolfinx::array2d<PetscScalar>& coeffs,
+                     const xtl::span<const PetscScalar> coeffs, int cstride,
                      const xtl::span<const PetscScalar>& constants, dolfinx::fem::IntegralType type)
 {
 
   // Assemble integral
   if (type == dolfinx::fem::IntegralType::cell)
-    assemble_cells(b, V, active_entities, kernel, coeffs, constants);
+    assemble_cells(b, V, active_entities, kernel, coeffs, cstride, constants);
   else if (type == dolfinx::fem::IntegralType::exterior_facet)
-    assemble_exterior_facets(b, V, active_entities, kernel, coeffs, constants);
+    assemble_exterior_facets(b, V, active_entities, kernel, coeffs, cstride, constants);
   else
     throw std::runtime_error("Unsupported integral type");
 };
