@@ -222,18 +222,31 @@ kernel_fn generate_contact_kernel(
       // if normal not constant, get surface normal at current quadrature point
       if (!constant_normal)
       {
-        int normal_offset = c_offset + offsets[5] + facet_index * num_points * gdim;
         n_dot = 0;
         for (int i = 0; i < gdim; i++)
         {
-
-          n_surf(i) = c[normal_offset + q * gdim + i];
+          gap += c[gap_offset + q * gdim + i] * c[gap_offset + q * gdim + i];
+          n_surf(i) = c[gap_offset + q * gdim + i];
           n_dot += n_phys(i) * n_surf(i);
         }
+        gap = std::sqrt(gap);
+        if (gap > 1e-13)
+        {
+          n_surf /= gap;
+          n_dot /= gap;
+        }
+        else
+        {
+          n_surf = n_phys;
+          n_dot = 1;
+        }
       }
-      for (int i = 0; i < gdim; i++)
+      else
       {
-        gap += c[gap_offset + q * gdim + i] * n_surf(i);
+        for (int i = 0; i < gdim; i++)
+        {
+          gap += c[gap_offset + q * gdim + i] * n_surf(i);
+        }
       }
 
       xt::xtensor<double, 2> tr = xt::zeros<double>({offsets[1] - offsets[0], gdim});
@@ -402,18 +415,31 @@ kernel_fn generate_contact_kernel(
       // if normal not constant, get surface normal at current quadrature point
       if (!constant_normal)
       {
-        int normal_offset = c_offset + offsets[5] + facet_index * num_points * gdim;
         n_dot = 0;
         for (int i = 0; i < gdim; i++)
         {
-
-          n_surf(i) = c[normal_offset + q * gdim + i];
+          gap += c[gap_offset + q * gdim + i] * c[gap_offset + q * gdim + i];
+          n_surf(i) = c[gap_offset + q * gdim + i];
           n_dot += n_phys(i) * n_surf(i);
         }
+        gap = std::sqrt(gap);
+        if (gap > 1e-13)
+        {
+          n_surf /= gap;
+          n_dot /= gap;
+        }
+        else
+        {
+          n_surf = n_phys;
+          n_dot = 1;
+        }
       }
-      for (int i = 0; i < gdim; i++)
+      else
       {
-        gap += c[gap_offset + q * gdim + i] * n_surf(i);
+        for (int i = 0; i < gdim; i++)
+        {
+          gap += c[gap_offset + q * gdim + i] * n_surf(i);
+        }
       }
       // compute tr(eps(u)), epsn at q
       double tr_u = 0;

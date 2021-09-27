@@ -47,6 +47,6 @@ bool allclose(Mat A, Mat B);
 /// dofs. If function space is blocked, the coefficients are ordered in XYZ XYZ ordering.
 /// @param[in] coeffs The coefficients to pack
 /// @param[out] c The packed coefficients
-dolfinx::array2d<PetscScalar>
+std::pair<std::vector<PetscScalar>, int>
 pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs);
 } // namespace dolfinx_cuas
