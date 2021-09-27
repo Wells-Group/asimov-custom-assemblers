@@ -131,12 +131,12 @@ bool allclose(Mat A, Mat B)
 }
 
 /// Prepare coefficients (dolfinx.Function's) for assembly with custom kernels
-/// by packing them as a 2D array, where the ith row maps to the ith local cell.
+/// by packing them as a 1D array, where the coefficients are packed cell-wise.
 /// For each row, the first N_0 columns correspond to the values of the 0th function space with N_0
 /// dofs. If function space is blocked, the coefficients are ordered in XYZ XYZ ordering.
 /// @param[in] coeffs The coefficients to pack
-/// @param[out] c The packed coefficients
-dolfinx::array2d<PetscScalar>
+/// @param[out] c The packed coefficients and the number of coeffs per cell
+std::pair<std::vector<PetscScalar>, int>
 pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
 {
   // Coefficient offsets
@@ -168,7 +168,8 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<Petsc
                                  + mesh->topology().index_map(tdim)->num_ghosts();
 
   // Copy data into coefficient array
-  dolfinx::array2d<PetscScalar> c(num_cells, coeffs_offsets.back());
+  std::vector<PetscScalar> c(num_cells * coeffs_offsets.back());
+  const int cstride = coeffs_offsets.back();
   if (!coeffs.empty())
   {
     bool needs_dof_transformations = false;
@@ -194,30 +195,30 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<Petsc
       if (int bs = dofmaps[coeff]->bs(); bs == 1)
       {
         dolfinx::fem::impl::pack_coefficient<PetscScalar, 1>(
-            c, v[coeff], cell_info, *dofmaps[coeff], num_cells, coeffs_offsets[coeff],
-            elements[coeff]->space_dimension(), transformation);
+            xtl::span<PetscScalar>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], num_cells,
+            coeffs_offsets[coeff], elements[coeff]->space_dimension(), transformation);
       }
       else if (bs == 2)
       {
         dolfinx::fem::impl::pack_coefficient<PetscScalar, 2>(
-            c, v[coeff], cell_info, *dofmaps[coeff], num_cells, coeffs_offsets[coeff],
-            elements[coeff]->space_dimension(), transformation);
+            xtl::span<PetscScalar>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], num_cells,
+            coeffs_offsets[coeff], elements[coeff]->space_dimension(), transformation);
       }
       else if (bs == 3)
       {
         dolfinx::fem::impl::pack_coefficient<PetscScalar, 3>(
-            c, v[coeff], cell_info, *dofmaps[coeff], num_cells, coeffs_offsets[coeff],
-            elements[coeff]->space_dimension(), transformation);
+            xtl::span<PetscScalar>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], num_cells,
+            coeffs_offsets[coeff], elements[coeff]->space_dimension(), transformation);
       }
       else
       {
         dolfinx::fem::impl::pack_coefficient<PetscScalar>(
-            c, v[coeff], cell_info, *dofmaps[coeff], num_cells, coeffs_offsets[coeff],
-            elements[coeff]->space_dimension(), transformation);
+            xtl::span<PetscScalar>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], num_cells,
+            coeffs_offsets[coeff], elements[coeff]->space_dimension(), transformation);
       }
     }
   }
 
-  return c;
+  return {std::move(c), cstride};
 }
 } // namespace dolfinx_cuas

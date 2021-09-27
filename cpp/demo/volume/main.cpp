@@ -107,11 +107,10 @@ int main(int argc, char* argv[])
   xt::xarray<std::int32_t> active_cells = xt::arange<std::int32_t>(0, ncells);
 
   common::Timer t0("~Assemble Matrix Custom");
-  std::array<std::size_t, 2> shape = {std::size_t(ncells), 0};
-  const dolfinx::array2d<PetscScalar> coeffs(shape);
+  const std::vector<PetscScalar> coeffs(0);
   const std::vector<PetscScalar> consts(0);
   dolfinx_cuas::assemble_matrix(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), V, {},
-                                active_cells, kernel, coeffs, consts,
+                                active_cells, kernel, coeffs, 0, consts,
                                 dolfinx::fem::IntegralType::cell);
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
