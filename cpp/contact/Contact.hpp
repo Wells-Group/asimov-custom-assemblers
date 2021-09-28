@@ -85,7 +85,7 @@ public:
     std::uint32_t num_local_dofs = element.dim();
     xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, num_local_dofs});
 
-    // Tabulate basis functions at quadrature points _qp_ref_facet for each facet of the referenec
+    // Tabulate basis functions at quadrature points _qp_ref_facet for each facet of the reference
     // cell. Fill _phi_ref_facets
     for (int i = 0; i < num_facets; ++i)
     {
