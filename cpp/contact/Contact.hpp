@@ -182,6 +182,7 @@ public:
         basix::element::family::P, dolfinx::mesh::cell_type_to_basix_type(dolfinx_cell), degree,
         basix::element::lagrange_variant::equispaced);
     _phi_ref_facets = tabulate_on_ref_cell(coordinate_element);
+
     // Compute quadrature points on physical facet _qp_phys_"origin_meshtag"
     create_q_phys(origin_meshtag);
 
@@ -242,7 +243,9 @@ public:
       _map_1_to_0 = std::make_shared<dolfinx::graph::AdjacencyList<std::int32_t>>(data, offset);
   }
 
-  /// Pack initial gap
+  /// Compute and pack the gap function for each quadrature point the set of facets.
+  /// For a set of facets; go through the quadrature points on each facet find the closest facet on
+  /// the other surface and compute the distance vector
   /// @param[in] orgin_meshtag - surface on which to integrate
   /// @param[out] c - gap packed on facets. c[i*cstride +  gdim * k+ j] contains the jth component
   /// of the Gap on the ith facet at kth quadrature point
@@ -253,10 +256,12 @@ public:
     const int gdim = mesh->geometry().dim(); // geometrical dimension
     const int tdim = mesh->topology().dim();
     const int fdim = tdim - 1;
-    auto mesh_geometry = mesh->geometry().x();
+    const xt::xtensor<double, 2>& mesh_geometry = mesh->geometry().x();
     std::vector<int32_t>* puppet_facets;
     std::shared_ptr<dolfinx::graph::AdjacencyList<std::int32_t>> map;
     xt::xtensor<double, 3>* q_phys_pt;
+
+    // Select which side of the contact interface to loop from and get the correct map
     if (origin_meshtag == 0)
     {
       puppet_facets = &_facet_0;
@@ -269,28 +274,35 @@ public:
       map = _map_1_to_0;
       q_phys_pt = &_qp_phys_1;
     }
-    int32_t num_facets = (*puppet_facets).size();
-    int32_t num_points = _qp_ref_facet.shape(1);
-    std::vector<PetscScalar> c(num_facets * num_points * gdim, 0.0);
-    const int cstride = num_points * gdim;
+    const std::int32_t num_facets = (*puppet_facets).size();
+    const std::int32_t num_q_point = _qp_ref_facet.shape(1);
+
+    // Pack gap function for each quadrature point on each facet
+    std::vector<PetscScalar> c(num_facets * num_q_point * gdim, 0.0);
+    const int cstride = num_q_point * gdim;
+    xt::xtensor<double, 2> point = {{0, 0, 0}};
+
     for (int i = 0; i < num_facets; ++i)
     {
-      auto links = map->links(i);
-      auto master_facet_geometry = dolfinx::mesh::entities_to_geometry(*mesh, fdim, links, false);
+      auto master_facets = map->links(i);
+      auto master_facet_geometry
+          = dolfinx::mesh::entities_to_geometry(*mesh, fdim, master_facets, false);
       int offset = i * cstride;
       for (int j = 0; j < map->num_links(i); ++j)
       {
-        xt::xtensor<double, 2> point = {{0, 0, 0}};
+        // Get quadrature points in physical space for the ith facet, jth quadrature point
         for (int k = 0; k < gdim; k++)
           point(0, k) = (*q_phys_pt)(i, j, k);
+
+        // Get the coordinates of the geometry on the other interface, and compute the distance of
+        // the convex hull created by the points
         auto master_facet = xt::view(master_facet_geometry, j, xt::all());
         auto master_coords = xt::view(mesh_geometry, xt::keep(master_facet), xt::all());
-
         auto dist_vec = dolfinx::geometry::compute_distance_gjk(master_coords, point);
+
+        // Add distance vector to coefficient array
         for (int k = 0; k < gdim; k++)
-        {
           c[offset + j * gdim + k] -= dist_vec(k);
-        }
       }
     }
     return {std::move(c), cstride};
@@ -341,13 +353,13 @@ public:
       q_phys_pt = &_qp_phys_1;
     }
     int32_t num_facets = (*puppet_facets).size();
-    int32_t num_points = _qp_ref_facet.shape(1);
-    std::vector<PetscScalar> c(num_facets * num_points * gdim, 0.0);
-    const int cstride = num_points * gdim;
+    int32_t num_q_point = _qp_ref_facet.shape(1);
+    std::vector<PetscScalar> c(num_facets * num_q_point * gdim, 0.0);
+    const int cstride = num_q_point * gdim;
     for (int i = 0; i < num_facets; i++)
     {
       int offset = i * cstride;
-      for (int k = 0; k < num_points; k++)
+      for (int k = 0; k < num_q_point; k++)
       {
         for (int j = 0; j < gdim; j++)
         {
