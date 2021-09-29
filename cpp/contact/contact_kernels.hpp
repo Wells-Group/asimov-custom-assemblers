@@ -85,6 +85,7 @@ kernel_fn generate_contact_kernel(
   }
   offsets[num_coeffs + 1] = offsets[num_coeffs] + num_facets;
   offsets[num_coeffs + 2] = offsets[num_coeffs + 1] + gdim * num_quadrature_pts * num_facets;
+  // Pack coefficients for functions and gradients of functions (untested)
   xt::xtensor<double, 3> phi_coeffs({num_facets, q_weights.size(), offsets[num_coeffs]});
   xt::xtensor<double, 4> dphi_coeffs({num_facets, tdim, q_weights.size(), offsets[num_coeffs]});
   for (int i = 0; i < num_facets; ++i)
@@ -352,6 +353,7 @@ kernel_fn generate_contact_kernel(
 
     // Retrieve normal of rigid surface if constant
     xt::xarray<double> n_surf = xt::zeros<double>({gdim});
+    // FIXME: Code duplication from previous kernel, and should be made into a lambda function
     if (constant_normal)
     {
       for (int i = 0; i < gdim; i++)
