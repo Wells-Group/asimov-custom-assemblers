@@ -37,16 +37,8 @@ public:
           int surface_1, std::shared_ptr<dolfinx::fem::FunctionSpace> V)
       : _marker(marker), _surface_0(surface_0), _surface_1(surface_1), _V(V)
   {
-    // Extract facets in _surface_0 and _surface_1. Store in _facet_1 and _facet_2
-    for (int i = 0; i < _marker->indices().size(); ++i)
-    {
-      const std::int32_t tag = _marker->values()[i];
-      const std::int32_t facet = _marker->indices()[i];
-      if (tag == _surface_0)
-        _facet_0.push_back(facet);
-      else if (tag == _surface_1)
-        _facet_1.push_back(facet);
-    }
+    _facet_0 = marker->find(_surface_0);
+    _facet_1 = marker->find(_surface_1);
   }
 
   // Return Adjacency list of closest facet on surface_1 for every quadrature point in _qp_phys_0
