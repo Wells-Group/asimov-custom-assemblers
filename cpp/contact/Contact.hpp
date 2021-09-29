@@ -400,7 +400,7 @@ private:
   std::vector<int32_t> _facet_1;
   // normals on surface 0 in order of facets in _facet_0
   xt::xtensor<double, 2> _normals_0;
-  // nomrals on surface 1 in order of facets in _facet_1
+  // normals on surface 1 in order of facets in _facet_1
   xt::xtensor<double, 2> _normals_1;
 };
 } // namespace contact
