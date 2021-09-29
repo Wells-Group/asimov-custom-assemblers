@@ -10,7 +10,6 @@
 #include <dolfinx/la/PETScMatrix.h>
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx_cuas/QuadratureRule.hpp>
-#include <dolfinx_cuas/contact/Contact.hpp>
 #include <dolfinx_cuas/kernels_non_const_coefficient.hpp>
 #include <dolfinx_cuas/matrix_assembly.hpp>
 #include <dolfinx_cuas/surface_kernels.hpp>
@@ -28,6 +27,11 @@
 
 namespace py = pybind11;
 
+namespace dolfinx_cuas_wrappers
+{
+void contact(py::module& m);
+}
+
 PYBIND11_MODULE(cpp, m)
 {
   // Create module for C++ wrappers
@@ -37,6 +41,11 @@ PYBIND11_MODULE(cpp, m)
 #else
   m.attr("__version__") = "dev";
 #endif
+
+  // Create contact submodule [contact]
+  py::module contact = m.def_submodule("contact", "contact module");
+  dolfinx_cuas_wrappers::contact(contact);
+
   // Kernel wrapper class
   py::class_<cuas_wrappers::KernelWrapper, std::shared_ptr<cuas_wrappers::KernelWrapper>>(
       m, "KernelWrapper", "Wrapper for C++ integration kernels");
@@ -51,22 +60,6 @@ PYBIND11_MODULE(cpp, m)
       .def_property_readonly("weights", [](dolfinx_cuas::QuadratureRule& self)
                              { return dolfinx_cuas_wrappers::xt_as_pyarray(self.weights()); });
 
-  // Contact class
-  py::class_<dolfinx_cuas::contact::Contact, std::shared_ptr<dolfinx_cuas::contact::Contact>>(
-      m, "Contact", "Contact object")
-      .def(py::init<std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>>, int, int,
-                    std::shared_ptr<dolfinx::fem::FunctionSpace>>(),
-           py::arg("marker"), py::arg("suface_0"), py::arg("surface_1"), py::arg("V"))
-      .def("create_distance_map",
-           [](dolfinx_cuas::contact::Contact& self, int origin_meshtag)
-           {
-             self.create_distance_map(origin_meshtag);
-             return;
-           })
-      .def("map_0_to_1", &dolfinx_cuas::contact::Contact::map_0_to_1)
-      .def("map_1_to_0", &dolfinx_cuas::contact::Contact::map_1_to_0)
-      .def("facet_0", &dolfinx_cuas::contact::Contact::facet_0)
-      .def("facet_1", &dolfinx_cuas::contact::Contact::facet_1);
   m.def("generate_surface_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
            dolfinx_cuas::QuadratureRule& quadrature_rule)
@@ -140,6 +133,51 @@ PYBIND11_MODULE(cpp, m)
           auto [coeffs, cstride] = dolfinx_cuas::pack_coefficients(functions);
           int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
           return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
+        });
+  m.def("pack_coefficient_quadrature",
+        [](std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff, int q)
+        {
+          auto [coeffs, cstride] = dolfinx_cuas::pack_coefficient_quadrature(coeff, q);
+          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
+          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
+        });
+  m.def("pack_coefficient_facet",
+        [](std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff, int q,
+           const py::array_t<std::int32_t, py::array::c_style>& active_facets)
+        {
+          auto [coeffs, cstride] = dolfinx_cuas::pack_coefficient_facet(
+              coeff, q, xtl::span<const std::int32_t>(active_facets.data(), active_facets.size()));
+          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
+          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
+        });
+
+  m.def("pack_circumradius_facet",
+        [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
+           const py::array_t<std::int32_t, py::array::c_style>& active_facets)
+        {
+          auto [coeffs, cstride] = dolfinx_cuas::pack_circumradius_facet(
+              mesh, xtl::span<const std::int32_t>(active_facets.data(), active_facets.size()));
+          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
+          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
+        });
+  m.def("facet_to_cell_data",
+        [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
+           const py::array_t<std::int32_t, py::array::c_style>& active_facets,
+           const py::array_t<PetscScalar, py::array::c_style>& data, int num_cols)
+        {
+          auto [coeffs, cstride] = dolfinx_cuas::facet_to_cell_data(
+              mesh, xtl::span<const std::int32_t>(active_facets.data(), active_facets.size()),
+              xtl::span<const PetscScalar>(data.data(), data.size()), num_cols);
+          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
+          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
+        });
+  // FIXME: Currently exposed for debugging. Possibly not wanted?
+  m.def("create_reference_facet_qp",
+        [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int quadrature_degree)
+        {
+          auto [qp, w] = dolfinx_cuas::create_reference_facet_qp(mesh, quadrature_degree);
+          return std::pair(py::array_t<double>(qp.shape(), qp.data()),
+                           py::array_t<double>(w.size(), w.data()));
         });
 
   py::enum_<dolfinx_cuas::Kernel>(m, "Kernel")

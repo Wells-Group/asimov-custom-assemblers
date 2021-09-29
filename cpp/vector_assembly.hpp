@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "utils.hpp"
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/assembler.h>
 #include <functional>

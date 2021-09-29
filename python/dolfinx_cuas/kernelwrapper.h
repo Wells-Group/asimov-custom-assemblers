@@ -4,8 +4,8 @@
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
-#pragma once
-#include <dolfinx_cuas/matrix_assembly.hpp>
+using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
+                                     const int*, const std::uint8_t*)>;
 
 namespace cuas_wrappers
 {

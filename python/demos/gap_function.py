@@ -180,7 +180,7 @@ values = np.asarray(values, dtype=np.int32)
 sorted = np.argsort(indices)
 mt = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, indices[sorted], values[sorted])
 V = dolfinx.VectorFunctionSpace(mesh, ("CG", 1))
-contact = cuas.Contact(mt, 1, 2, V._cpp_object)
+contact = cuas.contact.Contact(mt, 1, 2, V._cpp_object)
 contact.create_distance_map(1)
 circ_to_rect = facet_master_puppet_relation(mesh, rect_facets, circ_facets, quadrature_degree=2)
 
