@@ -6,7 +6,7 @@
 
 #include "array.h"
 #include "caster_petsc.h"
-#include "kernelwrapper.h"
+#include <dolfinx_cuas/kernelwrapper.h>
 #include <dolfinx/la/PETScMatrix.h>
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx_cuas/QuadratureRule.hpp>
@@ -27,11 +27,6 @@
 
 namespace py = pybind11;
 
-namespace dolfinx_cuas_wrappers
-{
-void contact(py::module& m);
-}
-
 PYBIND11_MODULE(cpp, m)
 {
   // Create module for C++ wrappers
@@ -41,10 +36,6 @@ PYBIND11_MODULE(cpp, m)
 #else
   m.attr("__version__") = "dev";
 #endif
-
-  // Create contact submodule [contact]
-  py::module contact = m.def_submodule("contact", "contact module");
-  dolfinx_cuas_wrappers::contact(contact);
 
   // Kernel wrapper class
   py::class_<cuas_wrappers::KernelWrapper, std::shared_ptr<cuas_wrappers::KernelWrapper>>(
@@ -131,43 +122,6 @@ PYBIND11_MODULE(cpp, m)
         [](std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> functions)
         {
           auto [coeffs, cstride] = dolfinx_cuas::pack_coefficients(functions);
-          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
-          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
-        });
-  m.def("pack_coefficient_quadrature",
-        [](std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff, int q)
-        {
-          auto [coeffs, cstride] = dolfinx_cuas::pack_coefficient_quadrature(coeff, q);
-          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
-          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
-        });
-  m.def("pack_coefficient_facet",
-        [](std::shared_ptr<const dolfinx::fem::Function<PetscScalar>> coeff, int q,
-           const py::array_t<std::int32_t, py::array::c_style>& active_facets)
-        {
-          auto [coeffs, cstride] = dolfinx_cuas::pack_coefficient_facet(
-              coeff, q, xtl::span<const std::int32_t>(active_facets.data(), active_facets.size()));
-          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
-          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
-        });
-
-  m.def("pack_circumradius_facet",
-        [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
-           const py::array_t<std::int32_t, py::array::c_style>& active_facets)
-        {
-          auto [coeffs, cstride] = dolfinx_cuas::pack_circumradius_facet(
-              mesh, xtl::span<const std::int32_t>(active_facets.data(), active_facets.size()));
-          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
-          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
-        });
-  m.def("facet_to_cell_data",
-        [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
-           const py::array_t<std::int32_t, py::array::c_style>& active_facets,
-           const py::array_t<PetscScalar, py::array::c_style>& data, int num_cols)
-        {
-          auto [coeffs, cstride] = dolfinx_cuas::facet_to_cell_data(
-              mesh, xtl::span<const std::int32_t>(active_facets.data(), active_facets.size()),
-              xtl::span<const PetscScalar>(data.data(), data.size()), num_cols);
           int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
           return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
         });

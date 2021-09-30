@@ -74,7 +74,7 @@ setup(name='dolfinx_cuas',
 
       author_email='dokken92@gmail.com',
       python_requires='>3.6.0',
-      packages=['dolfinx_cuas', "dolfinx_cuas.contact"],
+      packages=['dolfinx_cuas'],
       ext_modules=[CMakeExtension('dolfinx_cuas.cpp')],
       cmdclass=dict(build_ext=CMakeBuild),
       install_requires=REQUIREMENTS,
