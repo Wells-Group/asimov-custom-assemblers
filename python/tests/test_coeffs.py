@@ -1,12 +1,10 @@
-# Copyright (C) 2021 Jørgen S. Dokken, Sarah Roggendorf
+# Copyright (C) 2021 Jørgen S. Dokken
 #
 # SPDX-License-Identifier:   LGPL-3.0-or-later
 
-import basix
 import dolfinx
 import dolfinx_cuas.cpp
 import numpy as np
-import pytest
 import ufl
 from mpi4py import MPI
 
