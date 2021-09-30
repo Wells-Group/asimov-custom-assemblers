@@ -45,8 +45,8 @@ kernel_fn generate_contact_kernel(
   const int num_coordinate_dofs = basix_element.dim();
 
   // Create quadrature points on reference facet
-  std::vector<double>& q_weights = quadrature_rule.weights();
-  xt::xarray<double>& qp_ref_facet = quadrature_rule.points();
+  std::vector<double>& q_weights = quadrature_rule.weights_ref();
+  xt::xarray<double>& qp_ref_facet = quadrature_rule.points_ref();
 
   // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points
