@@ -115,14 +115,15 @@ def test_vector_surface_kernel(dim, kernel_type, P, Q):
     # num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     # FIXME: assuming all facets are the same type
     facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, 2 * P + Q + 1, "default")
+    q_degree = 2 * P + Q + 1
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, q_degree, "default")
     consts = np.array([gamma, theta])
     consts = np.hstack((consts, n_vec))
     coeffs = dolfinx_cuas.cpp.pack_coefficients([u._cpp_object, mu._cpp_object, lmbda._cpp_object])
     h_facets = dolfinx_cuas.cpp.pack_circumradius_facet(mesh, facets)
     h_cells = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, h_facets, 1)
     contact = dolfinx_cuas.cpp.contact.Contact(ft, 1, 1, V._cpp_object)
-    contact.set_quadrature_degree(2 * P + Q + 1)
+    contact.set_quadrature_degree(q_degree)
     g_vec = contact.pack_gap_plane(0, g)
     g_vec_c = dolfinx_cuas.cpp.facet_to_cell_data(mesh, facets, g_vec, dim * q_rule.weights.size)
     coeffs = np.hstack([coeffs, h_cells, g_vec_c])

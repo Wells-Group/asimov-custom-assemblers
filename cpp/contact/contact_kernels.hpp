@@ -45,8 +45,8 @@ kernel_fn generate_contact_kernel(
   const int num_coordinate_dofs = basix_element.dim();
 
   // Create quadrature points on reference facet
-  xt::xarray<double>& q_weights = quadrature_rule.weights_ref();
-  xt::xarray<double>& qp_ref_facet = quadrature_rule.points_ref();
+  std::vector<double>& q_weights = quadrature_rule.weights();
+  xt::xarray<double>& qp_ref_facet = quadrature_rule.points();
 
   // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points
@@ -134,9 +134,7 @@ kernel_fn generate_contact_kernel(
   // RHS for contact with rigid surface
   // =====================================================================================
   kernel_fn nitsche_rigid_rhs
-      = [dphi_c, phi, dphi, phi_coeffs, dphi_coeffs, offsets, num_coeffs, gdim, tdim, fdim,
-         q_weights, num_coordinate_dofs, ref_jacobians, bs, facet_normals, constant_normal](
-            double* b, const double* c, const double* w, const double* coordinate_dofs,
+      = [=](double* b, const double* c, const double* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // assumption that the vector function space has block size tdim
@@ -308,9 +306,7 @@ kernel_fn generate_contact_kernel(
   // Jacobian for contact with rigid surface
   // =====================================================================================
   kernel_fn nitsche_rigid_jacobian
-      = [dphi_c, phi, dphi, phi_coeffs, dphi_coeffs, offsets, num_coeffs, gdim, tdim, fdim,
-         q_weights, num_coordinate_dofs, ref_jacobians, bs, facet_normals, constant_normal](
-            double* A, const double* c, const double* w, const double* coordinate_dofs,
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // assumption that the vector function space has block size tdim

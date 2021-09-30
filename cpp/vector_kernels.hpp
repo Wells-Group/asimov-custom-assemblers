@@ -27,7 +27,7 @@ kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpa
   const int num_coordinate_dofs = basix_element.dim();
 
   xt::xarray<double>& points = q_rule.points_ref();
-  xt::xarray<double>& weights = q_rule.weights_ref();
+  std::vector<double>& weights = q_rule.weights_ref();
 
   // Create Finite element for test and trial functions and tabulate shape functions
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
@@ -97,7 +97,7 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
 
   // Get quadrature on reference facet
   xt::xarray<double>& points = q_rule.points_ref();
-  xt::xarray<double>& weights = q_rule.weights_ref();
+  std::vector<double>& weights = q_rule.weights_ref();
 
   // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points

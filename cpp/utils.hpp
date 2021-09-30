@@ -17,6 +17,7 @@
 #include <dolfinx/fem/petsc.h>
 #include <dolfinx/fem/utils.h>
 #include <dolfinx/mesh/Mesh.h>
+#include <dolfinx_cuas/QuadratureRule.hpp>
 #include <xtensor-blas/xlinalg.hpp>
 
 namespace dolfinx_cuas
@@ -78,11 +79,14 @@ create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int q
 
   // Create facet quadrature points
   const basix::cell::type basix_facet = surface_element.cell_type();
-  std::pair<xt::xarray<double>, std::vector<double>> quadrature
-      = basix::quadrature::make_quadrature("default", basix_facet, quadrature_degree);
+  dolfinx_cuas::QuadratureRule quadrature(dolfinx::mesh::cell_type_from_basix_type(basix_facet),
+                                          quadrature_degree);
+  xt::xarray<double> quadrature_points = quadrature.points();
 
   // Tabulate facet coordinate functions
-  auto c_tab = surface_element.tabulate(0, quadrature.first);
+  // auto c_tab = surface_element.tabulate(0, quadrature.first);
+  auto c_tab = surface_element.tabulate(0, quadrature_points);
+
   xt::xtensor<double, 2> phi_s = xt::view(c_tab, 0, xt::all(), xt::all(), 0);
 
   // Create reference topology and geometry
@@ -91,7 +95,8 @@ create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int q
 
   // Push forward quadrature points on reference facet to reference cell
   const std::uint32_t num_facets = facet_topology.size();
-  const std::uint32_t num_quadrature_pts = quadrature.first.shape(0);
+  const std::uint32_t num_quadrature_pts = quadrature_points.shape(0);
+
   xt::xtensor<double, 3> qp_ref_facet({num_facets, num_quadrature_pts, ref_geom.shape(1)});
   for (int i = 0; i < num_facets; ++i)
   {
@@ -100,7 +105,7 @@ create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int q
     auto q_facet = xt::view(qp_ref_facet, i, xt::all(), xt::all());
     q_facet = xt::linalg::dot(phi_s, coords);
   }
-  return {qp_ref_facet, quadrature.second};
+  return {qp_ref_facet, std::move(quadrature.weights())};
 }
 
 /// Returns true if two PETSc matrices are element-wise equal within a tolerance.
@@ -132,8 +137,8 @@ bool allclose(Mat A, Mat B)
 
 /// Prepare coefficients (dolfinx.Function's) for assembly with custom kernels
 /// by packing them as a 1D array, where the coefficients are packed cell-wise.
-/// For each row, the first N_0 columns correspond to the values of the 0th function space with N_0
-/// dofs. If function space is blocked, the coefficients are ordered in XYZ XYZ ordering.
+/// For each row, the first N_0 columns correspond to the values of the 0th function space with
+/// N_0 dofs. If function space is blocked, the coefficients are ordered in XYZ XYZ ordering.
 /// @param[in] coeffs The coefficients to pack
 /// @param[out] c The packed coefficients and the number of coeffs per cell
 std::pair<std::vector<PetscScalar>, int>
@@ -726,7 +731,9 @@ facet_to_cell_data(std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
   // Connectivity to evaluate at quadrature points
   // Assumes connectivity already created
   auto f_to_c = mesh->topology().connectivity(fdim, tdim);
+  assert(f_to_c);
   auto c_to_f = mesh->topology().connectivity(tdim, fdim);
+  assert(c_to_f);
   // get number of facets per cell. Assuming all cells are the same
   const std::size_t num_facets_c = c_to_f->num_links(0);
 

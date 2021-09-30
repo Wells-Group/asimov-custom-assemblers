@@ -10,6 +10,7 @@
 #include <dolfinx/la/PETScMatrix.h>
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx_cuas/contact/Contact.hpp>
+#include <dolfinx_cuas/contact/NewContact.hpp>
 #include <dolfinx_cuas/contact/contact_kernels.hpp>
 #include <iostream>
 #include <pybind11/functional.h>
@@ -73,5 +74,11 @@ void contact(py::module& m)
   py::enum_<dolfinx_cuas::contact::Kernel>(m, "Kernel")
       .value("NitscheRigidSurfaceRhs", dolfinx_cuas::contact::Kernel::NitscheRigidSurfaceRhs)
       .value("NitscheRigidSurfaceJac", dolfinx_cuas::contact::Kernel::NitscheRigidSurfaceJac);
+
+  py::class_<dolfinx_cuas::contact::ContactInterface,
+             std::shared_ptr<dolfinx_cuas::contact::ContactInterface>>(m, "ContactInterface",
+                                                                       "Contact object")
+      .def(py::init<std::shared_ptr<dolfinx::mesh::MeshTags<std::int32_t>>, int, int>(),
+           py::arg("marker"), py::arg("suface_0"), py::arg("surface_1"));
 }
 } // namespace dolfinx_cuas_wrappers

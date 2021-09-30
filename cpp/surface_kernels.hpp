@@ -35,7 +35,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
 
   // Create quadrature points on reference facet
   xt::xarray<double>& qp_ref_facet = quadrature_rule.points_ref();
-  xt::xarray<double>& q_weights = quadrature_rule.weights_ref();
+  std::vector<double>& q_weights = quadrature_rule.weights_ref();
 
   // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points
@@ -90,10 +90,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   auto facet_normals = basix::cell::facet_outward_normals(basix_element.cell_type());
 
   // Define kernels
-  kernel_fn mass
-      = [dphi_c, phi, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs,
-         ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  kernel_fn mass = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                       const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
 
@@ -148,9 +146,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   };
 
   kernel_fn mass_nonaffine
-      = [phi, dphi_c, gdim, tdim, fdim, bs, q_weights, num_coordinate_dofs,
-         ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
 
@@ -202,9 +199,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   };
   // FIXME: Template over gdim and tdim?
   kernel_fn stiffness
-      = [dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs,
-         ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
     // Reshape coordinate dofs to two dimensional array
@@ -266,9 +262,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   };
 
   kernel_fn sym_grad
-      = [dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs,
-         ref_jacobians](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == tdim);
     std::size_t facet_index = size_t(*entity_local_index);
@@ -341,10 +336,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
       }
     }
   };
-  kernel_fn normal
-      = [phi, dphi, gdim, tdim, fdim, bs, dphi_c, q_weights, num_coordinate_dofs, ref_jacobians,
-         facet_normals](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  kernel_fn normal = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == tdim);
     std::size_t facet_index = size_t(*entity_local_index);

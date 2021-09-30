@@ -58,7 +58,7 @@ PYBIND11_MODULE(cpp, m)
       .def_property_readonly("points", [](dolfinx_cuas::QuadratureRule& self)
                              { return dolfinx_cuas_wrappers::xt_as_pyarray(self.points()); })
       .def_property_readonly("weights", [](dolfinx_cuas::QuadratureRule& self)
-                             { return dolfinx_cuas_wrappers::xt_as_pyarray(self.weights()); });
+                             { return dolfinx_cuas_wrappers::as_pyarray(self.weights()); });
 
   m.def("generate_surface_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
