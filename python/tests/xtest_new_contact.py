@@ -1,4 +1,3 @@
-from IPython import embed
 import dolfinx
 import dolfinx.io
 import dolfinx_cuas.cpp.contact as contact
