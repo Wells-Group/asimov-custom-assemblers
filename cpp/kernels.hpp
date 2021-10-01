@@ -45,13 +45,14 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
   // Problem specific parameters
   basix::element::family family = basix::element::family::P;
   basix::cell::type cell = basix::cell::type::tetrahedron;
+  dolfinx::mesh::CellType ct = dolfinx::mesh::cell_type_from_basix_type(cell);
   constexpr std::int32_t gdim = 3;
   constexpr std::int32_t tdim = 3;
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  std::vector<double>& weights = quadrature_rule.weights_ref();
-  xt::xarray<double>& points = quadrature_rule.points_ref();
+  std::vector<double>& weights = quadrature_rule.weights_ref()[ct];
+  xt::xarray<double>& points = quadrature_rule.points_ref()[ct];
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element

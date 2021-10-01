@@ -32,10 +32,12 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   const basix::FiniteElement surface_element = mesh_to_basix_element(mesh, fdim);
   const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
   const int num_coordinate_dofs = basix_element.dim();
-
+  // FIXME: Replace with variable cell type
+  const dolfinx::mesh::CellType ft
+      = dolfinx::mesh::cell_entity_type(mesh->topology().cell_type(), fdim, 0);
   // Create quadrature points on reference facet
-  xt::xarray<double>& qp_ref_facet = quadrature_rule.points_ref();
-  std::vector<double>& q_weights = quadrature_rule.weights_ref();
+  xt::xarray<double>& qp_ref_facet = quadrature_rule.points_ref()[ft];
+  std::vector<double>& q_weights = quadrature_rule.weights_ref()[ft];
 
   // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points

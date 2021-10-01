@@ -25,9 +25,10 @@ kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpa
 
   const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
   const int num_coordinate_dofs = basix_element.dim();
+  const dolfinx::mesh::CellType ct = mesh->topology().cell_type();
 
-  xt::xarray<double>& points = q_rule.points_ref();
-  std::vector<double>& weights = q_rule.weights_ref();
+  xt::xarray<double>& points = q_rule.points_ref()[ct];
+  std::vector<double>& weights = q_rule.weights_ref()[ct];
 
   // Create Finite element for test and trial functions and tabulate shape functions
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
@@ -95,9 +96,12 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
   const int num_coordinate_dofs = basix_element.dim();
 
-  // Get quadrature on reference facet
-  xt::xarray<double>& points = q_rule.points_ref();
-  std::vector<double>& weights = q_rule.weights_ref();
+  // FIXME: Replace with variable cell type
+  const dolfinx::mesh::CellType ft
+      = dolfinx::mesh::cell_entity_type(mesh->topology().cell_type(), fdim, 0);
+  // Create quadrature points on reference facet
+  xt::xarray<double>& points = q_rule.points_ref()[ft];
+  std::vector<double>& q_weights = q_rule.weights_ref()[ft];
 
   // Tabulate coordinate element of reference facet (used to compute Jacobian on
   // facet) and push forward quadrature points

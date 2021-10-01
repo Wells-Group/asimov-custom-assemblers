@@ -71,8 +71,8 @@ create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int q
   const int tdim = mesh->topology().dim(); // topological dimension
   const int fdim = tdim - 1;               // topological dimesnion of facet
 
-  const basix::cell::type basix_cell
-      = dolfinx::mesh::cell_type_to_basix_type(mesh->topology().cell_type());
+  const dolfinx::mesh::CellType ct = mesh->topology().cell_type();
+  const basix::cell::type basix_cell = dolfinx::mesh::cell_type_to_basix_type(ct);
 
   // Create basix facet coordinate element
   const basix::FiniteElement surface_element = mesh_to_basix_element(mesh, fdim);
@@ -80,8 +80,9 @@ create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int q
   // Create facet quadrature points
   const basix::cell::type basix_facet = surface_element.cell_type();
   dolfinx_cuas::QuadratureRule quadrature(dolfinx::mesh::cell_type_from_basix_type(basix_facet),
-                                          quadrature_degree);
-  xt::xarray<double> quadrature_points = quadrature.points();
+                                          quadrature_degree, tdim);
+
+  xt::xarray<double>& quadrature_points = quadrature.points_ref()[ct];
 
   // Tabulate facet coordinate functions
   // auto c_tab = surface_element.tabulate(0, quadrature.first);
@@ -105,7 +106,8 @@ create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int q
     auto q_facet = xt::view(qp_ref_facet, i, xt::all(), xt::all());
     q_facet = xt::linalg::dot(phi_s, coords);
   }
-  return {qp_ref_facet, std::move(quadrature.weights())};
+  return {qp_ref_facet,
+          std::move(quadrature.weights()[dolfinx::mesh::cell_type_from_basix_type(basix_facet)])};
 }
 
 /// Returns true if two PETSc matrices are element-wise equal within a tolerance.
