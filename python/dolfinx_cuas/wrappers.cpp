@@ -6,11 +6,11 @@
 
 #include "array.h"
 #include "caster_petsc.h"
-#include <dolfinx_cuas/kernelwrapper.h>
 #include <dolfinx/la/PETScMatrix.h>
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx_cuas/QuadratureRule.hpp>
 #include <dolfinx_cuas/kernels_non_const_coefficient.hpp>
+#include <dolfinx_cuas/kernelwrapper.h>
 #include <dolfinx_cuas/matrix_assembly.hpp>
 #include <dolfinx_cuas/surface_kernels.hpp>
 #include <dolfinx_cuas/utils.hpp>
@@ -44,12 +44,22 @@ PYBIND11_MODULE(cpp, m)
   // Quadrature rule class
   py::class_<dolfinx_cuas::QuadratureRule, std::shared_ptr<dolfinx_cuas::QuadratureRule>>(
       m, "QuadratureRule", "QuadratureRule object")
-      .def(py::init<dolfinx::mesh::CellType, int, std::string>(), py::arg("cell_type"),
-           py::arg("degree"), py::arg("type") = "default")
-      .def_property_readonly("points", [](dolfinx_cuas::QuadratureRule& self)
-                             { return dolfinx_cuas_wrappers::xt_as_pyarray(self.points()); })
-      .def_property_readonly("weights", [](dolfinx_cuas::QuadratureRule& self)
-                             { return dolfinx_cuas_wrappers::xt_as_pyarray(self.weights()); });
+      .def(py::init<dolfinx::mesh::CellType, int, int, std::string>(), py::arg("cell_type"),
+           py::arg("degree"), py::arg("dim"), py::arg("type") = "default")
+      .def("points",
+           [](dolfinx_cuas::QuadratureRule& self, int i)
+           {
+             if (i >= self.points_ref().size())
+               throw std::runtime_error("Entity index out of range");
+             return dolfinx_cuas_wrappers::xt_as_pyarray(std::move(self.points()[i]));
+           })
+      .def("weights",
+           [](dolfinx_cuas::QuadratureRule& self, int i)
+           {
+             if (i >= self.weights_ref().size())
+               throw std::runtime_error("Entity index out of range");
+             return dolfinx_cuas_wrappers::as_pyarray(std::move(self.weights()[i]));
+           });
 
   m.def("generate_surface_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
@@ -124,14 +134,6 @@ PYBIND11_MODULE(cpp, m)
           auto [coeffs, cstride] = dolfinx_cuas::pack_coefficients(functions);
           int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
           return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
-        });
-  // FIXME: Currently exposed for debugging. Possibly not wanted?
-  m.def("create_reference_facet_qp",
-        [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int quadrature_degree)
-        {
-          auto [qp, w] = dolfinx_cuas::create_reference_facet_qp(mesh, quadrature_degree);
-          return std::pair(py::array_t<double>(qp.shape(), qp.data()),
-                           py::array_t<double>(w.size(), w.data()));
         });
 
   py::enum_<dolfinx_cuas::Kernel>(m, "Kernel")

@@ -26,8 +26,10 @@ kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpa
   const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
   const int num_coordinate_dofs = basix_element.dim();
 
-  xt::xarray<double>& points = q_rule.points_ref();
-  xt::xarray<double>& weights = q_rule.weights_ref();
+  // Get quadrature rule for cell
+  const dolfinx::mesh::CellType ct = mesh->topology().cell_type();
+  const xt::xarray<double>& points = q_rule.points_ref()[0];
+  const std::vector<double>& weights = q_rule.weights_ref()[0];
 
   // Create Finite element for test and trial functions and tabulate shape functions
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
@@ -40,7 +42,7 @@ kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpa
   // Get coordinate element from dolfinx
   xt::xtensor<double, 4> coordinate_basis = basix_element.tabulate(1, points);
 
-  xt::xtensor<double, 2> dphi0_c
+  const xt::xtensor<double, 2>& dphi0_c
       = xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
 
   assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
@@ -54,7 +56,7 @@ kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpa
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
     // FIXME: These array should be views (when compute_jacobian doesn't use xtensor)
-    xt::xtensor<double, 2> coord
+    const xt::xtensor<double, 2>& coord
         = xt::adapt(coordinate_dofs, 3 * num_coordinate_dofs, xt::no_ownership(), shape);
 
     // Compute Jacobian, its inverse and the determinant
@@ -90,56 +92,52 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   const int tdim = mesh->topology().dim(); // topological dimension
   const int fdim = tdim - 1;               // topological dimension of facet
 
-  // Create coordinate elements (for facet and cell)
-  const basix::FiniteElement surface_element = mesh_to_basix_element(mesh, fdim);
+  // Create coordinate elements for cell
   const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
   const int num_coordinate_dofs = basix_element.dim();
 
-  // Get quadrature on reference facet
-  xt::xarray<double>& points = q_rule.points_ref();
-  xt::xarray<double>& weights = q_rule.weights_ref();
+  // Get quadrature rule
+  const dolfinx::mesh::CellType ft
+      = dolfinx::mesh::cell_entity_type(mesh->topology().cell_type(), fdim, 0);
+  // FIXME: For prisms this should be a vector of arrays and vectors
+  std::vector<xt::xarray<double>>& q_points = q_rule.points_ref();
+  std::vector<std::vector<double>>& q_weights = q_rule.weights_ref();
 
-  // Tabulate coordinate element of reference facet (used to compute Jacobian on
-  // facet) and push forward quadrature points
-  auto f_tab = surface_element.tabulate(0, points);
-  xt::xtensor<double, 2> phi_f = xt::view(f_tab, 0, xt::all(), xt::all(), 0);
-
-  // Structures required for pushing forward quadrature points
-  auto facets
-      = basix::cell::topology(basix_element.cell_type())[tdim - 1]; // Topology of basix facets
-  const xt::xtensor<double, 2> x
-      = basix::cell::geometry(basix_element.cell_type()); // Geometry of basix cell
-  const std::uint32_t num_facets = facets.size();
-  const std::uint32_t num_quadrature_pts = points.shape(0);
+  const std::uint32_t num_facets = q_weights.size();
 
   // Structures needed for basis function tabulation
-  // phi and grad(phi) at quadrature points
+  // phi and grad(phi) and coordinate element derivative at quadrature points
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
   int bs = element->block_size();
-  std::uint32_t ndofs_cell = element->space_dimension() / bs;
-  xt::xtensor<double, 3> phi({num_facets, num_quadrature_pts, ndofs_cell});
-  xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_pts, ndofs_cell, bs});
+  std::uint32_t num_local_dofs = element->space_dimension() / bs;
+  std::vector<xt::xtensor<double, 2>> phi;
+  phi.reserve(num_facets);
+  std::vector<xt::xtensor<double, 3>> dphi;
+  phi.reserve(num_facets);
+  std::vector<xt ::xtensor<double, 3>> dphi_c;
+  dphi_c.reserve(num_facets);
 
-  // Structure needed for Jacobian of cell basis function
-  xt::xtensor<double, 4> dphi_c({num_facets, tdim, num_quadrature_pts, basix_element.dim()});
-
+  // Tabulate basis functions (for test/trial function) and coordinate element at
+  // quadrature points
   for (int i = 0; i < num_facets; ++i)
   {
-    // Push quadrature points forward
-    auto facet = facets[i];
-    auto coords = xt::view(x, xt::keep(facet), xt::all());
-    auto q_facet = xt::linalg::dot(phi_f, coords);
+    xt::xarray<double>& q_facet = q_points[i];
+    const int num_quadrature_points = q_facet.shape(0);
+    xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_points, num_local_dofs, bs});
 
     // Tabulate at quadrature points on facet
-    auto phi_i = xt::view(phi, i, xt::all(), xt::all());
-    // replace with element->tabulate(cell_tab, q_facet, 1); for first order derivatives
-    element->tabulate(cell_tab, q_facet, 0);
-    phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
+    element->tabulate(cell_tab, q_facet, 1);
+    xt::xtensor<double, 2> phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
+    phi.push_back(phi_i);
+    xt::xtensor<double, 3> dphi_i
+        = xt::view(cell_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
+    dphi.push_back(dphi_i);
 
     // Tabulate coordinate element of reference cell
     auto c_tab = basix_element.tabulate(1, q_facet);
-    auto dphi_ci = xt::view(dphi_c, i, xt::all(), xt::all(), xt::all());
-    dphi_ci = xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
+    xt::xtensor<double, 3> dphi_ci
+        = xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
+    dphi_c.push_back(dphi_ci);
   }
 
   // As reference facet and reference cell are affine, we do not need to compute this per
@@ -150,24 +148,21 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   // v*ds, v TestFunction
   // =====================================================================================
   kernel_fn rhs_surface
-      = [dphi_c, phi, gdim, tdim, fdim, weights, num_coordinate_dofs,
-         ref_jacobians](double* b, const double* c, const double* w, const double* coordinate_dofs,
-                        const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [=](double* b, const double* c, const double* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
 
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx has 3D input coordinate dofs
     std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
-
-    // FIXME: These array should be views (when compute_jacobian doesn't use xtensor)
-    xt::xtensor<double, 2> coord
+    const xt::xtensor<double, 2>& coord
         = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
 
     // Extract the first derivative of the coordinate element (cell) of degrees of freedom on
     // the facet
-    xt::xtensor<double, 2> dphi0_c
-        = xt::view(dphi_c, facet_index, xt::all(), 0,
+    const xt::xtensor<double, 2>& dphi0_c
+        = xt::view(dphi_c[facet_index], xt::all(), 0,
                    xt::all()); // FIXME: Assumed constant, i.e. only works for simplices
 
     // NOTE: Affine cell assumption
@@ -176,24 +171,24 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
     dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
 
     // Compute det(J_C J_f) as it is the mapping to the reference facet
-    xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
-    xt::xtensor<double, 2> J_tot = xt::linalg::dot(J, J_f);
+    const xt::xtensor<double, 2>& J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
+    auto J_tot = xt::linalg::dot(J, J_f);
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
 
     // Get number of dofs per cell
-    // FIXME: Should be templated
-    std::int32_t ndofs_cell = phi.shape(2);
+    const std::vector<double>& weights = q_weights[facet_index];
+    const xt::xtensor<double, 2>& phi_f = phi[facet_index];
 
     // Loop over quadrature points
-    for (std::size_t q = 0; q < phi.shape(1); q++)
+    for (std::size_t q = 0; q < weights.size(); q++)
     {
       // Scale at each quadrature point
       const double w0 = weights[q] * detJ;
 
-      for (int i = 0; i < ndofs_cell; i++)
+      for (int i = 0; i < num_local_dofs; i++)
       {
         // Compute a weighted phi_i(p_q),  i.e. phi_i(p_q) det(J) w_q
-        double w1 = w0 * phi(facet_index, q, i);
+        double w1 = w0 * phi_f(q, i);
         // Insert over block size in matrix
         b[i] += w1;
       }

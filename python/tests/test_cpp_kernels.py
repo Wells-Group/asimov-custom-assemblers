@@ -64,14 +64,14 @@ def test_manifold(kernel_type):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = dolfinx.fem.create_matrix(a)
-    # FIXME: Does not work for prism meshes
-    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, quadrature_degree, "default")
+    fdim = mesh.topology.dim - 1
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, quadrature_degree, fdim, "default")
+
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
     B.assemble()
-
+    compare_matrices(A, B)
     # Compare matrices, first norm, then entries
     assert np.isclose(A.norm(), B.norm())
 
@@ -121,10 +121,8 @@ def test_surface_kernels(dim, kernel_type):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     B = dolfinx.fem.create_matrix(a)
-
-    # FIXME: Does not work for prism meshes
-    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, quadrature_degree, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(
+        mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, "default")
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
 
     B.zeroEntries()
@@ -180,8 +178,8 @@ def test_normal_kernels(dim, kernel_type):
     B = dolfinx.fem.create_matrix(a)
 
     # FIXME: Does not work for prism meshes
-    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, quadrature_degree, "default")
+    fdim = mesh.topology.dim - 1
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, quadrature_degree, fdim, "default")
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
@@ -228,7 +226,7 @@ def test_volume_kernels(kernel_type, P):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = dolfinx.fem.create_matrix(a)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree, mesh.topology.dim, "default")
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
     B.zeroEntries()
     consts = np.zeros(0)
@@ -286,7 +284,7 @@ def test_vector_cell_kernel(kernel_type, P):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = dolfinx.fem.create_matrix(a)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree, mesh.topology.dim, "default")
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
@@ -356,8 +354,8 @@ def test_surface_non_affine(P, vector, dim):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     # FIXME: Does not work for prism meshes
-    facet_type = dolfinx.cpp.mesh.cell_entity_type(mesh.topology.cell_type, mesh.topology.dim - 1, 0)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(facet_type, quadrature_degree, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(
+        mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, "default")
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kt.MassNonAffine, q_rule)
 
     B.zeroEntries()
