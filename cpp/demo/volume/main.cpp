@@ -26,9 +26,8 @@ int main(int argc, char* argv[])
 
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "print usage message")(
-      "kernel", po::value<std::string>()->default_value("mass"),
-      "kernel (mass or stiffness)")("degree", po::value<int>()->default_value(1),
-                                    "Degree of function space (1-5)");
+      "kernel", po::value<std::string>()->default_value("mass"), "kernel (mass or stiffness)")(
+      "degree", po::value<int>()->default_value(1), "Degree of function space (1-5)");
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
   po::notify(vm);
@@ -97,7 +96,8 @@ int main(int argc, char* argv[])
   MatZeroEntries(B.mat());
 
   // Generate Kernel
-  dolfinx_cuas::QuadratureRule q_rule(mesh->topology().cell_type(), q_degree, "default");
+  dolfinx_cuas::QuadratureRule q_rule(mesh->topology().cell_type(), q_degree,
+                                      mesh->topology().dim(), "default");
   auto kernel
       = dolfinx_cuas::generate_kernel(kernel_type, degree, V->dofmap()->index_map_bs(), q_rule);
 
