@@ -11,7 +11,6 @@ set(CMAKE_C_FLAGS "-Ofast -march=native ${CMAKE_C_FLAGS} -Wall")
 find_package(DOLFINX REQUIRED)
 find_package(Basix REQUIRED)
 find_package(xtensor REQUIRED)
-find_package(xtensor-blas REQUIRED)
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.c

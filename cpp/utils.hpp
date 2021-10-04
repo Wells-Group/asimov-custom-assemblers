@@ -17,7 +17,6 @@
 #include <dolfinx/fem/petsc.h>
 #include <dolfinx/fem/utils.h>
 #include <dolfinx/mesh/Mesh.h>
-#include <xtensor-blas/xlinalg.hpp>
 
 namespace dolfinx_cuas
 {

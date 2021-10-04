@@ -11,7 +11,6 @@
 #include <basix/quadrature.h>
 #include <dolfinx/fem/Function.h>
 #include <string>
-#include <xtensor-blas/xlinalg.hpp>
 
 #include "math.hpp"
 

@@ -7,11 +7,11 @@
 
 #pragma once
 
+#include "math.hpp"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <dolfinx/mesh/cell_types.h>
 #include <dolfinx/mesh/utils.h>
-#include <xtensor-blas/xlinalg.hpp>
 #include <xtensor/xadapt.hpp>
 #include <xtensor/xarray.hpp>
 
@@ -88,9 +88,11 @@ public:
 
         // Push forward quadrature point from reference entity to reference entity on cell
         _weights.push_back(quadrature.second);
-        const std::uint32_t num_quadrature_pts = quadrature.first.shape(0);
-        _points.push_back(xt::xtensor<double, 3>({num_quadrature_pts, ref_geom.shape(1)}));
-        _points[i] = xt::linalg::dot(phi_s, coords);
+        const size_t num_quadrature_pts = quadrature.first.shape(0);
+        xt::xarray<double> zeros
+            = xt::zeros<double>({num_quadrature_pts, static_cast<std::size_t>(ref_geom.shape(1))});
+        dolfinx::math::dot(phi_s, coords, zeros);
+        _points.push_back(zeros);
       }
     }
   }
