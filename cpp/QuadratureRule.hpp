@@ -89,10 +89,10 @@ public:
         // Push forward quadrature point from reference entity to reference entity on cell
         _weights.push_back(quadrature.second);
         const size_t num_quadrature_pts = quadrature.first.shape(0);
-        xt::xarray<double> zeros
+        xt::xarray<double> entity_qp
             = xt::zeros<double>({num_quadrature_pts, static_cast<std::size_t>(ref_geom.shape(1))});
-        dolfinx::math::dot(phi_s, coords, zeros);
-        _points.push_back(zeros);
+        dolfinx::math::dot(phi_s, coords, entity_qp);
+        _points.push_back(entity_qp);
       }
     }
   }
