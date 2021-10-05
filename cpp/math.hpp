@@ -12,22 +12,6 @@
 namespace dolfinx_cuas::math
 {
 
-/// Compute C += B^T * A^T
-/// @param[in] A Input matrix
-/// @param[in] B Input matrix
-/// @param[in, out] C Filled to be C += B^T * A^T
-template <typename U, typename V, typename P>
-void dotT(const U& A, const V& B, P& C)
-{
-  assert(A.shape(1) == B.shape(0));
-  assert(C.shape(0) == B.shape(1));
-  assert(C.shape(1) == A.shape(0));
-  for (std::size_t k = 0; k < B.shape(1); k++)
-    for (std::size_t i = 0; i < A.shape(0); i++)
-      for (std::size_t l = 0; l < B.shape(0); l++)
-        C(k, i) += B(l, k) * A(i, l);
-}
-
 template <typename U, typename V>
 void compute_inv(const U& A, V& B)
 {
@@ -71,7 +55,7 @@ void compute_jacobian(const U& dphi, const V& coords, P& J)
   assert(J.shape(1) == dphi.shape(0));
   assert(dphi.shape(1) == coords.shape(0));
 
-  dotT(dphi, coords, J);
+  dolfinx::math::dot(coords, dphi, J, true);
 }
 
 } // namespace dolfinx_cuas::math
