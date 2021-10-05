@@ -11,7 +11,6 @@
 #include <basix/quadrature.h>
 #include <dolfinx/fem/Function.h>
 #include <string>
-#include <xtensor-blas/xlinalg.hpp>
 
 #include "math.hpp"
 
@@ -37,8 +36,9 @@ kernel_fn generate_coefficient_kernel(
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  xt::xarray<double>& points = q_rule.points_ref();
-  xt::xarray<double>& weights = q_rule.weights_ref();
+  // Get quadrature points and quadrature weights
+  std::vector<double>& weights = q_rule.weights_ref()[0];
+  xt::xarray<double>& points = q_rule.points_ref()[0];
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element

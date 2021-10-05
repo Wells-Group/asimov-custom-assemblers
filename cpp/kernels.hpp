@@ -12,7 +12,6 @@
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <string>
-#include <xtensor-blas/xlinalg.hpp>
 
 using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
                                      const int*, const std::uint8_t*)>;
@@ -50,8 +49,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  xt::xarray<double>& weights = quadrature_rule.weights_ref();
-  xt::xarray<double>& points = quadrature_rule.points_ref();
+  std::vector<double>& weights = quadrature_rule.weights_ref()[0];
+  xt::xarray<double>& points = quadrature_rule.points_ref()[0];
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element
@@ -89,9 +88,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
     xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
     dolfinx_cuas::math::compute_inv(J, K);
     const double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 
@@ -146,9 +146,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     std::array<std::size_t, 2> shape = {d, gdim};
     xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 
     // Main loop
@@ -189,9 +190,10 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     std::array<std::size_t, 2> shape = {d, gdim};
     xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 
     for (int i = 0; i < ndofs_cell; i++)
@@ -212,7 +214,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
     xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
     dolfinx_cuas::math::compute_inv(J, K);
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 
@@ -265,7 +268,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
     xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
+    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
+    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
     dolfinx_cuas::math::compute_inv(J, K);
     double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
 

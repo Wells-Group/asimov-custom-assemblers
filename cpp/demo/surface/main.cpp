@@ -46,10 +46,7 @@ int main(int argc, char* argv[])
   // Generate boundary kernel
   const std::int32_t tdim = mesh->topology().dim();
 
-  // NOTE: Does not work for prism meshes
-  dolfinx::mesh::CellType facet_type
-      = dolfinx::mesh::cell_entity_type(mesh->topology().cell_type(), tdim - 1, 0);
-  dolfinx_cuas::QuadratureRule q_rule(facet_type, 2 * (Q - 1));
+  dolfinx_cuas::QuadratureRule q_rule(mesh->topology().cell_type(), 2 * (Q - 1), tdim - 1);
   auto kernel = dolfinx_cuas::generate_surface_kernel(V, dolfinx_cuas::Kernel::SymGrad, q_rule);
 
   // Define variational forms

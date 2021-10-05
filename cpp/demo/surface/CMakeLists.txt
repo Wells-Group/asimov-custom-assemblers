@@ -12,7 +12,6 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
 find_package(DOLFINX REQUIRED)
 find_package(Basix REQUIRED)
 find_package(xtensor REQUIRED)
-find_package(xtensor-blas REQUIRED)
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/problem.c

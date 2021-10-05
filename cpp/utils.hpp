@@ -17,7 +17,6 @@
 #include <dolfinx/fem/petsc.h>
 #include <dolfinx/fem/utils.h>
 #include <dolfinx/mesh/Mesh.h>
-#include <xtensor-blas/xlinalg.hpp>
 
 namespace dolfinx_cuas
 {
@@ -57,50 +56,6 @@ basix::FiniteElement mesh_to_basix_element(std::shared_ptr<const dolfinx::mesh::
   }
   else
     throw std::runtime_error("Does not support elements of edges and vertices");
-}
-
-// Compute quadrature points and weights on all facets of the reference cell
-/// by pushing them forward from the reference facet.
-/// @param[in] mesh The mesh
-/// @param[in] quadrature_degree Degree of quadrature rule
-std::pair<xt::xtensor<double, 3>, std::vector<double>>
-create_reference_facet_qp(std::shared_ptr<const dolfinx::mesh::Mesh> mesh, int quadrature_degree)
-{
-  // Mesh info
-  const int tdim = mesh->topology().dim(); // topological dimension
-  const int fdim = tdim - 1;               // topological dimesnion of facet
-
-  const basix::cell::type basix_cell
-      = dolfinx::mesh::cell_type_to_basix_type(mesh->topology().cell_type());
-
-  // Create basix facet coordinate element
-  const basix::FiniteElement surface_element = mesh_to_basix_element(mesh, fdim);
-
-  // Create facet quadrature points
-  const basix::cell::type basix_facet = surface_element.cell_type();
-  std::pair<xt::xarray<double>, std::vector<double>> quadrature
-      = basix::quadrature::make_quadrature("default", basix_facet, quadrature_degree);
-
-  // Tabulate facet coordinate functions
-  auto c_tab = surface_element.tabulate(0, quadrature.first);
-  xt::xtensor<double, 2> phi_s = xt::view(c_tab, 0, xt::all(), xt::all(), 0);
-
-  // Create reference topology and geometry
-  auto facet_topology = basix::cell::topology(basix_cell)[fdim];
-  const xt::xtensor<double, 2> ref_geom = basix::cell::geometry(basix_cell);
-
-  // Push forward quadrature points on reference facet to reference cell
-  const std::uint32_t num_facets = facet_topology.size();
-  const std::uint32_t num_quadrature_pts = quadrature.first.shape(0);
-  xt::xtensor<double, 3> qp_ref_facet({num_facets, num_quadrature_pts, ref_geom.shape(1)});
-  for (int i = 0; i < num_facets; ++i)
-  {
-    auto facet = facet_topology[i];
-    auto coords = xt::view(ref_geom, xt::keep(facet), xt::all());
-    auto q_facet = xt::view(qp_ref_facet, i, xt::all(), xt::all());
-    q_facet = xt::linalg::dot(phi_s, coords);
-  }
-  return {qp_ref_facet, quadrature.second};
 }
 
 /// Returns true if two PETSc matrices are element-wise equal within a tolerance.
