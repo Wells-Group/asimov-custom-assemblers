@@ -98,11 +98,11 @@ public:
   }
   /// Return a list of quadrature points for each entity in the cell (using local entity index as in
   /// DOLFINx/Basix)
-  std::vector<xt::xarray<double>>& points_ref() { return _points; }
+  const std::vector<xt::xarray<double>>& points_ref() { return _points; }
 
   /// Return a list of quadrature weights for each entity in the cell (using local entity index as
   /// in DOLFINx/Basix)
-  std::vector<std::vector<double>>& weights_ref() { return _weights; }
+  const std::vector<std::vector<double>>& weights_ref() { return _weights; }
 
   /// Return a list of quadrature points for each entity in the cell (using local entity index as in
   /// DOLFINx/Basix)

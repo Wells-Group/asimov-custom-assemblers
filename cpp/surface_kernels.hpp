@@ -35,8 +35,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   const int num_coordinate_dofs = basix_element.dim();
 
   // Create quadrature points on reference facet
-  std::vector<xt::xarray<double>>& q_points = quadrature_rule.points_ref();
-  std::vector<std::vector<double>>& q_weights = quadrature_rule.weights_ref();
+  const std::vector<xt::xarray<double>>& q_points = quadrature_rule.points_ref();
+  const std::vector<std::vector<double>>& q_weights = quadrature_rule.weights_ref();
 
   const std::uint32_t num_facets = q_weights.size();
 
@@ -56,7 +56,7 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   // quadrature points
   for (int i = 0; i < num_facets; ++i)
   {
-    xt::xarray<double>& q_facet = q_points[i];
+    const xt::xarray<double>& q_facet = q_points[i];
     const int num_quadrature_points = q_facet.shape(0);
     xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_points, num_local_dofs, bs});
 
