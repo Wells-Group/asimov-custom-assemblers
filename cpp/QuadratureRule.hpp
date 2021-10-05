@@ -96,19 +96,23 @@ public:
       }
     }
   }
-  /// Return quadrature points
+  /// Return a list of quadrature points for each entity in the cell (using local entity index as in
+  /// DOLFINx/Basix)
   std::vector<xt::xarray<double>>& points_ref() { return _points; }
 
-  /// Return quadrature weights
+  /// Return a list of quadrature weights for each entity in the cell (using local entity index as
+  /// in DOLFINx/Basix)
   std::vector<std::vector<double>>& weights_ref() { return _weights; }
 
-  /// Return quadrature points
+  /// Return a list of quadrature points for each entity in the cell (using local entity index as in
+  /// DOLFINx/Basix)
   std::vector<xt::xarray<double>> points() { return _points; }
 
-  /// Return quadrature weights
+  /// Return a list of quadrature weights for each entity in the cell (using local entity index as
+  /// in DOLFINx/Basix)
   std::vector<std::vector<double>> weights() { return _weights; }
 
-  /// Return quadrature weights
+  /// Return dimension of entity in the quadrature rule
   int dim() { return _dim; }
 
   /// Return the cell type for the ith quadrature rule
