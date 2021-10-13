@@ -125,6 +125,9 @@ public:
     return dolfinx::mesh::cell_type_from_basix_type(et);
   }
 
+  /// Return the number of quadrature points per entity
+  std::size_t num_points(int i) { return _points[i].shape(0); }
+
 private:
   dolfinx::mesh::CellType _cell_type;
   int _degree;
