@@ -72,12 +72,12 @@ bool allclose(Mat A, Mat B)
   if (B_info.nz_allocated != A_info.nz_allocated)
     return false;
 
-  double* A_array;
+  PetscScalar* A_array;
   MatSeqAIJGetArray(A, &A_array);
   auto _A = xt::adapt(A_array, A_info.nz_allocated, xt::no_ownership(),
                       std::vector<std::size_t>{std::size_t(A_info.nz_allocated)});
 
-  double* B_array;
+  PetscScalar* B_array;
   MatSeqAIJGetArray(B, &B_array);
   auto _B = xt::adapt(B_array, B_info.nz_allocated, xt::no_ownership(),
                       std::vector<std::size_t>{std::size_t(B_info.nz_allocated)});
