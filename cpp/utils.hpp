@@ -91,8 +91,9 @@ bool allclose(Mat A, Mat B)
 /// dofs. If function space is blocked, the coefficients are ordered in XYZ XYZ ordering.
 /// @param[in] coeffs The coefficients to pack
 /// @param[out] c The packed coefficients and the number of coeffs per cell
-std::pair<std::vector<PetscScalar>, int>
-pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs)
+template <typename U>
+std::pair<std::vector<U>, int>
+pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<U>>> coeffs)
 {
   // Coefficient offsets
   std::vector<int> coeffs_offsets{0};
@@ -106,7 +107,7 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<Petsc
 
   std::vector<const dolfinx::fem::DofMap*> dofmaps(coeffs.size());
   std::vector<const dolfinx::fem::FiniteElement*> elements(coeffs.size());
-  std::vector<std::reference_wrapper<const std::vector<PetscScalar>>> v;
+  std::vector<xtl::span<const U>> v;
   v.reserve(coeffs.size());
   for (std::size_t i = 0; i < coeffs.size(); ++i)
   {
@@ -123,7 +124,7 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<Petsc
                                  + mesh->topology().index_map(tdim)->num_ghosts();
 
   // Copy data into coefficient array
-  std::vector<PetscScalar> c(num_cells * coeffs_offsets.back());
+  std::vector<U> c(num_cells * coeffs_offsets.back());
   const int cstride = coeffs_offsets.back();
   if (!coeffs.empty())
   {

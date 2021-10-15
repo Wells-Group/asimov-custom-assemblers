@@ -131,7 +131,7 @@ PYBIND11_MODULE(cpp, m)
   m.def("pack_coefficients",
         [](std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> functions)
         {
-          auto [coeffs, cstride] = dolfinx_cuas::pack_coefficients(functions);
+          auto [coeffs, cstride] = dolfinx_cuas::pack_coefficients<PetscScalar>(functions);
           int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
           return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
         });
