@@ -69,9 +69,9 @@ int main(int argc, char* argv[])
   common::Timer t0("~Assemble Matrix Custom");
   const std::vector<PetscScalar> coeffs(ncells * 0);
   const std::vector<PetscScalar> consts(0);
-  dolfinx_cuas::assemble_matrix(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), V, {},
-                                boundary_facets, kernel, coeffs, 0, consts,
-                                dolfinx::fem::IntegralType::exterior_facet);
+  dolfinx_cuas::assemble_matrix<PetscScalar>(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), V,
+                                             {}, boundary_facets, kernel, coeffs, 0, consts,
+                                             dolfinx::fem::IntegralType::exterior_facet);
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();

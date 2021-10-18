@@ -26,8 +26,9 @@ int main(int argc, char* argv[])
 
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "print usage message")(
-      "kernel", po::value<std::string>()->default_value("mass"), "kernel (mass or stiffness)")(
-      "degree", po::value<int>()->default_value(1), "Degree of function space (1-5)");
+      "kernel", po::value<std::string>()->default_value("mass"),
+      "kernel (mass or stiffness)")("degree", po::value<int>()->default_value(1),
+                                    "Degree of function space (1-5)");
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
   po::notify(vm);
@@ -109,9 +110,9 @@ int main(int argc, char* argv[])
   common::Timer t0("~Assemble Matrix Custom");
   const std::vector<PetscScalar> coeffs(0);
   const std::vector<PetscScalar> consts(0);
-  dolfinx_cuas::assemble_matrix(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), V, {},
-                                active_cells, kernel, coeffs, 0, consts,
-                                dolfinx::fem::IntegralType::cell);
+  dolfinx_cuas::assemble_matrix<PetscScalar>(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), V,
+                                             {}, active_cells, kernel, coeffs, 0, consts,
+                                             dolfinx::fem::IntegralType::cell);
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();
