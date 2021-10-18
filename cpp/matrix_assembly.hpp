@@ -29,13 +29,13 @@ namespace
 /// @param[in] coeffs coefficients used in the variational form
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
-template <typename U>
+template <typename T>
 void assemble_exterior_facets(
     const std::function<int(std::int32_t, const std::int32_t*, std::int32_t, const std::int32_t*,
-                            const U*)>& mat_set,
+                            const T*)>& mat_set,
     std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<bool>& bc,
     const xtl::span<const std::int32_t>& active_facets, kernel_fn& kernel,
-    const xtl::span<const U> coeffs, int cstride, const xtl::span<const U>& constants)
+    const xtl::span<const T> coeffs, int cstride, const xtl::span<const T>& constants)
 {
   // Extract mesh
   std::shared_ptr<const dolfinx::mesh::Mesh> mesh = V->mesh();
@@ -86,7 +86,7 @@ void assemble_exterior_facets(
   }
 
   // Assemble using dolfinx
-  dolfinx::fem::impl::assemble_exterior_facets<U>(mat_set, *mesh, facets, apply_dof_transformation,
+  dolfinx::fem::impl::assemble_exterior_facets<T>(mat_set, *mesh, facets, apply_dof_transformation,
                                                   dofs, bs, apply_dof_transformation_to_transpose,
                                                   dofs, bs, bc, bc, kernel, coeffs, cstride,
                                                   constants, cell_info, get_perm);
@@ -101,14 +101,14 @@ void assemble_exterior_facets(
 /// @param[in] coeffs coefficients used in the variational form
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
-template <typename U>
+template <typename T>
 void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, std::int32_t,
-                                            const std::int32_t*, const U*)>& mat_set,
+                                            const std::int32_t*, const T*)>& mat_set,
                     std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<bool>& bc,
                     const xtl::span<const std::int32_t>& active_cells, kernel_fn& kernel,
-                    const xtl::span<const U> coeffs, int cstride,
+                    const xtl::span<const T> coeffs, int cstride,
 
-                    const xtl::span<const U>& constants)
+                    const xtl::span<const T>& constants)
 {
   // Extract mesh
   std::shared_ptr<const dolfinx::mesh::Mesh> mesh = V->mesh();
@@ -138,7 +138,7 @@ void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, s
   }
 
   // Assemble using dolfinx
-  dolfinx::fem::impl::assemble_cells<U>(mat_set, mesh->geometry(), active_cells,
+  dolfinx::fem::impl::assemble_cells<T>(mat_set, mesh->geometry(), active_cells,
                                         apply_dof_transformation, dofs, bs,
                                         apply_dof_transformation_to_transpose, dofs, bs, bc, bc,
                                         kernel, coeffs, cstride, constants, cell_info);
@@ -158,14 +158,14 @@ namespace dolfinx_cuas
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 /// @param[in] type the integral type
-template <typename U>
+template <typename T>
 void assemble_matrix(const std::function<int(std::int32_t, const std::int32_t*, std::int32_t,
-                                             const std::int32_t*, const U*)>& mat_set,
+                                             const std::int32_t*, const T*)>& mat_set,
                      std::shared_ptr<dolfinx::fem::FunctionSpace> V,
-                     const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<U>>>& bcs,
+                     const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<T>>>& bcs,
                      const xtl::span<const std::int32_t>& active_entities, kernel_fn& kernel,
-                     const xtl::span<const U> coeffs, int cstride,
-                     const xtl::span<const U>& constants, dolfinx::fem::IntegralType type)
+                     const xtl::span<const T> coeffs, int cstride,
+                     const xtl::span<const T>& constants, dolfinx::fem::IntegralType type)
 {
 
   // Build dof marker (assuming same test and trial space)
