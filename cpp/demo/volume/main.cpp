@@ -117,8 +117,8 @@ int main(int argc, char* argv[])
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();
 
-  // Prepare constants and coefficients
   {
+    // Prepare constants and coefficients
     const std::vector<PetscScalar> constants = pack_constants(*a);
     const auto coeffs = pack_coefficients(*a);
 
