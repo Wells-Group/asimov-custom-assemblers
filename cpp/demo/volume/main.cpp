@@ -65,7 +65,8 @@ int main(int argc, char* argv[])
                                functionspace_form_volume_a_mass5};
     std::vector forms_mass = {form_volume_a_mass1, form_volume_a_mass2, form_volume_a_mass3,
                               form_volume_a_mass4, form_volume_a_mass5};
-    V = fem::create_functionspace(spaces_mass[degree - 1], "v_0", mesh);
+    V = std::make_shared<fem::FunctionSpace>(
+        fem::create_functionspace(spaces_mass[degree - 1], "v_0", mesh));
     form = *forms_mass[degree - 1];
   }
   else if (problem_type == "stiffness")
@@ -79,7 +80,8 @@ int main(int argc, char* argv[])
     std::vector forms_stiffness
         = {form_volume_a_stiffness1, form_volume_a_stiffness2, form_volume_a_stiffness3,
            form_volume_a_stiffness4, form_volume_a_stiffness5};
-    V = fem::create_functionspace(spaces_stiffness[degree - 1], "v_0", mesh);
+    V = std::make_shared<fem::FunctionSpace>(
+        fem::create_functionspace(spaces_stiffness[degree - 1], "v_0", mesh));
     form = *forms_stiffness[degree - 1];
   }
   else
