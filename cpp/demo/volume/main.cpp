@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {25, 25, 25},
+      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {10, 10, 10},
                                   mesh::CellType::tetrahedron, mesh::GhostMode::none));
 
   mesh->topology().create_entity_permutations();
@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
   if (problem_type == "mass")
   {
     q_degree = 2 * degree;
-    kernel_type = dolfinx_cuas::Kernel::MassTensor;
+    kernel_type = dolfinx_cuas::Kernel::Mass;
     std::vector spaces_mass = {functionspace_form_volume_a_mass1, functionspace_form_volume_a_mass2,
                                functionspace_form_volume_a_mass3, functionspace_form_volume_a_mass4,
                                functionspace_form_volume_a_mass5};
@@ -108,10 +108,10 @@ int main(int argc, char* argv[])
   const std::int32_t tdim = mesh->topology().dim();
   const std::int32_t ncells = mesh->topology().index_map(tdim)->size_local();
   xt::xarray<std::int32_t> active_cells = xt::arange<std::int32_t>(0, ncells);
-
-  common::Timer t0("~Assemble Matrix Custom");
   const std::vector<PetscScalar> coeffs(0);
   const std::vector<PetscScalar> consts(0);
+
+  common::Timer t0("~Assemble Matrix Custom");
   dolfinx_cuas::assemble_matrix<PetscScalar>(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), V,
                                              {}, active_cells, kernel, coeffs, 0, consts,
                                              dolfinx::fem::IntegralType::cell);
@@ -119,11 +119,18 @@ int main(int argc, char* argv[])
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
   t0.stop();
 
-  common::Timer t1("~Assemble Matrix DOLINFx/FFCx");
-  dolfinx::fem::assemble_matrix(la::PETScMatrix::set_block_fn(B.mat(), ADD_VALUES), *a, {});
-  MatAssemblyBegin(B.mat(), MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
-  t1.stop();
+  {
+    // Prepare constants and coefficients
+    const std::vector<PetscScalar> constants = pack_constants(*a);
+    const auto coeffs = pack_coefficients(*a);
+
+    common::Timer t1("~Assemble Matrix DOLINFx/FFCx");
+    dolfinx::fem::assemble_matrix(la::PETScMatrix::set_block_fn(B.mat(), ADD_VALUES), *a,
+                                  tcb::make_span(constants), {coeffs.first, coeffs.second}, {});
+    MatAssemblyBegin(B.mat(), MAT_FINAL_ASSEMBLY);
+    MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
+    t1.stop();
+  }
 
   dolfinx::list_timings(mpi_comm, {dolfinx::TimingType::wall});
 
