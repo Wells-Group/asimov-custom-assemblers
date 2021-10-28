@@ -144,7 +144,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
         # Create coordinate element and tabulate basis functions for pullback
         c_element = basix.create_element(basix.finite_element.string_to_family(
             ufc_family, ct_string), ct, ufl_c_el.degree(), basix.LagrangeVariant.equispaced)
-        c_tab = c_element.tabulate_x(1, q_p)
+        c_tab = c_element.tabulate(1, q_p)
 
         if int_type == "mass":
             kernel = mass_kernel
@@ -154,7 +154,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
             num_derivatives = 1
 
         # Tabulate basis functions at quadrature points
-        tabulated_data = element.tabulate_x(num_derivatives, q_p)
+        tabulated_data = element.tabulate(num_derivatives, q_p)
         if int_type == "mass":
             basis_functions = tabulated_data[0, :, :, 0]
         elif int_type == "stiffness":
@@ -183,7 +183,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
         # NOTE: Current assumption is that value size is 1
         q_p, q_w = basix.make_quadrature("default", surface_element.cell_type, quadrature_degree)
         q_w = q_w.reshape(q_w.size, 1)
-        c_tab = surface_element.tabulate_x(1, q_p)
+        c_tab = surface_element.tabulate(1, q_p)
         # Get the coordinates for the facets of the reference cell
         _cell = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.to_type(ct_string)]
         facet_topology = basix.topology(_cell)[mesh.topology.dim - 1]
@@ -206,7 +206,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
             coords = ref_geometry[facet]
             ref_jacobians[i] = np.dot(coords.T, dphi_s_q0.T)
             q_cell[i] = phi_s @ coords
-            phi[i] = element.tabulate_x(0, q_cell[i])[0, :, :, 0]
+            phi[i] = element.tabulate(0, q_cell[i])[0, :, :, 0]
         # Assemble surface integral
         surface_kernel(data, ct_string, is_affine, block_size, num_dofs_per_cell, num_dofs_x, facet_geom,
                        x, gdim, tdim, q_cell, q_w, c_tab, phi, ref_jacobians, entity_transformations,

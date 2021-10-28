@@ -40,8 +40,8 @@ int main(int argc, char* argv[])
 
   // Generate function space
   const int Q = 1; // Degree of function space
-  const std::shared_ptr<fem::FunctionSpace>& V
-      = fem::create_functionspace(functionspace_form_problem_a, "u", mesh);
+  auto V = std::make_shared<fem::FunctionSpace>(
+      fem::create_functionspace(functionspace_form_problem_a, "u", mesh));
 
   // Generate boundary kernel
   const std::int32_t tdim = mesh->topology().dim();
