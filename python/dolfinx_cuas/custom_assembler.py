@@ -111,7 +111,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
     ct_string = dolfinx.cpp.mesh.to_string(V.mesh.topology.cell_type)
     ct = basix.cell.string_to_type(ct_string)
     element = basix.create_element(basix.finite_element.string_to_family(
-        family, ct_string), ct, V.ufl_element().degree(), basix.LagrangeVariant.equispaced)
+        family, ct_string), ct, V.ufl_element().degree(), basix.LagrangeVariant.gll_warped)
 
     # Extract data required for dof transformations
     # NOTE: this is untested since now only relevant for non-Lagrange spaces.
@@ -138,12 +138,13 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
 
     if int_type in ["mass", "stiffness"]:
         # Get quadrature points and weights
-        q_p, q_w = basix.make_quadrature("default", element.cell_type, quadrature_degree)
+        rule = "default"
+        q_p, q_w = basix.make_quadrature(basix.quadrature.string_to_type(rule), element.cell_type, quadrature_degree)
         q_w = q_w.reshape(q_w.size, 1)  # Reshape as nd array to use efficiently in kernels
 
         # Create coordinate element and tabulate basis functions for pullback
         c_element = basix.create_element(basix.finite_element.string_to_family(
-            ufc_family, ct_string), ct, ufl_c_el.degree(), basix.LagrangeVariant.equispaced)
+            ufc_family, ct_string), ct, ufl_c_el.degree(), basix.LagrangeVariant.gll_warped)
         c_tab = c_element.tabulate(1, q_p)
 
         if int_type == "mass":
@@ -176,12 +177,14 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
             mesh.topology.cell_type, mesh.topology.dim - 1, 0))
         surface_cell_type = basix.cell.string_to_type(surface_str)
         surface_element = basix.create_element(basix.finite_element.string_to_family(
-            family, surface_str), surface_cell_type, ufl_c_el.degree(), basix.LagrangeVariant.equispaced)
+            family, surface_str), surface_cell_type, ufl_c_el.degree(), basix.LagrangeVariant.gll_warped)
 
         # Tabulate reference coordinate element basis functions for facets at quadrature points.
         # Shape is (derivatives, num_quadrature_point, num_basis_functions, value_size)
         # NOTE: Current assumption is that value size is 1
-        q_p, q_w = basix.make_quadrature("default", surface_element.cell_type, quadrature_degree)
+        rule = "default"
+        q_p, q_w = basix.make_quadrature(basix.quadrature.string_to_type(rule),
+                                         surface_element.cell_type, quadrature_degree)
         q_w = q_w.reshape(q_w.size, 1)
         c_tab = surface_element.tabulate(1, q_p)
         # Get the coordinates for the facets of the reference cell

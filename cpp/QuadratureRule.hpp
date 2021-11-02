@@ -28,7 +28,8 @@ public:
   /// @param[in] degree Degree of quadrature rule
   /// @param[in] Dimension of entity
   /// @param[in] type Type of quadrature rule
-  QuadratureRule(dolfinx::mesh::CellType ct, int degree, int dim, std::string type = "default")
+  QuadratureRule(dolfinx::mesh::CellType ct, int degree, int dim,
+                 basix::quadrature::type type = basix::quadrature::type::Default)
       : _cell_type(ct), _degree(degree), _type(type), _dim(dim)
   {
 
@@ -75,11 +76,11 @@ public:
         const int e_degree = 1;
         basix::cell::type et = basix::cell::sub_entity_type(b_ct, dim, i);
         basix::FiniteElement entity_element = basix::create_element(
-            basix::element::family::P, et, e_degree, basix::element::lagrange_variant::equispaced);
+            basix::element::family::P, et, e_degree, basix::element::lagrange_variant::gll_warped);
 
         // Create quadrature and tabulate on entity
         std::pair<xt::xarray<double>, std::vector<double>> quadrature
-            = basix::quadrature::make_quadrature("default", et, degree);
+            = basix::quadrature::make_quadrature(et, degree);
         auto c_tab = entity_element.tabulate(0, quadrature.first);
         xt::xtensor<double, 2> phi_s = xt::view(c_tab, 0, xt::all(), xt::all(), 0);
 
@@ -131,7 +132,7 @@ public:
 private:
   dolfinx::mesh::CellType _cell_type;
   int _degree;
-  std::string _type;
+  basix::quadrature::type _type;
   int _dim;
   std::vector<xt::xarray<double>> _points;   // Quadrature points for each entity on the cell
   std::vector<std::vector<double>> _weights; // Quadrature weights for each entity on the cell
