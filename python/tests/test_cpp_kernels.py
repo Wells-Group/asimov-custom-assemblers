@@ -3,6 +3,7 @@
 # SPDX-License-Identifier:   LGPL-3.0-or-later
 
 import dolfinx
+import basix
 import dolfinx_cuas
 import dolfinx_cuas.cpp
 import numpy as np
@@ -65,7 +66,8 @@ def test_manifold(kernel_type):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = dolfinx.fem.create_matrix(a)
     fdim = mesh.topology.dim - 1
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, quadrature_degree, fdim, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(
+        mesh.topology.cell_type, quadrature_degree, fdim, basix.quadrature.string_to_type("default"))
 
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
     B.zeroEntries()
@@ -122,7 +124,7 @@ def test_surface_kernels(dim, kernel_type):
 
     B = dolfinx.fem.create_matrix(a)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(
-        mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, "default")
+        mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
 
     B.zeroEntries()
@@ -179,7 +181,8 @@ def test_normal_kernels(dim, kernel_type):
 
     # FIXME: Does not work for prism meshes
     fdim = mesh.topology.dim - 1
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, quadrature_degree, fdim, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(
+        mesh.topology.cell_type, quadrature_degree, fdim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
@@ -205,10 +208,10 @@ def test_volume_kernels(kernel_type, P):
     dx = ufl.Measure("dx", domain=mesh)
     if kernel_type == kt.Mass:
         a = ufl.inner(u, v) * dx
-        q_degree = 2 * P
+        q_degree = 2 * P + 10
     elif kernel_type == kt.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
-        q_degree = 2 * (P - 1)
+        q_degree = 2 * (P - 1) + 10
     else:
         raise RuntimeError("Unknown kernel")
 
@@ -226,7 +229,8 @@ def test_volume_kernels(kernel_type, P):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = dolfinx.fem.create_matrix(a)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree, mesh.topology.dim, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree,
+                                             mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
     B.zeroEntries()
     consts = np.zeros(0)
@@ -284,7 +288,8 @@ def test_vector_cell_kernel(kernel_type, P):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = dolfinx.fem.create_matrix(a)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree, mesh.topology.dim, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree,
+                                             mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
     B.zeroEntries()
     dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
@@ -355,7 +360,7 @@ def test_surface_non_affine(P, vector, dim):
 
     # FIXME: Does not work for prism meshes
     q_rule = dolfinx_cuas.cpp.QuadratureRule(
-        mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, "default")
+        mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kt.MassNonAffine, q_rule)
 
     B.zeroEntries()

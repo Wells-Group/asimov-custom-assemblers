@@ -3,6 +3,7 @@
 # SPDX-License-Identifier:   LGPL-3.0-or-later
 
 import dolfinx
+import basix
 import dolfinx_cuas
 import dolfinx_cuas.cpp
 import numpy as np
@@ -46,7 +47,8 @@ def test_vector_kernels(dim, kernel_type, P):
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     b2 = dolfinx.fem.create_vector(L)
 
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1, mesh.topology.dim, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1,
+                                             mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_vector_kernel(V._cpp_object, kernel_type, q_rule)
     b2.zeroEntries()
     consts = np.zeros(0)
@@ -93,7 +95,8 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     b2 = dolfinx.fem.create_vector(L)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1, mesh.topology.dim - 1, "default")
+    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1,
+                                             mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_vector_kernel(V._cpp_object, kernel_type, q_rule)
     b2.zeroEntries()
     dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)

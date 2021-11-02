@@ -46,13 +46,13 @@ basix::FiniteElement mesh_to_basix_element(std::shared_ptr<const dolfinx::mesh::
         = dolfinx::mesh::cell_entity_type(dolfinx_cell, fdim, 0);
     return basix::create_element(basix::element::family::P,
                                  dolfinx::mesh::cell_type_to_basix_type(dolfinx_facet), degree,
-                                 basix::element::lagrange_variant::equispaced);
+                                 basix::element::lagrange_variant::gll_warped);
   }
   if (dim == tdim)
   {
     return basix::create_element(basix::element::family::P,
                                  dolfinx::mesh::cell_type_to_basix_type(dolfinx_cell), degree,
-                                 basix::element::lagrange_variant::equispaced);
+                                 basix::element::lagrange_variant::gll_warped);
   }
   else
     throw std::runtime_error("Does not support elements of edges and vertices");
