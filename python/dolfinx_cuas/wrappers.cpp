@@ -44,19 +44,20 @@ PYBIND11_MODULE(cpp, m)
   // Quadrature rule class
   py::class_<dolfinx_cuas::QuadratureRule, std::shared_ptr<dolfinx_cuas::QuadratureRule>>(
       m, "QuadratureRule", "QuadratureRule object")
-      .def(py::init<dolfinx::mesh::CellType, int, int, basix::quadrature::type>(), py::arg("cell_type"),
-           py::arg("degree"), py::arg("dim"), py::arg("type") = basix::quadrature::type::Default)
+      .def(py::init<dolfinx::mesh::CellType, int, int, basix::quadrature::type>(),
+           py::arg("cell_type"), py::arg("degree"), py::arg("dim"),
+           py::arg("type") = basix::quadrature::type::Default)
       .def("points",
            [](dolfinx_cuas::QuadratureRule& self, int i)
            {
-             if (i >= self.points_ref().size())
+             if (std::size_t(i) >= self.points_ref().size())
                throw std::runtime_error("Entity index out of range");
              return dolfinx_cuas_wrappers::xt_as_pyarray(std::move(self.points()[i]));
            })
       .def("weights",
            [](dolfinx_cuas::QuadratureRule& self, int i)
            {
-             if (i >= self.weights_ref().size())
+             if (std::size_t(i) >= self.weights_ref().size())
                throw std::runtime_error("Entity index out of range");
              return dolfinx_cuas_wrappers::as_pyarray(std::move(self.weights()[i]));
            });

@@ -108,10 +108,9 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
     family = V.ufl_element().family()
     if family == "Q":
         family = "Lagrange"
-    ct_string = dolfinx.cpp.mesh.to_string(V.mesh.topology.cell_type)
-    ct = basix.cell.string_to_type(ct_string)
+    ct = basix.cell.string_to_type(V.mesh.topology.cell_type.name)
     element = basix.create_element(basix.finite_element.string_to_family(
-        family, ct_string), ct, V.ufl_element().degree(), basix.LagrangeVariant.gll_warped)
+        family, V.mesh.topology.cell_type.name), ct, V.ufl_element().degree(), basix.LagrangeVariant.gll_warped)
 
     # Extract data required for dof transformations
     # NOTE: this is untested since now only relevant for non-Lagrange spaces.
@@ -144,7 +143,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
 
         # Create coordinate element and tabulate basis functions for pullback
         c_element = basix.create_element(basix.finite_element.string_to_family(
-            ufc_family, ct_string), ct, ufl_c_el.degree(), basix.LagrangeVariant.gll_warped)
+            ufc_family, V.mesh.topology.cell_type.name), ct, ufl_c_el.degree(), basix.LagrangeVariant.gll_warped)
         c_tab = c_element.tabulate(1, q_p)
 
         if int_type == "mass":
@@ -162,7 +161,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
             basis_functions = tabulated_data[1:, :, :, 0]
 
         # Assemble kernel into data
-        kernel(data, ct_string, num_cells, is_affine, block_size, num_dofs_per_cell,
+        kernel(data, V.mesh.topology.cell_type.name, num_cells, is_affine, block_size, num_dofs_per_cell,
                num_dofs_x, x_dofs, x, gdim, tdim, q_p, q_w, c_tab, basis_functions, entity_transformations,
                entity_dofs, perm_info, needs_transformations)
 
@@ -173,8 +172,8 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
 
         # Create coordinate element for facet
         # FIXME: Does not work for prism meshes
-        surface_str = dolfinx.cpp.mesh.to_string(dolfinx.cpp.mesh.cell_entity_type(
-            mesh.topology.cell_type, mesh.topology.dim - 1, 0))
+        surface_str = dolfinx.cpp.mesh.cell_entity_type(
+            mesh.topology.cell_type, mesh.topology.dim - 1, 0).name
         surface_cell_type = basix.cell.string_to_type(surface_str)
         surface_element = basix.create_element(basix.finite_element.string_to_family(
             family, surface_str), surface_cell_type, ufl_c_el.degree(), basix.LagrangeVariant.gll_warped)
@@ -188,7 +187,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
         q_w = q_w.reshape(q_w.size, 1)
         c_tab = surface_element.tabulate(1, q_p)
         # Get the coordinates for the facets of the reference cell
-        _cell = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.to_type(ct_string)]
+        _cell = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.to_type(V.mesh.topology.cell_type.name)]
         facet_topology = basix.topology(_cell)[mesh.topology.dim - 1]
         ref_geometry = basix.geometry(_cell)
 
@@ -211,9 +210,9 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
             q_cell[i] = phi_s @ coords
             phi[i] = element.tabulate(0, q_cell[i])[0, :, :, 0]
         # Assemble surface integral
-        surface_kernel(data, ct_string, is_affine, block_size, num_dofs_per_cell, num_dofs_x, facet_geom,
-                       x, gdim, tdim, q_cell, q_w, c_tab, phi, ref_jacobians, entity_transformations,
-                       entity_dofs, perm_info, needs_transformations, facet_info)
+        surface_kernel(data, V.mesh.topology.cell_type.name, is_affine, block_size, num_dofs_per_cell,
+                       num_dofs_x, facet_geom, x, gdim, tdim, q_cell, q_w, c_tab, phi, ref_jacobians,
+                       entity_transformations, entity_dofs, perm_info, needs_transformations, facet_info)
     else:
         raise NotImplementedError(f"Integration kernel for {int_type} has not been implemeted.")
 
