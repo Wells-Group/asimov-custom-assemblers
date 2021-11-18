@@ -210,9 +210,9 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
             q_cell[i] = phi_s @ coords
             phi[i] = element.tabulate(0, q_cell[i])[0, :, :, 0]
         # Assemble surface integral
-        surface_kernel(data, V.mesh.topology.cell_type.name, is_affine, block_size, num_dofs_per_cell, num_dofs_x, facet_geom,
-                       x, gdim, tdim, q_cell, q_w, c_tab, phi, ref_jacobians, entity_transformations,
-                       entity_dofs, perm_info, needs_transformations, facet_info)
+        surface_kernel(data, V.mesh.topology.cell_type.name, is_affine, block_size, num_dofs_per_cell,
+                       num_dofs_x, facet_geom, x, gdim, tdim, q_cell, q_w, c_tab, phi, ref_jacobians,
+                       entity_transformations, entity_dofs, perm_info, needs_transformations, facet_info)
     else:
         raise NotImplementedError(f"Integration kernel for {int_type} has not been implemeted.")
 
