@@ -12,14 +12,28 @@ jobs:
   build:
     if: "!(contains(github.event.head_commit.message, '[ci skip]') || contains(github.event.head_commit.message, '[skip ci]'))"
     runs-on: ubuntu-20.04
-    # container: dolfinx/dolfinx
-    # steps:
-    #   - uses: actions/checkout@v2
+
     container: dolfinx/dev-env
+
+    strategy:
+      matrix:
+        # Complex mode not working for header only libraries
+        petsc_mode: [real]
+        petsc_int_type: [32, 64]
+        CXX: [c++, clang++]
+        CC: [cc, clang]
+        exclude:
+          - CC: cc
+            CXX: clang++
+          - CC: clang
+            CXX: c++
+
     env:
-      CC: clang
-      CXX: clang++
-      PETSC_ARCH: linux-gnu-real-32
+      CC: ${{ matrix.CC }}
+      CXX : ${{ matrix.CXX }}
+      HDF5_MPI: "ON"
+      HDF5_DIR: "/usr/lib/x86_64-linux-gnu/hdf5/mpich/"
+      PETSC_ARCH: linux-gnu-${{ matrix.petsc_mode }}-${{ matrix.petsc_int_type }}
       OMPI_ALLOW_RUN_AS_ROOT: 1
       OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
       OMPI_MCA_rmaps_base_oversubscribe: 1
@@ -27,10 +41,14 @@ jobs:
       OMPI_MCA_btl_vader_single_copy_mechanism: none
       OMPI_MCA_mpi_yield_when_idle: 1
       OMPI_MCA_hwloc_base_binding_policy: none
+      CXX_FLAGS: "-Wall -Werror -g -pedantic -Ofast -march=native"
 
     steps:
       - uses: actions/checkout@v2
 
+      - name: Install meshio/h5py
+        run: |
+          CC=mpicc pip3 install --no-cache-dir --no-binary=h5py h5py meshio
       - name: Get Basix and install
         uses: actions/checkout@v2
         with:
@@ -54,23 +72,23 @@ jobs:
           ref: main
 
       - name: Configure C++ (dolfinx)
-        run: cmake -G Ninja -DCMAKE_BUILD_TYPE=Developer -B build-dolfinx -S ./dolfinx/cpp/
+        run: cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build-dolfinx -S ./dolfinx/cpp/
 
       - name: Build and install C++ library (dolfinx)
         run: |
           cmake --build build-dolfinx
           cmake --install build-dolfinx
-
       - name: Build Python interface (dolfinx)
         run: python3 -m pip -v install ./dolfinx/python/
 
+
       - name: Install custom assemblers (C++)
         run: |
-          cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer cpp/
+          cmake -G Ninja -B build-dir -DCMAKE_BUILD_TYPE=Developer  -DCMAKE_CXX_FLAGS="${CXX_FLAGS}"  cpp/
           ninja -C build-dir install
 
       - name: Install custom assemblers
-        run: python3 -m pip -v install python/
+        run: BUILD_TYPE=Debug CXXFLAGS=${CXX_FLAGS} python3 -m pip -v install python/
 
       - name: Flake8 code
         run: flake8 python/
