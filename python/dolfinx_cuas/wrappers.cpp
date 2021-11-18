@@ -50,14 +50,14 @@ PYBIND11_MODULE(cpp, m)
       .def("points",
            [](dolfinx_cuas::QuadratureRule& self, int i)
            {
-             if (i >= self.points_ref().size())
+             if (std::size_t(i) >= self.points_ref().size())
                throw std::runtime_error("Entity index out of range");
              return dolfinx_cuas_wrappers::xt_as_pyarray(std::move(self.points()[i]));
            })
       .def("weights",
            [](dolfinx_cuas::QuadratureRule& self, int i)
            {
-             if (i >= self.weights_ref().size())
+             if (std::size_t(i) >= self.weights_ref().size())
                throw std::runtime_error("Entity index out of range");
              return dolfinx_cuas_wrappers::as_pyarray(std::move(self.weights()[i]));
            });
