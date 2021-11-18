@@ -58,7 +58,7 @@ if __name__ == "__main__":
         N = 500
         mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
 
-    cell_str = dolfinx.cpp.mesh.to_string(mesh.topology.cell_type)
+    cell_str = mesh.topology.cell_type.name
     el = ufl.VectorElement("CG", cell_str, degree) if vector else ufl.FiniteElement("CG", cell_str, degree)
 
     V = dolfinx.FunctionSpace(mesh, el)
