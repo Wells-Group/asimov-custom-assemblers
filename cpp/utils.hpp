@@ -91,11 +91,11 @@ bool allclose(Mat A, Mat B)
 /// @returns A tuple (coeffs, stride) where coeffs is a 1D array containing the coefficients packed
 /// for all the active entities, and stride is how many coeffs there are per entity.
 template <typename T>
-std::pair<std::vector<T>, int>
-pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coeffs,
-                  std::variant<std::vector<std::int32_t>, std::vector<std::pair<std::int32_t, int>>,
-                               std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>>
-                      active_entities)
+std::pair<std::vector<T>, int> pack_coefficients(
+    std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coeffs,
+    std::variant<tcb::span<const std::int32_t>, tcb::span<const std::pair<std::int32_t, int>>,
+                 tcb::span<const std::tuple<std::int32_t, int, std::int32_t, int>>>
+        active_entities)
 {
 
   // Coefficient offsets
@@ -151,7 +151,7 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
         [&](auto&& entities)
         {
           using U = std::decay_t<decltype(entities)>;
-          if constexpr (std::is_same_v<U, std::vector<std::int32_t>>)
+          if constexpr (std::is_same_v<U, tcb::span<const std::int32_t>>)
           {
             c.resize(entities.size() * coeffs_offsets.back());
 
@@ -165,7 +165,7 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
                   coeffs_offsets[coeff], elements[coeff]->space_dimension(), transform);
             }
           }
-          else if constexpr (std::is_same_v<U, std::vector<std::pair<std::int32_t, int>>>)
+          else if constexpr (std::is_same_v<U, tcb::span<const std::pair<std::int32_t, int>>>)
           {
             c.resize(entities.size() * coeffs_offsets.back());
 
@@ -180,7 +180,8 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
             }
           }
           else if constexpr (std::is_same_v<
-                                 U, std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>>)
+                                 U,
+                                 tcb::span<const std::tuple<std::int32_t, int, std::int32_t, int>>>)
           {
             c.resize(entities.size() * 2 * coeffs_offsets.back());
 
@@ -197,7 +198,8 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
           }
           else
           {
-            throw std::runtime_error("Could not pack coefficient. Integral type not supported.");
+            throw std::runtime_error(
+                "Could not pack coefficient. Input entity type is not supported.");
           }
         },
         active_entities);

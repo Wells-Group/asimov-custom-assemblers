@@ -67,7 +67,7 @@ def test_volume_kernels(kernel_type, P, Q):
     kernel = dolfinx_cuas.cpp.generate_coeff_kernel(kernel_type, [mu._cpp_object, lam._cpp_object], P, q_rule)
     B.zeroEntries()
     consts = np.zeros(0)
-    coeffs = dolfinx_cuas.cpp.pack_coefficients([mu._cpp_object, lam._cpp_object])
+    coeffs = dolfinx_cuas.cpp.pack_coefficients([mu._cpp_object, lam._cpp_object], active_cells)
     dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
     B.assemble()
 
