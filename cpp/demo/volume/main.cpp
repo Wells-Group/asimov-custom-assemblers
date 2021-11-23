@@ -126,7 +126,8 @@ int main(int argc, char* argv[])
 
     common::Timer t1("~Assemble Matrix DOLINFx/FFCx");
     dolfinx::fem::assemble_matrix(la::PETScMatrix::set_block_fn(B.mat(), ADD_VALUES), *a,
-                                  tcb::make_span(constants), {coeffs.first, coeffs.second}, {});
+                                  tcb::make_span(constants),
+                                  dolfinx::fem::make_coefficients_span(coeffs), {});
     MatAssemblyBegin(B.mat(), MAT_FINAL_ASSEMBLY);
     MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
     t1.stop();
