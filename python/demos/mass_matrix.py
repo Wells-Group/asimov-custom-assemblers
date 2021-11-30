@@ -15,7 +15,6 @@ from dolfinx.mesh import CellType
 from dolfinx_cuas import (assemble_matrix_numba, compute_reference_mass_matrix,
                           estimate_max_polynomial_degree)
 from mpi4py import MPI
-from ufl.cell import Cell
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Custom assembler of mass matrix using numba and Basix",

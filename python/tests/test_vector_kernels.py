@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier:   LGPL-3.0-or-later
 
-from numbers import Integral
 from dolfinx.generation import UnitSquareMesh, UnitCubeMesh
 from dolfinx.fem import Form, FunctionSpace, create_vector, assemble_vector, IntegralType
 from dolfinx.mesh import MeshTags, locate_entities_boundary
