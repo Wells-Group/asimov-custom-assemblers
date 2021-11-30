@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-import dolfinx
+import dolfinx.mesh as _mesh
+import dolfinx.cpp.mesh as _cpp_mesh
 import numba
 import numpy as np
 from petsc4py import PETSc
@@ -32,7 +33,7 @@ def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-12):
     assert diff.max() <= atol
 
 
-def pack_facet_info(mesh: dolfinx.cpp.mesh.Mesh, mt: dolfinx.MeshTags, index: int):
+def pack_facet_info(mesh: _mesh.Mesh, mt: _mesh.MeshTags, index: int):
     """
     Given a mesh, meshtag and an index, compute the triplet
     (facet index (local to process), cell index(local to process), facet index (local to cell) )
@@ -52,9 +53,9 @@ def pack_facet_info(mesh: dolfinx.cpp.mesh.Mesh, mt: dolfinx.MeshTags, index: in
     facet_info = pack_facet_info_numba(active_facets,
                                        (c_to_f.array, c_to_f.offsets),
                                        (f_to_c.array, f_to_c.offsets))
-    g_indices = dolfinx.cpp.mesh.entities_to_geometry(mesh, fdim,
-                                                      np.array(active_facets, dtype=np.int32),
-                                                      False)
+    g_indices = _cpp_mesh.entities_to_geometry(mesh, fdim,
+                                               np.array(active_facets, dtype=np.int32),
+                                               False)
     return facet_info, g_indices
 
 

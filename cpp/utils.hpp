@@ -160,23 +160,28 @@ std::pair<std::vector<T>, int> pack_coefficients(
             {
               const auto transform
                   = elements[coeff]->get_dof_transformation_function<T>(false, true);
-              dolfinx::fem::impl::pack_coefficient_cell(
+              dolfinx::fem::impl::pack_coefficient_entity<T, std::int32_t>(
                   xtl::span<T>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], entities,
-                  coeffs_offsets[coeff], elements[coeff]->space_dimension(), transform);
+                  [](std::int32_t entity) { return entity; }, coeffs_offsets[coeff],
+                  elements[coeff]->space_dimension(), transform);
             }
           }
           else if constexpr (std::is_same_v<U, tcb::span<const std::pair<std::int32_t, int>>>)
           {
             c.resize(entities.size() * coeffs_offsets.back());
 
+            // Create lambda function fetching cell index from exterior facet entity
+            auto fetch_cell
+                = [](const std::pair<std::int32_t, int>& entity) { return entity.first; };
+
             // Iterate over coefficients
             for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
             {
               const auto transform
                   = elements[coeff]->get_dof_transformation_function<T>(false, true);
-              dolfinx::fem::impl::pack_coefficient_exterior_facet<T>(
+              dolfinx::fem::impl::pack_coefficient_entity<T, std::pair<std::int32_t, int>>(
                   xtl::span<T>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], entities,
-                  coeffs_offsets[coeff], elements[coeff]->space_dimension(), transform);
+                  fetch_cell, coeffs_offsets[coeff], elements[coeff]->space_dimension(), transform);
             }
           }
           else if constexpr (std::is_same_v<
@@ -185,14 +190,28 @@ std::pair<std::vector<T>, int> pack_coefficients(
           {
             c.resize(entities.size() * 2 * coeffs_offsets.back());
 
+            // Lambda functions to fetch cell index from interior facet entity
+            auto fetch_cell0 = [](const std::tuple<std::int32_t, int, std::int32_t, int>& entity)
+            { return std::get<0>(entity); };
+            auto fetch_cell1 = [](const std::tuple<std::int32_t, int, std::int32_t, int>& entity)
+            { return std::get<2>(entity); };
+
             // Iterate over coefficients
             for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
             {
               const auto transform
                   = elements[coeff]->get_dof_transformation_function<T>(false, true);
-              dolfinx::fem::impl::pack_coefficient_interior_facet<T>(
-                  xtl::span<T>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], entities,
-                  coeffs_offsets[coeff], coeffs_offsets[coeff + 1],
+              // Pack coefficient ['+']
+              dolfinx::fem::impl::pack_coefficient_entity<
+                  T, std::tuple<std::int32_t, int, std::int32_t, int>>(
+                  xtl::span<T>(c), 2 * cstride, v[coeff], cell_info, *dofmaps[coeff], entities,
+                  fetch_cell0, 2 * coeffs_offsets[coeff], elements[coeff]->space_dimension(),
+                  transform);
+              // Pack coefficient ['-']
+              dolfinx::fem::impl::pack_coefficient_entity<
+                  T, std::tuple<std::int32_t, int, std::int32_t, int>>(
+                  xtl::span<T>(c), 2 * cstride, v[coeff], cell_info, *dofmaps[coeff], entities,
+                  fetch_cell1, coeffs_offsets[coeff] + coeffs_offsets[coeff + 1],
                   elements[coeff]->space_dimension(), transform);
             }
           }

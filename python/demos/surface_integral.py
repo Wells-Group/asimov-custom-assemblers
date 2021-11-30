@@ -5,13 +5,16 @@
 import argparse
 import time
 
-import dolfinx
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import ufl
+from dolfinx.fem import FunctionSpace
+from dolfinx.generation import UnitCubeMesh, UnitSquareMesh
+from dolfinx.mesh import CellType, MeshTags, compute_boundary_facets
 from dolfinx_cuas import (assemble_matrix_numba,
-                          compute_reference_surface_matrix, estimate_max_polynomial_degree)
+                          compute_reference_surface_matrix,
+                          estimate_max_polynomial_degree)
 from mpi4py import MPI
 
 if __name__ == "__main__":
@@ -43,25 +46,19 @@ if __name__ == "__main__":
 
     np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
     if threed:
-        if simplex:
-            ct = dolfinx.cpp.mesh.CellType.tetrahedron
-        else:
-            ct = dolfinx.cpp.mesh.CellType.hexahedron
+        ct = CellType.tetrahedron if simplex else CellType.hexahedron
         N = 25
-        mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N, cell_type=ct)
+        mesh = UnitCubeMesh(MPI.COMM_WORLD, N, N, N, cell_type=ct)
 
     else:
-        if simplex:
-            ct = dolfinx.cpp.mesh.CellType.triangle
-        else:
-            ct = dolfinx.cpp.mesh.CellType.quadrilateral
+        ct = CellType.triangle if simplex else CellType.quadrilateral
         N = 25
-        mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, 12, N, cell_type=ct)
+        mesh = UnitSquareMesh(MPI.COMM_WORLD, 12, N, cell_type=ct)
 
-    cell_str = dolfinx.cpp.mesh.to_string(mesh.topology.cell_type)
+    cell_str = mesh.topology.cell_type.name
     el = ufl.VectorElement("CG", cell_str, degree) if vector else ufl.FiniteElement("CG", cell_str, degree)
 
-    V = dolfinx.FunctionSpace(mesh, el)
+    V = FunctionSpace(mesh, el)
     a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.ds
     quadrature_degree = estimate_max_polynomial_degree(a_mass)
 
@@ -70,10 +67,10 @@ if __name__ == "__main__":
     jit_parameters = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
     mesh.topology.create_entities(mesh.topology.dim - 1)
     mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
-    bndry_facets = np.asarray(np.where(np.array(dolfinx.cpp.mesh.compute_boundary_facets(mesh.topology)) == 1)[0],
+    bndry_facets = np.asarray(np.where(np.array(compute_boundary_facets(mesh.topology)) == 1)[0],
                               dtype=np.int32)
     indices = np.ones(bndry_facets.size, dtype=np.int32)
-    mt = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
+    mt = MeshTags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
 
     for i in range(runs):
         start = time.time()

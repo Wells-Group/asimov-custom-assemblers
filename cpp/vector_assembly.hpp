@@ -56,8 +56,6 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
     cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
   }
 
-  auto get_perm = [](std::size_t) { return 0; };
-
   // Create facet tuple: cell_index (local to process) and facet_index (local to cell)
   int tdim = mesh->topology().dim();
   auto f_to_c = mesh->topology().connectivity(tdim - 1, tdim);
@@ -80,7 +78,7 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
   // Assemble using dolfinx
   dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(apply_dof_transformation, b, *mesh,
                                                             facets, dofs, bs, kernel, constants,
-                                                            coeffs, cstride, cell_info, get_perm);
+                                                            coeffs, cstride, cell_info);
 }
 
 /// Assemble vector over cells

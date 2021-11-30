@@ -1,13 +1,16 @@
 # Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta, Sarah Roggendorf
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
-import dolfinx
 import numpy as np
 import pytest
 import scipy.sparse
 import scipy.sparse.linalg
 import ufl
 import ufl.algorithms
+from dolfinx.cpp.mesh import to_type
+from dolfinx.fem import FunctionSpace
+from dolfinx.mesh import (CellType, MeshTags, compute_boundary_facets,
+                          create_mesh)
 from dolfinx_cuas import (assemble_matrix_numba, compute_reference_mass_matrix,
                           compute_reference_stiffness_matrix,
                           compute_reference_surface_matrix,
@@ -24,17 +27,17 @@ def test_cell_kernels(element, ct, degree, integral_type):
     """
     Test assembly of mass matrices on non-affine mesh
     """
-    cell_type = dolfinx.cpp.mesh.to_type(ct)
-    if cell_type == dolfinx.cpp.mesh.CellType.quadrilateral:
+    cell_type = to_type(ct)
+    if cell_type == CellType.quadrilateral:
         x = np.array([[0, 0, 0.5], [1, 0, 1.4], [0, 1.3, 0.0], [1.2, 1, 0.0]])
         cells = np.array([[0, 1, 2, 3]], dtype=np.int32)
-    elif cell_type == dolfinx.cpp.mesh.CellType.triangle:
+    elif cell_type == CellType.triangle:
         x = np.array([[0, 0, 0.5], [1.1, 0, 1.3], [0.3, 1.0, 0.9], [2, 1.5, 0.0]])
         cells = np.array([[0, 1, 2], [2, 1, 3]], dtype=np.int32)
-    elif cell_type == dolfinx.cpp.mesh.CellType.tetrahedron:
+    elif cell_type == CellType.tetrahedron:
         x = np.array([[0, 0, 0], [1.1, 0, 0], [0.3, 1.0, 0], [1, 1.2, 1.5], [2, 2, 1.5]])
         cells = np.array([[0, 1, 2, 3], [1, 2, 3, 4]], dtype=np.int32)
-    elif cell_type == dolfinx.cpp.mesh.CellType.hexahedron:
+    elif cell_type == CellType.hexahedron:
         x = np.array([[0, 0, 0], [1.1, 0, 0], [0.1, 1, 0], [1, 1.2, 0],
                       [0, 0, 1.2], [1.0, 0, 1], [0, 1, 1], [1, 1, 1]])
         cells = np.array([[0, 1, 2, 3, 4, 5, 6, 7]], dtype=np.int32)
@@ -42,9 +45,9 @@ def test_cell_kernels(element, ct, degree, integral_type):
         raise ValueError(f"Unsupported mesh type {ct}")
     cell = ufl.Cell(ct, geometric_dimension=x.shape[1])
     domain = ufl.Mesh(ufl.VectorElement("Lagrange", cell, 1))
-    mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
+    mesh = create_mesh(MPI.COMM_WORLD, cells, x, domain)
     el = ufl.FiniteElement("CG", mesh.ufl_cell(), degree)
-    V = dolfinx.FunctionSpace(mesh, el)
+    V = FunctionSpace(mesh, el)
 
     # NOTE: Workaround for now
     mt = None
@@ -60,10 +63,10 @@ def test_cell_kernels(element, ct, degree, integral_type):
         reference_code = compute_reference_surface_matrix
         mesh.topology.create_entities(mesh.topology.dim - 1)
         mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
-        bndry_facets = np.asarray(np.where(np.array(dolfinx.cpp.mesh.compute_boundary_facets(mesh.topology)) == 1)[0],
+        bndry_facets = np.asarray(np.where(np.array(compute_boundary_facets(mesh.topology)) == 1)[0],
                                   dtype=np.int32)
         indices = np.ones(bndry_facets.size, dtype=np.int32)
-        mt = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
+        mt = MeshTags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
         index = indices[0]
 
     quadrature_degree = estimate_max_polynomial_degree(a_)

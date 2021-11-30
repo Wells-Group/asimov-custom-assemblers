@@ -2,17 +2,17 @@
 #
 # SPDX-License-Identifier:   LGPL-3.0-or-later
 
-import dolfinx
 import basix
 import dolfinx_cuas.cpp
 import dolfinx_cuas.utils
 import numpy as np
 import pytest
 import ufl
+from dolfinx import fem, generation
 from mpi4py import MPI
 
 kt = dolfinx_cuas.cpp.Kernel
-it = dolfinx.cpp.fem.IntegralType
+it = fem.IntegralType
 
 
 @pytest.mark.parametrize("kernel_type", [kt.Mass])
@@ -20,9 +20,9 @@ it = dolfinx.cpp.fem.IntegralType
 @pytest.mark.parametrize("Q", [1, 2, 3])
 def test_volume_kernels(kernel_type, P, Q):
     N = 4
-    mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
     # Define variational form
-    V = dolfinx.FunctionSpace(mesh, ("CG", P))
+    V = fem.FunctionSpace(mesh, ("CG", P))
 
     def f(x):
         values = np.zeros((1, x.shape[1]))
@@ -30,12 +30,12 @@ def test_volume_kernels(kernel_type, P, Q):
             values[0, i] = np.max(np.abs(x[:, i]))
         return values
 
-    V2 = dolfinx.FunctionSpace(mesh, ("DG", Q - 1))
-    mu = dolfinx.Function(V2)
+    V2 = fem.FunctionSpace(mesh, ("DG", Q - 1))
+    mu = fem.Function(V2)
     mu.interpolate(f)
 
-    V3 = dolfinx.FunctionSpace(mesh, ("CG", Q))
-    lam = dolfinx.Function(V3)
+    V3 = fem.FunctionSpace(mesh, ("CG", Q))
+    lam = fem.Function(V3)
     lam.interpolate(f)
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
@@ -49,18 +49,18 @@ def test_volume_kernels(kernel_type, P, Q):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = dolfinx.fem.create_matrix(a)
+    a = fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    dolfinx.fem.assemble_matrix(A, a)
+    fem.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
-    B = dolfinx.fem.create_matrix(a)
+    B = fem.create_matrix(a)
     quadrature_degree = 2 * P + Q
     q_rule = dolfinx_cuas.cpp.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, mesh.topology.dim, basix.quadrature.string_to_type("default"))
