@@ -1,6 +1,6 @@
 # Copyright (C) 2021 Sarah Roggendorf
 #
-# SPDX-License-Identifier:   LGPL-3.0-or-later
+# SPDX-License-Identifier:   MIT
 
 from dolfinx.generation import UnitSquareMesh, UnitCubeMesh
 from dolfinx.fem import Form, FunctionSpace, create_vector, assemble_vector, IntegralType

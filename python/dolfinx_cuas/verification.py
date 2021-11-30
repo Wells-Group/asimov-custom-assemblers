@@ -1,6 +1,6 @@
 # Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta, Sarah Roggendorf
 #
-# SPDX-License-Identifier:    LGPL-3.0-or-later
+# SPDX-License-Identifier:    MIT
 
 from dolfinx import fem as _fem
 from dolfinx import mesh as _mesh

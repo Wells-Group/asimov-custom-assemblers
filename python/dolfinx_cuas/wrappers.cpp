@@ -2,10 +2,10 @@
 //
 // This file is part of DOLFINx_CUAS
 //
-// SPDX-License-Identifier:    LGPL-3.0-or-later
+// SPDX-License-Identifier:    MIT
 
-#include "array.h"
-#include "caster_petsc.h"
+#include <array.h>
+#include <caster_petsc.h>
 #include <dolfinx/la/PETScMatrix.h>
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx_cuas/QuadratureRule.hpp>
@@ -52,14 +52,14 @@ PYBIND11_MODULE(cpp, m)
            {
              if (std::size_t(i) >= self.points_ref().size())
                throw std::runtime_error("Entity index out of range");
-             return dolfinx_cuas_wrappers::xt_as_pyarray(std::move(self.points()[i]));
+             return dolfinx_wrappers::xt_as_pyarray(std::move(self.points()[i]));
            })
       .def("weights",
            [](dolfinx_cuas::QuadratureRule& self, int i)
            {
              if (std::size_t(i) >= self.weights_ref().size())
                throw std::runtime_error("Entity index out of range");
-             return dolfinx_cuas_wrappers::as_pyarray(std::move(self.weights()[i]));
+             return dolfinx_wrappers::as_pyarray(std::move(self.weights()[i]));
            });
 
   m.def("generate_surface_kernel",
@@ -129,58 +129,57 @@ PYBIND11_MODULE(cpp, m)
               xtl::span<const PetscScalar>(coeffs.data(), coeffs.size()), coeffs.shape(1),
               xtl::span(constants.data(), constants.shape(0)), type);
         });
-  m.def(
-      "pack_coefficients",
-      [](std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> functions,
-         py::array_t<std::int32_t, py::array::c_style>& entities)
-      {
-        const std::size_t shape_0 = entities.ndim() == 1 ? 1 : entities.shape(0);
+  m.def("pack_coefficients",
+        [](std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> functions,
+           py::array_t<std::int32_t, py::array::c_style>& entities)
+        {
+          const std::size_t shape_0 = entities.ndim() == 1 ? 1 : entities.shape(0);
 
-        if (entities.ndim() == 1)
-        {
-          auto cell_span = xtl::span<const std::int32_t>(entities.data(), entities.size());
-          auto [coeffs, cstride]
-              = dolfinx_cuas::pack_coefficients<PetscScalar>(functions, cell_span);
-          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
-          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
-        }
-        else if (entities.ndim() == 2)
-        {
-          auto ents = entities.unchecked();
-          // FIXME: How to avoid copy here
-          std::vector<std::pair<std::int32_t, int>> facets;
-          facets.reserve(shape_0);
-          for (std::size_t i = 0; i < shape_0; i++)
-            facets.emplace_back(ents(i, 0), ents(i, 1));
+          if (entities.ndim() == 1)
+          {
+            auto cell_span = xtl::span<const std::int32_t>(entities.data(), entities.size());
+            auto [coeffs, cstride]
+                = dolfinx_cuas::pack_coefficients<PetscScalar>(functions, cell_span);
+            int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
+            return dolfinx_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
+          }
+          else if (entities.ndim() == 2)
+          {
+            auto ents = entities.unchecked();
+            // FIXME: How to avoid copy here
+            std::vector<std::pair<std::int32_t, int>> facets;
+            facets.reserve(shape_0);
+            for (std::size_t i = 0; i < shape_0; i++)
+              facets.emplace_back(ents(i, 0), ents(i, 1));
 
-          auto facet_span
-              = xtl::span<const std::pair<std::int32_t, int>>(facets.data(), facets.size());
-          auto [coeffs, cstride]
-              = dolfinx_cuas::pack_coefficients<PetscScalar>(functions, facet_span);
-          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
-          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
-        }
-        else if (entities.ndim() == 3)
-        {
-          auto ents = entities.unchecked();
-          // FIXME: How to avoid copy here
-          std::vector<std::tuple<std::int32_t, int, std::int32_t, int>> facets;
-          facets.reserve(shape_0);
-          for (std::size_t i = 0; i < shape_0; i++)
-            facets.emplace_back(ents(i, 0, 0), ents(i, 0, 1), ents(i, 1, 0), ents(i, 1, 1));
+            auto facet_span
+                = xtl::span<const std::pair<std::int32_t, int>>(facets.data(), facets.size());
+            auto [coeffs, cstride]
+                = dolfinx_cuas::pack_coefficients<PetscScalar>(functions, facet_span);
+            int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
+            return dolfinx_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
+          }
+          else if (entities.ndim() == 3)
+          {
+            auto ents = entities.unchecked();
+            // FIXME: How to avoid copy here
+            std::vector<std::tuple<std::int32_t, int, std::int32_t, int>> facets;
+            facets.reserve(shape_0);
+            for (std::size_t i = 0; i < shape_0; i++)
+              facets.emplace_back(ents(i, 0, 0), ents(i, 0, 1), ents(i, 1, 0), ents(i, 1, 1));
 
-          auto facet_span = xtl::span<const std::tuple<std::int32_t, int, std::int32_t, int>>(
-              facets.data(), facets.size());
-          auto [coeffs, cstride]
-              = dolfinx_cuas::pack_coefficients<PetscScalar>(functions, facet_span);
-          int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
-          return dolfinx_cuas_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
-        }
-        else
-        {
-          throw std::runtime_error("Unsupported entities");
-        }
-      });
+            auto facet_span = xtl::span<const std::tuple<std::int32_t, int, std::int32_t, int>>(
+                facets.data(), facets.size());
+            auto [coeffs, cstride]
+                = dolfinx_cuas::pack_coefficients<PetscScalar>(functions, facet_span);
+            int shape0 = cstride == 0 ? 0 : coeffs.size() / cstride;
+            return dolfinx_wrappers::as_pyarray(std::move(coeffs), std::array{shape0, cstride});
+          }
+          else
+          {
+            throw std::runtime_error("Unsupported entities");
+          }
+        });
 
   py::enum_<dolfinx_cuas::Kernel>(m, "Kernel")
       .value("Mass", dolfinx_cuas::Kernel::Mass)

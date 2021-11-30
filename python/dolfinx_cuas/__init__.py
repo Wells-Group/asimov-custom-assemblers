@@ -1,6 +1,6 @@
 # Copyright (C) 2021 Jørgen S. Dokken
 #
-# SPDX-License-Identifier:    LGPL-3.0-or-later
+# SPDX-License-Identifier:    MIT
 
 """User interface for custom assemblers"""
 
