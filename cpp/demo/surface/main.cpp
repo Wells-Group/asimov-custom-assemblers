@@ -2,7 +2,7 @@
 //
 // This file is part of DOLFINx_CUAS
 //
-// SPDX-License-Identifier:    LGPL-3.0-or-later
+// SPDX-License-Identifier:    MIT
 
 #include "problem.h"
 #include <basix/finite-element.h>

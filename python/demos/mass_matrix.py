@@ -1,17 +1,19 @@
 # Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta
 #
-# SPDX-License-Identifier:    LGPL-3.0-or-later
+# SPDX-License-Identifier:    MIT
 
 import argparse
 import time
 
-import dolfinx
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import ufl
-from dolfinx_cuas import (assemble_matrix_numba,
-                          compute_reference_mass_matrix, estimate_max_polynomial_degree)
+from dolfinx.fem import FunctionSpace
+from dolfinx.generation import UnitCubeMesh, UnitSquareMesh
+from dolfinx.mesh import CellType
+from dolfinx_cuas import (assemble_matrix_numba, compute_reference_mass_matrix,
+                          estimate_max_polynomial_degree)
 from mpi4py import MPI
 
 if __name__ == "__main__":
@@ -43,25 +45,19 @@ if __name__ == "__main__":
 
     np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
     if threed:
-        if simplex:
-            ct = dolfinx.cpp.mesh.CellType.tetrahedron
-        else:
-            ct = dolfinx.cpp.mesh.CellType.hexahedron
+        ct = CellType.tetrahedron if simplex else CellType.hexahedron
         N = 30
-        mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N, cell_type=ct)
+        mesh = UnitCubeMesh(MPI.COMM_WORLD, N, N, N, cell_type=ct)
 
     else:
-        if simplex:
-            ct = dolfinx.cpp.mesh.CellType.triangle
-        else:
-            ct = dolfinx.cpp.mesh.CellType.quadrilateral
+        ct = CellType.triangle if simplex else CellType.quadrilateral
         N = 500
-        mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
+        mesh = UnitSquareMesh(MPI.COMM_WORLD, N, N, cell_type=ct)
 
     cell_str = mesh.topology.cell_type.name
     el = ufl.VectorElement("CG", cell_str, degree) if vector else ufl.FiniteElement("CG", cell_str, degree)
 
-    V = dolfinx.FunctionSpace(mesh, el)
+    V = FunctionSpace(mesh, el)
     a_mass = ufl.inner(ufl.TrialFunction(V), ufl.TestFunction(V)) * ufl.dx
     quadrature_degree = estimate_max_polynomial_degree(a_mass)
 

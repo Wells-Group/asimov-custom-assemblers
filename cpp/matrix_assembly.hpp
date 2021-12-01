@@ -2,7 +2,7 @@
 //
 // This file is part of DOLFINx_CUAS
 //
-// SPDX-License-Identifier:    LGPL-3.0-or-later
+// SPDX-License-Identifier:    MIT
 
 #pragma once
 
@@ -33,7 +33,7 @@ template <typename T>
 void assemble_exterior_facets(
     const std::function<int(std::int32_t, const std::int32_t*, std::int32_t, const std::int32_t*,
                             const T*)>& mat_set,
-    std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<bool>& bc,
+    std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<std::int8_t>& bc,
     const xtl::span<const std::int32_t>& active_facets, kernel_fn& kernel,
     const xtl::span<const T> coeffs, int cstride, const xtl::span<const T>& constants)
 {
@@ -63,8 +63,6 @@ void assemble_exterior_facets(
     mesh->topology_mutable().create_entity_permutations();
     cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
   }
-  // FIXME: Need to reconsider facet permutations for jump integrals
-  auto get_perm = [](std::size_t) { return 0; };
 
   // Create facet tuple: cell_index (local to process) and facet_index (local to cell)
   int tdim = mesh->topology().dim();
@@ -89,7 +87,7 @@ void assemble_exterior_facets(
   dolfinx::fem::impl::assemble_exterior_facets<T>(mat_set, *mesh, facets, apply_dof_transformation,
                                                   dofs, bs, apply_dof_transformation_to_transpose,
                                                   dofs, bs, bc, bc, kernel, coeffs, cstride,
-                                                  constants, cell_info, get_perm);
+                                                  constants, cell_info);
 }
 
 /// Assemble vector over cells
@@ -104,7 +102,8 @@ void assemble_exterior_facets(
 template <typename T>
 void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, std::int32_t,
                                             const std::int32_t*, const T*)>& mat_set,
-                    std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<bool>& bc,
+                    std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                    const std::vector<std::int8_t>& bc,
                     const xtl::span<const std::int32_t>& active_cells, kernel_fn& kernel,
                     const xtl::span<const T> coeffs, int cstride,
 
@@ -169,7 +168,7 @@ void assemble_matrix(const std::function<int(std::int32_t, const std::int32_t*, 
 {
 
   // Build dof marker (assuming same test and trial space)
-  std::vector<bool> dof_marker;
+  std::vector<std::int8_t> dof_marker;
   auto map = V->dofmap()->index_map;
   auto bs = V->dofmap()->index_map_bs();
   assert(map);

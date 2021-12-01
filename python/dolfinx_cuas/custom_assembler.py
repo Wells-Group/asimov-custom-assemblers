@@ -1,12 +1,15 @@
 # Copyright (C) 2021 Jørgen S. Dokken, Igor Baratta, Sarah Roggendorf
 #
-# SPDX-License-Identifier:    LGPL-3.0-or-later
+# SPDX-License-Identifier:    MIT
 
 
 import typing
 
 import basix
-import dolfinx
+import dolfinx.fem as _fem
+import dolfinx.mesh as _dmesh
+import dolfinx.cpp.fem as _cpp_fem
+import dolfinx.cpp.mesh as _cpp_mesh
 import dolfinx_cuas.cpp
 import numpy as np
 import scipy.sparse
@@ -22,29 +25,29 @@ float_type = PETSc.ScalarType
 
 __all__ = ["assemble_matrix_numba", "assemble_matrix", "assemble_vector"]
 
-_dolfinx_to_basix_celltype = {dolfinx.cpp.mesh.CellType.interval: basix.CellType.interval,
-                              dolfinx.cpp.mesh.CellType.triangle: basix.CellType.triangle,
-                              dolfinx.cpp.mesh.CellType.quadrilateral: basix.CellType.quadrilateral,
-                              dolfinx.cpp.mesh.CellType.hexahedron: basix.CellType.hexahedron,
-                              dolfinx.cpp.mesh.CellType.tetrahedron: basix.CellType.tetrahedron}
+_dolfinx_to_basix_celltype = {_dmesh.CellType.interval: basix.CellType.interval,
+                              _dmesh.CellType.triangle: basix.CellType.triangle,
+                              _dmesh.CellType.quadrilateral: basix.CellType.quadrilateral,
+                              _dmesh.CellType.hexahedron: basix.CellType.hexahedron,
+                              _dmesh.CellType.tetrahedron: basix.CellType.tetrahedron}
 
 
 def _cpp_dirichletbc(bc):
     """Unwrap Dirichlet BC objects as cpp objects"""
-    if isinstance(bc, dolfinx.DirichletBC):
+    if isinstance(bc, _fem.DirichletBC):
         return bc._cpp_object
     elif isinstance(bc, (tuple, list)):
         return list(map(lambda sub_bc: _cpp_dirichletbc(sub_bc), bc))
     return bc
 
 
-def assemble_matrix(A: PETSc.Mat, V: dolfinx.FunctionSpace,
+def assemble_matrix(A: PETSc.Mat, V: _fem.FunctionSpace,
                     active_cells: np.ndarray,
                     kernel: dolfinx_cuas.cpp.KernelWrapper,
                     coeffs: np.ndarray,
                     consts: np.ndarray,
-                    type: dolfinx.cpp.fem.IntegralType,
-                    bcs: typing.List[dolfinx.DirichletBC] = [],
+                    type: _fem.IntegralType,
+                    bcs: typing.List[_fem.DirichletBC] = [],
                     diagonal: float = 1.0):
     """Assemble bilinear form into a matrix. The returned matrix is not
     finalised, i.e. ghost values are not accumulated.
@@ -54,21 +57,21 @@ def assemble_matrix(A: PETSc.Mat, V: dolfinx.FunctionSpace,
                                      active_cells, kernel, coeffs, consts, type)
     A.assemblyBegin(PETSc.Mat.AssemblyType.FLUSH)
     A.assemblyEnd(PETSc.Mat.AssemblyType.FLUSH)
-    dolfinx.cpp.fem.insert_diagonal(A, V._cpp_object, cpp_bcs, diagonal)
+    _cpp_fem.insert_diagonal(A, V._cpp_object, cpp_bcs, diagonal)
 
 
-def assemble_vector(b: np.ndarray, V: dolfinx.FunctionSpace,
+def assemble_vector(b: np.ndarray, V: _fem.FunctionSpace,
                     active_cells: np.ndarray,
                     kernel: dolfinx_cuas.cpp.KernelWrapper,
                     coeffs: np.ndarray,
                     consts: np.ndarray,
-                    type: dolfinx.cpp.fem.IntegralType):
+                    type: _fem.IntegralType):
     """Assemble linear form into a vector. """
     dolfinx_cuas.cpp.assemble_vector(b, V._cpp_object, active_cells, kernel, coeffs, consts, type)
 
 
-def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_type: str = "mass",
-                          mt: dolfinx.MeshTags = None, index: int = None):
+def assemble_matrix_numba(V: _fem.FunctionSpace, quadrature_degree: int, int_type: str = "mass",
+                          mt: _dmesh.MeshTags = None, index: int = None):
     """
     Assemble a matrix using custom assembler.
     Parameters
@@ -101,7 +104,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
     ufc_family = ufl_c_el.family()
     if ufc_family == "Q":
         ufc_family = "Lagrange"
-    is_affine = (dolfinx.cpp.mesh.is_simplex(mesh.topology.cell_type)
+    is_affine = (_cpp_mesh.is_simplex(mesh.topology.cell_type)
                  and ufl_c_el.degree() == 1)
 
     # Create basix element based on function space
@@ -172,7 +175,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
 
         # Create coordinate element for facet
         # FIXME: Does not work for prism meshes
-        surface_str = dolfinx.cpp.mesh.cell_entity_type(
+        surface_str = _cpp_mesh.cell_entity_type(
             mesh.topology.cell_type, mesh.topology.dim - 1, 0).name
         surface_cell_type = basix.cell.string_to_type(surface_str)
         surface_element = basix.create_element(basix.finite_element.string_to_family(
@@ -187,7 +190,7 @@ def assemble_matrix_numba(V: dolfinx.FunctionSpace, quadrature_degree: int, int_
         q_w = q_w.reshape(q_w.size, 1)
         c_tab = surface_element.tabulate(1, q_p)
         # Get the coordinates for the facets of the reference cell
-        _cell = _dolfinx_to_basix_celltype[dolfinx.cpp.mesh.to_type(V.mesh.topology.cell_type.name)]
+        _cell = _dolfinx_to_basix_celltype[_cpp_mesh.to_type(V.mesh.topology.cell_type.name)]
         facet_topology = basix.topology(_cell)[mesh.topology.dim - 1]
         ref_geometry = basix.geometry(_cell)
 

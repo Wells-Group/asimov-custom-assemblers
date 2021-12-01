@@ -1,11 +1,11 @@
 # Copyright (C) 2021 Jørgen S. Dokken
 #
-# SPDX-License-Identifier:   LGPL-3.0-or-later
+# SPDX-License-Identifier:   MIT
 
-import dolfinx
 import basix
 import dolfinx_cuas
 import dolfinx_cuas.cpp
+from dolfinx import mesh as dmesh, fem, generation
 import numpy as np
 import pytest
 import ufl
@@ -13,7 +13,7 @@ from mpi4py import MPI
 from petsc4py import PETSc
 
 kt = dolfinx_cuas.cpp.Kernel
-it = dolfinx.cpp.fem.IntegralType
+it = fem.IntegralType
 compare_matrices = dolfinx_cuas.utils.compare_matrices
 
 
@@ -27,14 +27,14 @@ def test_manifold(kernel_type):
 
     x = np.array([[0.0, 0.0, 0.1], [2, 0., 0.0], [0, 1.5, 0.3]])
     cells = np.array([[0, 1, 2]], dtype=np.int32)
-    mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
+    mesh = dmesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
     mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
     facets = np.arange(mesh.topology.index_map(mesh.topology.dim - 1).size_local, dtype=np.int32)
     values = np.ones(len(facets), dtype=np.int32)
-    ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
-    V = dolfinx.VectorFunctionSpace(mesh, ("CG", 1))
+    V = fem.VectorFunctionSpace(mesh, ("CG", 1))
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
@@ -52,19 +52,19 @@ def test_manifold(kernel_type):
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = dolfinx.fem.create_matrix(a)
+    a = fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    dolfinx.fem.assemble_matrix(A, a)
+    fem.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
-    B = dolfinx.fem.create_matrix(a)
+    B = fem.create_matrix(a)
     fdim = mesh.topology.dim - 1
     q_rule = dolfinx_cuas.cpp.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, fdim, basix.quadrature.string_to_type("default"))
@@ -82,17 +82,18 @@ def test_manifold(kernel_type):
 @pytest.mark.parametrize("dim", [2, 3])
 def test_surface_kernels(dim, kernel_type):
     N = 30 if dim == 2 else 10
-    mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = generation.UnitSquareMesh(
+        MPI.COMM_WORLD, N, N) if dim == 2 else generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
 
     # Find facets on boundary to integrate over
-    facets = dolfinx.mesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
-                                                   lambda x: np.logical_or(np.isclose(x[0], 0.0),
-                                                                           np.isclose(x[0], 1.0)))
+    facets = dmesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
+                                            lambda x: np.logical_or(np.isclose(x[0], 0.0),
+                                                                    np.isclose(x[0], 1.0)))
     values = np.ones(len(facets), dtype=np.int32)
-    ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
-    V = dolfinx.VectorFunctionSpace(mesh, ("CG", 1))
+    V = fem.VectorFunctionSpace(mesh, ("CG", 1))
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
@@ -109,12 +110,12 @@ def test_surface_kernels(dim, kernel_type):
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = dolfinx.fem.create_matrix(a)
+    a = fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    dolfinx.fem.assemble_matrix(A, a)
+    fem.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
@@ -122,7 +123,7 @@ def test_surface_kernels(dim, kernel_type):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
-    B = dolfinx.fem.create_matrix(a)
+    B = fem.create_matrix(a)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
@@ -140,16 +141,17 @@ def test_surface_kernels(dim, kernel_type):
 @pytest.mark.parametrize("dim", [2, 3])
 def test_normal_kernels(dim, kernel_type):
     N = 30 if dim == 2 else 10
-    mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = generation.UnitSquareMesh(
+        MPI.COMM_WORLD, N, N) if dim == 2 else generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
 
-    facets = dolfinx.mesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
-                                                   lambda x: np.full(x.shape[1], True, dtype=bool))
+    facets = dmesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
+                                            lambda x: np.full(x.shape[1], True, dtype=bool))
     values = np.ones(len(facets), dtype=np.int32)
     # Find facets on boundary to integrate over2)
-    ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
-    V = dolfinx.VectorFunctionSpace(mesh, ("CG", 1))
+    V = fem.VectorFunctionSpace(mesh, ("CG", 1))
 
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
@@ -164,12 +166,12 @@ def test_normal_kernels(dim, kernel_type):
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = dolfinx.fem.create_matrix(a)
+    a = fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    dolfinx.fem.assemble_matrix(A, a)
+    fem.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
@@ -177,7 +179,7 @@ def test_normal_kernels(dim, kernel_type):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
-    B = dolfinx.fem.create_matrix(a)
+    B = fem.create_matrix(a)
 
     # FIXME: Does not work for prism meshes
     fdim = mesh.topology.dim - 1
@@ -198,9 +200,9 @@ def test_normal_kernels(dim, kernel_type):
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_volume_kernels(kernel_type, P):
     N = 4
-    mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
     # Define variational form
-    V = dolfinx.FunctionSpace(mesh, ("CG", P))
+    V = fem.FunctionSpace(mesh, ("CG", P))
     bs = V.dofmap.index_map_bs
 
     u = ufl.TrialFunction(V)
@@ -217,18 +219,18 @@ def test_volume_kernels(kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = dolfinx.fem.create_matrix(a)
+    a = fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    dolfinx.fem.assemble_matrix(A, a)
+    fem.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
-    B = dolfinx.fem.create_matrix(a)
+    B = fem.create_matrix(a)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree,
                                              mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
@@ -247,8 +249,8 @@ def test_volume_kernels(kernel_type, P):
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_cell_kernel(kernel_type, P):
     N = 5
-    mesh = dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
-    V = dolfinx.VectorFunctionSpace(mesh, ("CG", P))
+    mesh = generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    V = fem.VectorFunctionSpace(mesh, ("CG", P))
     bs = V.dofmap.index_map_bs
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
@@ -274,12 +276,12 @@ def test_vector_cell_kernel(kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = dolfinx.fem.create_matrix(a)
+    a = fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    dolfinx.fem.assemble_matrix(A, a)
+    fem.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
@@ -287,7 +289,7 @@ def test_vector_cell_kernel(kernel_type, P):
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
-    B = dolfinx.fem.create_matrix(a)
+    B = fem.create_matrix(a)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree,
                                              mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
@@ -313,7 +315,7 @@ def test_surface_non_affine(P, vector, dim):
 
         cell = ufl.Cell(ct, geometric_dimension=x.shape[1])
         domain = ufl.Mesh(ufl.VectorElement("Lagrange", cell, 1))
-        mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
+        mesh = dmesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
     else:
         x = np.array([[0, 0], [0.5, 0], [0, 1], [0.6, 1],
                       [1, 0], [0.7, 1]])
@@ -323,17 +325,17 @@ def test_surface_non_affine(P, vector, dim):
 
         cell = ufl.Cell(ct, geometric_dimension=x.shape[1])
         domain = ufl.Mesh(ufl.VectorElement("Lagrange", cell, 1))
-        mesh = dolfinx.mesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
+        mesh = dmesh.create_mesh(MPI.COMM_WORLD, cells, x, domain)
     el = ufl.VectorElement("CG", mesh.ufl_cell(), P) if vector \
         else ufl.FiniteElement("CG", mesh.ufl_cell(), P)
-    V = dolfinx.FunctionSpace(mesh, el)
+    V = fem.FunctionSpace(mesh, el)
 
     # Find facets on boundary to integrate over
-    facets = dolfinx.mesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
-                                                   lambda x: np.isclose(x[0], 0.0))
+    facets = dmesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
+                                            lambda x: np.isclose(x[0], 0.0))
 
     values = np.ones(len(facets), dtype=np.int32)
-    ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
     u = ufl.TrialFunction(V)
@@ -344,16 +346,16 @@ def test_surface_non_affine(P, vector, dim):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = dolfinx.fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = dolfinx.fem.create_matrix(a)
+    a = fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    dolfinx.fem.assemble_matrix(A, a)
+    fem.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
-    B = dolfinx.fem.create_matrix(a)
+    B = fem.create_matrix(a)
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)

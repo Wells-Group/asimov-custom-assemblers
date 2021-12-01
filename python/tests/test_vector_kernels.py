@@ -1,8 +1,10 @@
 # Copyright (C) 2021 Sarah Roggendorf
 #
-# SPDX-License-Identifier:   LGPL-3.0-or-later
+# SPDX-License-Identifier:   MIT
 
-import dolfinx
+from dolfinx.generation import UnitSquareMesh, UnitCubeMesh
+from dolfinx.fem import Form, FunctionSpace, create_vector, assemble_vector, IntegralType
+from dolfinx.mesh import MeshTags, locate_entities_boundary
 import basix
 import dolfinx_cuas
 import dolfinx_cuas.cpp
@@ -13,7 +15,6 @@ from mpi4py import MPI
 from petsc4py import PETSc
 
 kt = dolfinx_cuas.cpp.Kernel
-it = dolfinx.cpp.fem.IntegralType
 compare_matrices = dolfinx_cuas.utils.compare_matrices
 
 
@@ -22,10 +23,10 @@ compare_matrices = dolfinx_cuas.utils.compare_matrices
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_kernels(dim, kernel_type, P):
     N = 30 if dim == 2 else 10
-    mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
 
     # Define variational form
-    V = dolfinx.FunctionSpace(mesh, ("CG", P))
+    V = FunctionSpace(mesh, ("CG", P))
 
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
@@ -34,18 +35,18 @@ def test_vector_kernels(dim, kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    L = dolfinx.fem.Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    b = dolfinx.fem.create_vector(L)
+    L = Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    b = create_vector(L)
 
     # Normal assembly
     b.zeroEntries()
-    dolfinx.fem.assemble_vector(b, L)
+    assemble_vector(b, L)
     b.assemble()
 
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
-    b2 = dolfinx.fem.create_vector(L)
+    b2 = create_vector(L)
 
     q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1,
                                              mesh.topology.dim, basix.quadrature.string_to_type("default"))
@@ -53,7 +54,7 @@ def test_vector_kernels(dim, kernel_type, P):
     b2.zeroEntries()
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
-    dolfinx_cuas.assemble_vector(b2, V, active_cells, kernel, coeffs, consts, it.cell)
+    dolfinx_cuas.assemble_vector(b2, V, active_cells, kernel, coeffs, consts, IntegralType.cell)
     b2.assemble()
 
     assert np.allclose(b.array, b2.array)
@@ -64,29 +65,29 @@ def test_vector_kernels(dim, kernel_type, P):
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_surface_kernel(dim, kernel_type, P):
     N = 30 if dim == 2 else 10
-    mesh = dolfinx.UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else dolfinx.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
 
     # Find facets on boundary to integrate over
-    facets = dolfinx.mesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
-                                                   lambda x: np.logical_or(np.isclose(x[0], 0.0),
-                                                                           np.isclose(x[0], 1.0)))
+    facets = locate_entities_boundary(mesh, mesh.topology.dim - 1,
+                                      lambda x: np.logical_or(np.isclose(x[0], 0.0),
+                                                              np.isclose(x[0], 1.0)))
     values = np.ones(len(facets), dtype=np.int32)
-    ft = dolfinx.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = MeshTags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
-    V = dolfinx.FunctionSpace(mesh, ("CG", P))
+    V = FunctionSpace(mesh, ("CG", P))
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
     L = v * ds(1)
     kernel_type = kt.Rhs
     # Compile UFL form
     # cffi_options = []  # ["-Ofast", "-march=native"]
-    L = dolfinx.fem.Form(L)  # , jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    b = dolfinx.fem.create_vector(L)
+    L = Form(L)  # , jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    b = create_vector(L)
 
     # Normal assembly
     b.zeroEntries()
-    dolfinx.fem.assemble_vector(b, L)
+    assemble_vector(b, L)
     b.assemble()
 
     # Custom assembly
@@ -94,12 +95,12 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
-    b2 = dolfinx.fem.create_vector(L)
+    b2 = create_vector(L)
     q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1,
                                              mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_vector_kernel(V._cpp_object, kernel_type, q_rule)
     b2.zeroEntries()
-    dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+    dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, IntegralType.exterior_facet)
     b2.assemble()
 
     assert np.allclose(b.array, b2.array)

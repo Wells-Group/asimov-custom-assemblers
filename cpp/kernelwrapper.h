@@ -2,7 +2,7 @@
 //
 // This file is part of DOLFINx_CUAS
 //
-// SPDX-License-Identifier:    LGPL-3.0-or-later
+// SPDX-License-Identifier:    MIT
 
 using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
                                      const int*, const std::uint8_t*)>;

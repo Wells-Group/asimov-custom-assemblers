@@ -130,7 +130,7 @@ dmypy.json
 
 .vscode
 
-**/build-dir
+**/build**/**
 core
 *.xdmf
 *.h5

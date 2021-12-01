@@ -30,7 +30,7 @@ jobs:
 
     env:
       CC: ${{ matrix.CC }}
-      CXX : ${{ matrix.CXX }}
+      CXX: ${{ matrix.CXX }}
       HDF5_MPI: "ON"
       HDF5_DIR: "/usr/lib/x86_64-linux-gnu/hdf5/mpich/"
       PETSC_ARCH: linux-gnu-${{ matrix.petsc_mode }}-${{ matrix.petsc_int_type }}
@@ -80,7 +80,6 @@ jobs:
           cmake --install build-dolfinx
       - name: Build Python interface (dolfinx)
         run: python3 -m pip -v install ./dolfinx/python/
-
 
       - name: Install custom assemblers (C++)
         run: |

@@ -2,7 +2,7 @@
 //
 // This file is part of DOLFINx_CUAS
 //
-// SPDX-License-Identifier:    LGPL-3.0-or-later
+// SPDX-License-Identifier:    MIT
 
 #include "volume.h"
 #include <basix/finite-element.h>
@@ -26,9 +26,8 @@ int main(int argc, char* argv[])
 
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "print usage message")(
-      "kernel", po::value<std::string>()->default_value("mass"),
-      "kernel (mass or stiffness)")("degree", po::value<int>()->default_value(1),
-                                    "Degree of function space (1-5)");
+      "kernel", po::value<std::string>()->default_value("mass"), "kernel (mass or stiffness)")(
+      "degree", po::value<int>()->default_value(1), "Degree of function space (1-5)");
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
   po::notify(vm);
@@ -126,7 +125,8 @@ int main(int argc, char* argv[])
 
     common::Timer t1("~Assemble Matrix DOLINFx/FFCx");
     dolfinx::fem::assemble_matrix(la::PETScMatrix::set_block_fn(B.mat(), ADD_VALUES), *a,
-                                  tcb::make_span(constants), {coeffs.first, coeffs.second}, {});
+                                  tcb::make_span(constants),
+                                  dolfinx::fem::make_coefficients_span(coeffs), {});
     MatAssemblyBegin(B.mat(), MAT_FINAL_ASSEMBLY);
     MatAssemblyEnd(B.mat(), MAT_FINAL_ASSEMBLY);
     t1.stop();

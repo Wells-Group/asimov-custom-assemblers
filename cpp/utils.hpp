@@ -3,7 +3,7 @@
 //
 // This file is part of DOLFINx_CUAS
 //
-// SPDX-License-Identifier:    LGPL-3.0-or-later
+// SPDX-License-Identifier:    MIT
 
 #pragma once
 
@@ -85,16 +85,19 @@ bool allclose(Mat A, Mat B)
   return xt::allclose(_A, _B);
 }
 
-/// Prepare coefficients (dolfinx.Function's) for assembly with custom kernels
-/// by packing them as a 1D array, where the coefficients are packed cell-wise.
-/// For each row, the first N_0 columns correspond to the values of the 0th function space with N_0
-/// dofs. If function space is blocked, the coefficients are ordered in XYZ XYZ ordering.
-/// @param[in] coeffs The coefficients to pack
-/// @param[out] c The packed coefficients and the number of coeffs per cell
+/// Pack coefficients for a list of functions over a set of active entities
+/// @param[in] coeffs The list of coefficients to pack
+/// @param[in] active_entities The list of active entities to pack
+/// @returns A tuple (coeffs, stride) where coeffs is a 1D array containing the coefficients packed
+/// for all the active entities, and stride is how many coeffs there are per entity.
 template <typename T>
-std::pair<std::vector<T>, int>
-pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coeffs)
+std::pair<std::vector<T>, int> pack_coefficients(
+    std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coeffs,
+    std::variant<tcb::span<const std::int32_t>, tcb::span<const std::pair<std::int32_t, int>>,
+                 tcb::span<const std::tuple<std::int32_t, int, std::int32_t, int>>>
+        active_entities)
 {
+
   // Coefficient offsets
   std::vector<int> coeffs_offsets{0};
   for (const auto& c : coeffs)
@@ -142,40 +145,178 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
     xtl::span<const std::uint32_t> cell_info;
     if (needs_dof_transformations)
       cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
-    for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
-    {
-      const std::function<void(const xtl::span<PetscScalar>&, const xtl::span<const std::uint32_t>&,
-                               std::int32_t, int)>
-          transformation
-          = elements[coeff]->get_dof_transformation_function<PetscScalar>(false, true);
-      if (int bs = dofmaps[coeff]->bs(); bs == 1)
-      {
-        dolfinx::fem::impl::pack_coefficient<PetscScalar, 1>(
-            xtl::span<PetscScalar>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], num_cells,
-            coeffs_offsets[coeff], elements[coeff]->space_dimension(), transformation);
-      }
-      else if (bs == 2)
-      {
-        dolfinx::fem::impl::pack_coefficient<PetscScalar, 2>(
-            xtl::span<PetscScalar>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], num_cells,
-            coeffs_offsets[coeff], elements[coeff]->space_dimension(), transformation);
-      }
-      else if (bs == 3)
-      {
-        dolfinx::fem::impl::pack_coefficient<PetscScalar, 3>(
-            xtl::span<PetscScalar>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], num_cells,
-            coeffs_offsets[coeff], elements[coeff]->space_dimension(), transformation);
-      }
-      else
-      {
-        dolfinx::fem::impl::pack_coefficient<PetscScalar>(
-            xtl::span<PetscScalar>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], num_cells,
-            coeffs_offsets[coeff], elements[coeff]->space_dimension(), transformation);
-      }
-    }
+
+    // TODO see if this can be simplified with templating
+    std::visit(
+        [&](auto&& entities)
+        {
+          using U = std::decay_t<decltype(entities)>;
+          if constexpr (std::is_same_v<U, tcb::span<const std::int32_t>>)
+          {
+            c.resize(entities.size() * coeffs_offsets.back());
+
+            // Iterate over coefficients
+            for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
+            {
+              const auto transform
+                  = elements[coeff]->get_dof_transformation_function<T>(false, true);
+              dolfinx::fem::impl::pack_coefficient_entity<T, std::int32_t>(
+                  xtl::span<T>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], entities,
+                  [](std::int32_t entity) { return entity; }, coeffs_offsets[coeff],
+                  elements[coeff]->space_dimension(), transform);
+            }
+          }
+          else if constexpr (std::is_same_v<U, tcb::span<const std::pair<std::int32_t, int>>>)
+          {
+            c.resize(entities.size() * coeffs_offsets.back());
+
+            // Create lambda function fetching cell index from exterior facet entity
+            auto fetch_cell
+                = [](const std::pair<std::int32_t, int>& entity) { return entity.first; };
+
+            // Iterate over coefficients
+            for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
+            {
+              const auto transform
+                  = elements[coeff]->get_dof_transformation_function<T>(false, true);
+              dolfinx::fem::impl::pack_coefficient_entity<T, std::pair<std::int32_t, int>>(
+                  xtl::span<T>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], entities,
+                  fetch_cell, coeffs_offsets[coeff], elements[coeff]->space_dimension(), transform);
+            }
+          }
+          else if constexpr (std::is_same_v<
+                                 U,
+                                 tcb::span<const std::tuple<std::int32_t, int, std::int32_t, int>>>)
+          {
+            c.resize(entities.size() * 2 * coeffs_offsets.back());
+
+            // Lambda functions to fetch cell index from interior facet entity
+            auto fetch_cell0 = [](const std::tuple<std::int32_t, int, std::int32_t, int>& entity)
+            { return std::get<0>(entity); };
+            auto fetch_cell1 = [](const std::tuple<std::int32_t, int, std::int32_t, int>& entity)
+            { return std::get<2>(entity); };
+
+            // Iterate over coefficients
+            for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
+            {
+              const auto transform
+                  = elements[coeff]->get_dof_transformation_function<T>(false, true);
+              // Pack coefficient ['+']
+              dolfinx::fem::impl::pack_coefficient_entity<
+                  T, std::tuple<std::int32_t, int, std::int32_t, int>>(
+                  xtl::span<T>(c), 2 * cstride, v[coeff], cell_info, *dofmaps[coeff], entities,
+                  fetch_cell0, 2 * coeffs_offsets[coeff], elements[coeff]->space_dimension(),
+                  transform);
+              // Pack coefficient ['-']
+              dolfinx::fem::impl::pack_coefficient_entity<
+                  T, std::tuple<std::int32_t, int, std::int32_t, int>>(
+                  xtl::span<T>(c), 2 * cstride, v[coeff], cell_info, *dofmaps[coeff], entities,
+                  fetch_cell1, coeffs_offsets[coeff] + coeffs_offsets[coeff + 1],
+                  elements[coeff]->space_dimension(), transform);
+            }
+          }
+          else
+          {
+            throw std::runtime_error(
+                "Could not pack coefficient. Input entity type is not supported.");
+          }
+        },
+        active_entities);
+  }
+  return {std::move(c), cstride};
+}
+
+/// Compute the active entities in DOLFINx format for a given integral type over a set of entities
+/// If the integral type is cell, return the input, if it is exterior facets, return a list of pairs
+/// (cell, local_facet_index), and if it is interior facets, return a list of tuples (cell_0,
+/// local_facet_index_0, cell_1, local_facet_index_1) for each entity.
+/// @param[in] mesh The mesh
+/// @param[in] entities List of mesh entities
+/// @param[in] integral The type of integral
+std::variant<std::vector<std::int32_t>, std::vector<std::pair<std::int32_t, int>>,
+             std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>>
+compute_active_entities(std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
+                        tcb::span<const std::int32_t> entities, dolfinx::fem::IntegralType integral)
+{
+
+  // Determine variant type by integral
+  std::variant<std::vector<std::int32_t>, std::vector<std::pair<std::int32_t, int>>,
+               std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>>
+      active_entities;
+  switch (integral)
+  {
+  case dolfinx::fem::IntegralType::cell:
+    active_entities = std::vector<std::int32_t>(entities.size());
+    break;
+  case dolfinx::fem::IntegralType::exterior_facet:
+    active_entities = std::vector<std::pair<std::int32_t, int>>(entities.size());
+    break;
+  case dolfinx::fem::IntegralType::interior_facet:
+    active_entities
+        = std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>(entities.size());
+    break;
+  default:
+    throw std::runtime_error("Unknown integral type");
   }
 
-  return {std::move(c), cstride};
+  std::visit(
+      [&](auto&& output)
+      {
+        const dolfinx::mesh::Topology& topology = mesh->topology();
+        using U = std::decay_t<decltype(output)>;
+        if constexpr (std::is_same_v<U, std::vector<std::int32_t>>)
+        {
+          // Do nothing if cell integral
+          std::transform(entities.begin(), entities.end(), output.begin(),
+                         [](std::int32_t cell) { return cell; });
+        }
+        else if constexpr (std::is_same_v<U, std::vector<std::pair<std::int32_t, int>>>)
+        {
+          int tdim = topology.dim();
+          auto f_to_c = topology.connectivity(tdim - 1, tdim);
+          assert(f_to_c);
+          auto c_to_f = topology.connectivity(tdim, tdim - 1);
+          assert(c_to_f);
+          for (std::int32_t f = 0; f < entities.size(); f++)
+          {
+            assert(f_to_c->num_links(entities[f]) == 1);
+            const std::int32_t cell = f_to_c->links(entities[f])[0];
+            auto cell_facets = c_to_f->links(cell);
+
+            auto facet_it = std::find(cell_facets.begin(), cell_facets.end(), entities[f]);
+            assert(facet_it != cell_facets.end());
+            int local_f = std::distance(cell_facets.begin(), facet_it);
+            output[f] = {cell, local_f};
+          }
+        }
+        else if constexpr (std::is_same_v<
+                               U, std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>>)
+        {
+          int tdim = topology.dim();
+          auto f_to_c = topology.connectivity(tdim - 1, tdim);
+          assert(f_to_c);
+          auto c_to_f = topology.connectivity(tdim, tdim - 1);
+          assert(c_to_f);
+          std::array<std::pair<std::int32_t, int>, 2> interior_facets;
+          for (std::int32_t f = 0; f < entities.size(); f++)
+          {
+            assert(f_to_c->num_links(entities[f]) == 2);
+            auto cells = f_to_c->links(entities[f]);
+            for (std::int32_t i = 0; i < 2; i++)
+            {
+              auto cell_facets = c_to_f->links(cells[i]);
+              auto facet_it = std::find(cell_facets.begin(), cell_facets.end(), entities[f]);
+              assert(facet_it != cell_facets.end());
+              int local_f = std::distance(cell_facets.begin(), facet_it);
+              interior_facets[i] = {cells[i], local_f};
+            }
+            output[f] = {interior_facets[0].first, interior_facets[0].second,
+                         interior_facets[1].first, interior_facets[1].second};
+          }
+        }
+      },
+      active_entities);
+  return active_entities;
 }
 
 } // namespace dolfinx_cuas
