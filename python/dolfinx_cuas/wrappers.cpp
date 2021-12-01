@@ -198,7 +198,7 @@ PYBIND11_MODULE(cpp, m)
               if constexpr (std::is_same_v<U, std::vector<std::int32_t>>)
               {
                 py::array_t<std::int32_t> domains(output.size(), output.data());
-                return std::move(domains);
+                return domains;
               }
               else if constexpr (std::is_same_v<U, std::vector<std::pair<std::int32_t, int>>>)
               {
