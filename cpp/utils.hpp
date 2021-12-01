@@ -3,7 +3,7 @@
 //
 // This file is part of DOLFINx_CUAS
 //
-// SPDX-License-Identifier:    LGPL-3.0-or-later
+// SPDX-License-Identifier:    MIT
 
 #pragma once
 
@@ -224,6 +224,99 @@ std::pair<std::vector<T>, int> pack_coefficients(
         active_entities);
   }
   return {std::move(c), cstride};
+}
+
+/// Compute the active entities in DOLFINx format for a given integral type over a set of entities
+/// If the integral type is cell, return the input, if it is exterior facets, return a list of pairs
+/// (cell, local_facet_index), and if it is interior facets, return a list of tuples (cell_0,
+/// local_facet_index_0, cell_1, local_facet_index_1) for each entity.
+/// @param[in] mesh The mesh
+/// @param[in] entities List of mesh entities
+/// @param[in] integral The type of integral
+std::variant<std::vector<std::int32_t>, std::vector<std::pair<std::int32_t, int>>,
+             std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>>
+compute_active_entities(std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
+                        tcb::span<const std::int32_t> entities, dolfinx::fem::IntegralType integral)
+{
+
+  // Determine variant type by integral
+  std::variant<std::vector<std::int32_t>, std::vector<std::pair<std::int32_t, int>>,
+               std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>>
+      active_entities;
+  switch (integral)
+  {
+  case dolfinx::fem::IntegralType::cell:
+    active_entities = std::vector<std::int32_t>(entities.size());
+    break;
+  case dolfinx::fem::IntegralType::exterior_facet:
+    active_entities = std::vector<std::pair<std::int32_t, int>>(entities.size());
+    break;
+  case dolfinx::fem::IntegralType::interior_facet:
+    active_entities
+        = std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>(entities.size());
+    break;
+  default:
+    throw std::runtime_error("Unknown integral type");
+  }
+
+  std::visit(
+      [&](auto&& output)
+      {
+        const dolfinx::mesh::Topology& topology = mesh->topology();
+        using U = std::decay_t<decltype(output)>;
+        if constexpr (std::is_same_v<U, std::vector<std::int32_t>>)
+        {
+          // Do nothing if cell integral
+          std::transform(entities.begin(), entities.end(), output.begin(),
+                         [](std::int32_t cell) { return cell; });
+        }
+        else if constexpr (std::is_same_v<U, std::vector<std::pair<std::int32_t, int>>>)
+        {
+          int tdim = topology.dim();
+          auto f_to_c = topology.connectivity(tdim - 1, tdim);
+          assert(f_to_c);
+          auto c_to_f = topology.connectivity(tdim, tdim - 1);
+          assert(c_to_f);
+          for (std::int32_t f = 0; f < entities.size(); f++)
+          {
+            assert(f_to_c->num_links(entities[f]) == 1);
+            const std::int32_t cell = f_to_c->links(entities[f])[0];
+            auto cell_facets = c_to_f->links(cell);
+
+            auto facet_it = std::find(cell_facets.begin(), cell_facets.end(), entities[f]);
+            assert(facet_it != cell_facets.end());
+            int local_f = std::distance(cell_facets.begin(), facet_it);
+            output[f] = {cell, local_f};
+          }
+        }
+        else if constexpr (std::is_same_v<
+                               U, std::vector<std::tuple<std::int32_t, int, std::int32_t, int>>>)
+        {
+          int tdim = topology.dim();
+          auto f_to_c = topology.connectivity(tdim - 1, tdim);
+          assert(f_to_c);
+          auto c_to_f = topology.connectivity(tdim, tdim - 1);
+          assert(c_to_f);
+          std::array<std::pair<std::int32_t, int>, 2> interior_facets;
+          for (std::int32_t f = 0; f < entities.size(); f++)
+          {
+            assert(f_to_c->num_links(entities[f]) == 2);
+            auto cells = f_to_c->links(entities[f]);
+            for (std::int32_t i = 0; i < 2; i++)
+            {
+              auto cell_facets = c_to_f->links(cells[i]);
+              auto facet_it = std::find(cell_facets.begin(), cell_facets.end(), entities[f]);
+              assert(facet_it != cell_facets.end());
+              int local_f = std::distance(cell_facets.begin(), facet_it);
+              interior_facets[i] = {cells[i], local_f};
+            }
+            output[f] = {interior_facets[0].first, interior_facets[0].second,
+                         interior_facets[1].first, interior_facets[1].second};
+          }
+        }
+      },
+      active_entities);
+  return active_entities;
 }
 
 } // namespace dolfinx_cuas
