@@ -69,7 +69,7 @@ jobs:
         with:
           path: ./dolfinx
           repository: FEniCS/dolfinx
-          ref: dokken/expose_cpp_functions
+          ref: main
 
       - name: Configure C++ (dolfinx)
         run: cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build-dolfinx -S ./dolfinx/cpp/
