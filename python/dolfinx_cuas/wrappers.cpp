@@ -193,7 +193,6 @@ PYBIND11_MODULE(cpp, m)
         py::array_t<std::int32_t> output = std::visit(
             [&](auto&& output)
             {
-              const dolfinx::mesh::Topology& topology = mesh->topology();
               using U = std::decay_t<decltype(output)>;
               if constexpr (std::is_same_v<U, std::vector<std::int32_t>>)
               {
