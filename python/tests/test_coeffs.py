@@ -71,6 +71,6 @@ def test_entity_packing(integral_type):
         entities = np.flatnonzero(facet_marker)
     elif integral_type == fem.IntegralType.interior_facet:
         entities = np.flatnonzero(np.invert(facet_marker))
-    new_entities = dolfinx_cuas.cpp.compute_active_entitites(mesh, np.asarray(entities, dtype=np.int32),
-                                                             integral_type)
+    new_entities = dolfinx_cuas.cpp.compute_active_entities(mesh, np.asarray(entities, dtype=np.int32),
+                                                            integral_type)
     assert(np.allclose(active_entities, new_entities))

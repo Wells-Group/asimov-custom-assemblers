@@ -181,7 +181,7 @@ PYBIND11_MODULE(cpp, m)
           }
         });
   m.def(
-      "compute_active_entitites",
+      "compute_active_entities",
       [](std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
          py::array_t<std::int32_t, py::array::c_style>& entities,
          dolfinx::fem::IntegralType integral)
