@@ -78,7 +78,8 @@ def test_manifold(kernel_type):
     assert np.isclose(A.norm(), B.norm())
 
 
-@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.Mass, dolfinx_cuas.Kernel.Stiffness, dolfinx_cuas.Kernel.SymGrad])
+@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.Mass, dolfinx_cuas.Kernel.Stiffness,
+                                         dolfinx_cuas.Kernel.SymGrad])
 @pytest.mark.parametrize("dim", [2, 3])
 def test_surface_kernels(dim, kernel_type):
     N = 30 if dim == 2 else 10

@@ -4,7 +4,6 @@
 
 import typing
 import dolfinx.fem as _fem
-import dolfinx.mesh as _mesh
 import numpy
 import dolfinx_cuas.cpp as _cpp
 
