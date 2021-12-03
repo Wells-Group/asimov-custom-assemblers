@@ -14,11 +14,10 @@ import ufl
 from mpi4py import MPI
 from petsc4py import PETSc
 
-kt = dolfinx_cuas.cpp.Kernel
 compare_matrices = dolfinx_cuas.utils.compare_matrices
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Rhs])
+@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.Rhs])
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_kernels(dim, kernel_type, P):
@@ -31,7 +30,7 @@ def test_vector_kernels(dim, kernel_type, P):
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
     L = v * dx
-    kernel_type = kt.Rhs
+    kernel_type = dolfinx_cuas.Kernel.Rhs
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
@@ -48,8 +47,8 @@ def test_vector_kernels(dim, kernel_type, P):
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     b2 = create_vector(L)
 
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1,
-                                             mesh.topology.dim, basix.quadrature.string_to_type("default"))
+    q_rule = dolfinx_cuas.QuadratureRule(mesh.topology.cell_type, P + 1,
+                                         mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_vector_kernel(V._cpp_object, kernel_type, q_rule)
     b2.zeroEntries()
     consts = np.zeros(0)
@@ -60,7 +59,7 @@ def test_vector_kernels(dim, kernel_type, P):
     assert np.allclose(b.array, b2.array)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Rhs])
+@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.Rhs])
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_surface_kernel(dim, kernel_type, P):
@@ -79,7 +78,7 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
     L = v * ds(1)
-    kernel_type = kt.Rhs
+    kernel_type = dolfinx_cuas.Kernel.Rhs
     # Compile UFL form
     # cffi_options = []  # ["-Ofast", "-march=native"]
     L = Form(L)  # , jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
@@ -96,8 +95,8 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     b2 = create_vector(L)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + 1,
-                                             mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
+    q_rule = dolfinx_cuas.QuadratureRule(mesh.topology.cell_type, P + 1,
+                                         mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_vector_kernel(V._cpp_object, kernel_type, q_rule)
     b2.zeroEntries()
     dolfinx_cuas.assemble_vector(b2, V, ft.indices, kernel, coeffs, consts, IntegralType.exterior_facet)

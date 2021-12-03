@@ -7,6 +7,11 @@
 # flake8: noqa
 
 from .custom_assembler import assemble_matrix, assemble_matrix_numba, assemble_vector
-from .verification import compute_reference_mass_matrix, compute_reference_stiffness_matrix, compute_reference_surface_matrix
 from .utils import estimate_max_polynomial_degree
 from .nls import NewtonSolver, NonlinearProblemCUAS
+from .packing import pack_coefficients
+from dolfinx_cuas.cpp import QuadratureRule, compute_active_entities, Kernel
+
+__all__ = ["assemble_matrix", "assemble_matrix_numba", "assemble_vector",
+           "estimate_max_polynomial_degree", "NewtonSolver", "NonlinearProblemCUAS",
+           "QuadratureRule", "pack_coefficients", "compute_active_entities", "Kernel"]

@@ -26,7 +26,7 @@ class NonlinearProblemCUAS:
         Parameters
         ----------
         F
-            Function that computes the residual F(u). The first input argument to the callable is a PETSc 
+            Function that computes the residual F(u). The first input argument to the callable is a PETSc
             vector with the values of u, the second the tensor to assemble F(u) into. F(x, b) -> b = F(x).
         J
             Function that compute the Jacobian matrix J(u). J(x, A) -> A = J(x)

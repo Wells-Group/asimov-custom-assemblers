@@ -11,11 +11,8 @@ import ufl
 from dolfinx import fem, generation
 from mpi4py import MPI
 
-kt = dolfinx_cuas.cpp.Kernel
-it = fem.IntegralType
 
-
-@pytest.mark.parametrize("kernel_type", [kt.Mass])
+@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.Mass])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 @pytest.mark.parametrize("Q", [1, 2, 3])
 def test_volume_kernels(kernel_type, P, Q):
@@ -40,9 +37,9 @@ def test_volume_kernels(kernel_type, P, Q):
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
-    if kernel_type == kt.Mass:
+    if kernel_type == dolfinx_cuas.Kernel.Mass:
         a = (mu + lam) * ufl.inner(u, v) * dx
-    elif kernel_type == kt.Stiffness:
+    elif kernel_type == dolfinx_cuas.Kernel.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
     else:
         raise RuntimeError("Unknown kernel")
@@ -62,19 +59,15 @@ def test_volume_kernels(kernel_type, P, Q):
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = fem.create_matrix(a)
     quadrature_degree = 2 * P + Q
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(
+    q_rule = dolfinx_cuas.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_coeff_kernel(kernel_type, [mu._cpp_object, lam._cpp_object], P, q_rule)
     B.zeroEntries()
     consts = np.zeros(0)
-    coeffs = dolfinx_cuas.cpp.pack_coefficients([mu._cpp_object, lam._cpp_object], active_cells)
-    dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
+    coeffs = dolfinx_cuas.pack_coefficients([mu._cpp_object, lam._cpp_object], active_cells)
+    dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, fem.IntegralType.cell)
     B.assemble()
 
     # Compare matrices, first norm, then entries
     assert np.isclose(A.norm(), B.norm())
     dolfinx_cuas.utils.compare_matrices(A, B)
-
-
-if __name__ == "__main__":
-    test_volume_kernels(kt.Mass, 2, 5)

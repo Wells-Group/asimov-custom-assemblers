@@ -12,9 +12,9 @@ import ufl
 from dolfinx.fem import FunctionSpace
 from dolfinx.generation import UnitCubeMesh, UnitSquareMesh
 from dolfinx.mesh import CellType
-from dolfinx_cuas import (assemble_matrix_numba,
-                          compute_reference_stiffness_matrix,
-                          estimate_max_polynomial_degree)
+from dolfinx_cuas import assemble_matrix_numba, estimate_max_polynomial_degree
+from dolfinx_cuas.verification import compute_reference_stiffness_matrix
+
 from mpi4py import MPI
 
 if __name__ == "__main__":
@@ -87,3 +87,4 @@ if __name__ == "__main__":
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
     print(f"Norm of matrix error {matrix_error}")
+    assert(matrix_error < 1e-10)
