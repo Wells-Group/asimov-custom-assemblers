@@ -12,8 +12,8 @@ import ufl
 from dolfinx.fem import FunctionSpace
 from dolfinx.generation import UnitCubeMesh, UnitSquareMesh
 from dolfinx.mesh import CellType
-from dolfinx_cuas import (assemble_matrix_numba, compute_reference_mass_matrix,
-                          estimate_max_polynomial_degree)
+from dolfinx_cuas import assemble_matrix_numba, estimate_max_polynomial_degree
+from dolfinx_cuas.verification import compute_reference_mass_matrix
 from mpi4py import MPI
 
 if __name__ == "__main__":
