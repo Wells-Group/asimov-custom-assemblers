@@ -7,10 +7,10 @@ from dolfinx import mesh as _mesh
 import ufl
 
 """
-Verification of assembly using dolfin-x
+Verification of assembly using DOLFINx
 """
 
-__all__ = ["compute_reference_mass_matrix", "compute_reference_stiffness_matrix"]
+__all__ = ["compute_reference_mass_matrix", "compute_reference_stiffness_matrix", "compute_reference_surface_matrix"]
 
 
 def compute_reference_mass_matrix(V: _fem.FunctionSpace, quadrature_degree: int = -1, jit_parameters={}):

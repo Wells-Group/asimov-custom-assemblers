@@ -4,6 +4,7 @@
 
 from dolfinx import fem, generation, mesh as dmesh
 import dolfinx_cuas.cpp
+import dolfinx_cuas
 import numpy as np
 import ufl
 from mpi4py import MPI
@@ -38,7 +39,7 @@ def test_pack_coeffs(integral_type):
     form = fem.Form(a)._cpp_object
     coeffs = fem.pack_coefficients(form)
     active_entities = form.domains(integral_type, -1)
-    coeffs_cuas = dolfinx_cuas.cpp.pack_coefficients(form.coefficients, active_entities)
+    coeffs_cuas = dolfinx_cuas.pack_coefficients(form.coefficients, active_entities)
     assert np.allclose(coeffs[(integral_type, -1)], coeffs_cuas)
 
 
@@ -71,6 +72,6 @@ def test_entity_packing(integral_type):
         entities = np.flatnonzero(facet_marker)
     elif integral_type == fem.IntegralType.interior_facet:
         entities = np.flatnonzero(np.invert(facet_marker))
-    new_entities = dolfinx_cuas.cpp.compute_active_entities(mesh, np.asarray(entities, dtype=np.int32),
-                                                            integral_type)
+    new_entities = dolfinx_cuas.compute_active_entities(mesh, np.asarray(entities, dtype=np.int32),
+                                                        integral_type)
     assert(np.allclose(active_entities, new_entities))

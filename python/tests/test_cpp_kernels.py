@@ -12,12 +12,12 @@ import ufl
 from mpi4py import MPI
 from petsc4py import PETSc
 
-kt = dolfinx_cuas.cpp.Kernel
-it = fem.IntegralType
+
 compare_matrices = dolfinx_cuas.utils.compare_matrices
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness, kt.SymGrad])
+@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.Mass, dolfinx_cuas.Kernel.Stiffness,
+                                         dolfinx_cuas.Kernel.SymGrad])
 def test_manifold(kernel_type):
     gdim = 3
     shape = "triangle"
@@ -38,11 +38,11 @@ def test_manifold(kernel_type):
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
-    if kernel_type == kt.Mass:
+    if kernel_type == dolfinx_cuas.Kernel.Mass:
         a = ufl.inner(u, v) * ds(1)
-    elif kernel_type == kt.Stiffness:
+    elif kernel_type == dolfinx_cuas.Kernel.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ds(1)
-    elif kernel_type == kt.SymGrad:
+    elif kernel_type == dolfinx_cuas.Kernel.SymGrad:
         def epsilon(v):
             return ufl.sym(ufl.grad(v))
         a = ufl.inner(epsilon(u), epsilon(v)) * ds(1)
@@ -66,19 +66,20 @@ def test_manifold(kernel_type):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = fem.create_matrix(a)
     fdim = mesh.topology.dim - 1
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(
+    q_rule = dolfinx_cuas.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, fdim, basix.quadrature.string_to_type("default"))
 
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
     B.zeroEntries()
-    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, fem.IntegralType.exterior_facet)
     B.assemble()
     compare_matrices(A, B)
     # Compare matrices, first norm, then entries
     assert np.isclose(A.norm(), B.norm())
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness, kt.SymGrad])
+@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.Mass, dolfinx_cuas.Kernel.Stiffness,
+                                         dolfinx_cuas.Kernel.SymGrad])
 @pytest.mark.parametrize("dim", [2, 3])
 def test_surface_kernels(dim, kernel_type):
     N = 30 if dim == 2 else 10
@@ -97,11 +98,11 @@ def test_surface_kernels(dim, kernel_type):
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
-    if kernel_type == kt.Mass:
+    if kernel_type == dolfinx_cuas.Kernel.Mass:
         a = ufl.inner(u, v) * ds(1)
-    elif kernel_type == kt.Stiffness:
+    elif kernel_type == dolfinx_cuas.Kernel.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ds(1)
-    elif kernel_type == kt.SymGrad:
+    elif kernel_type == dolfinx_cuas.Kernel.SymGrad:
         def epsilon(v):
             return ufl.sym(ufl.grad(v))
         a = ufl.inner(epsilon(u), epsilon(v)) * ds(1)
@@ -124,12 +125,12 @@ def test_surface_kernels(dim, kernel_type):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     B = fem.create_matrix(a)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(
+    q_rule = dolfinx_cuas.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
 
     B.zeroEntries()
-    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, fem.IntegralType.exterior_facet)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -137,7 +138,7 @@ def test_surface_kernels(dim, kernel_type):
     compare_matrices(A, B)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Normal])
+@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.Normal])
 @pytest.mark.parametrize("dim", [2, 3])
 def test_normal_kernels(dim, kernel_type):
     N = 30 if dim == 2 else 10
@@ -183,11 +184,11 @@ def test_normal_kernels(dim, kernel_type):
 
     # FIXME: Does not work for prism meshes
     fdim = mesh.topology.dim - 1
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(
+    q_rule = dolfinx_cuas.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, fdim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
     B.zeroEntries()
-    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, fem.IntegralType.exterior_facet)
 
     B.assemble()
 
@@ -196,7 +197,7 @@ def test_normal_kernels(dim, kernel_type):
     compare_matrices(A, B)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.Mass, kt.Stiffness])
+@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.Mass, dolfinx_cuas.Kernel.Stiffness])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_volume_kernels(kernel_type, P):
     N = 4
@@ -208,10 +209,10 @@ def test_volume_kernels(kernel_type, P):
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
-    if kernel_type == kt.Mass:
+    if kernel_type == dolfinx_cuas.Kernel.Mass:
         a = ufl.inner(u, v) * dx
         q_degree = 2 * P + 10
-    elif kernel_type == kt.Stiffness:
+    elif kernel_type == dolfinx_cuas.Kernel.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
         q_degree = 2 * (P - 1) + 10
     else:
@@ -231,13 +232,13 @@ def test_volume_kernels(kernel_type, P):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = fem.create_matrix(a)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree,
-                                             mesh.topology.dim, basix.quadrature.string_to_type("default"))
+    q_rule = dolfinx_cuas.QuadratureRule(mesh.topology.cell_type, q_degree,
+                                         mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
     B.zeroEntries()
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
-    dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
+    dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, fem.IntegralType.cell)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -245,7 +246,8 @@ def test_volume_kernels(kernel_type, P):
     compare_matrices(A, B)
 
 
-@pytest.mark.parametrize("kernel_type", [kt.TrEps, kt.SymGrad, kt.Stiffness, kt.Mass])
+@pytest.mark.parametrize("kernel_type", [dolfinx_cuas.Kernel.TrEps, dolfinx_cuas.Kernel.SymGrad,
+                                         dolfinx_cuas.Kernel.Stiffness, dolfinx_cuas.Kernel.Mass])
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_cell_kernel(kernel_type, P):
     N = 5
@@ -259,16 +261,16 @@ def test_vector_cell_kernel(kernel_type, P):
     def epsilon(v):
         return ufl.sym(ufl.grad(v))
 
-    if kernel_type == kt.Mass:
+    if kernel_type == dolfinx_cuas.Kernel.Mass:
         a = ufl.inner(u, v) * dx
         q_degree = 2 * P
-    elif kernel_type == kt.Stiffness:
+    elif kernel_type == dolfinx_cuas.Kernel.Stiffness:
         a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
         q_degree = 2 * (P - 1)
-    elif kernel_type == kt.TrEps:
+    elif kernel_type == dolfinx_cuas.Kernel.TrEps:
         a = ufl.inner(ufl.tr(epsilon(u)) * ufl.Identity(len(u)), epsilon(v)) * dx
         q_degree = 2 * (P - 1)
-    elif kernel_type == kt.SymGrad:
+    elif kernel_type == dolfinx_cuas.Kernel.SymGrad:
         q_degree = 2 * P
         a = 2 * ufl.inner(epsilon(u), epsilon(v)) * dx
     else:
@@ -290,11 +292,11 @@ def test_vector_cell_kernel(kernel_type, P):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
     B = fem.create_matrix(a)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, q_degree,
-                                             mesh.topology.dim, basix.quadrature.string_to_type("default"))
+    q_rule = dolfinx_cuas.QuadratureRule(mesh.topology.cell_type, q_degree,
+                                         mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
     B.zeroEntries()
-    dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, it.cell)
+    dolfinx_cuas.assemble_matrix(B, V, active_cells, kernel, coeffs, consts, fem.IntegralType.cell)
     B.assemble()
 
     # Compare matrices, first norm, then entries
@@ -361,12 +363,12 @@ def test_surface_non_affine(P, vector, dim):
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
     # FIXME: Does not work for prism meshes
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(
+    q_rule = dolfinx_cuas.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
-    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kt.MassNonAffine, q_rule)
+    kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, dolfinx_cuas.Kernel.MassNonAffine, q_rule)
 
     B.zeroEntries()
-    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, it.exterior_facet)
+    dolfinx_cuas.assemble_matrix(B, V, ft.indices, kernel, coeffs, consts, fem.IntegralType.exterior_facet)
     B.assemble()
 
     # Compare matrices, first norm, then entries

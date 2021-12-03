@@ -12,9 +12,8 @@ import ufl
 from dolfinx.fem import FunctionSpace
 from dolfinx.generation import UnitCubeMesh, UnitSquareMesh
 from dolfinx.mesh import CellType, MeshTags, compute_boundary_facets
-from dolfinx_cuas import (assemble_matrix_numba,
-                          compute_reference_surface_matrix,
-                          estimate_max_polynomial_degree)
+from dolfinx_cuas import assemble_matrix_numba, estimate_max_polynomial_degree
+from dolfinx_cuas.verification import compute_reference_surface_matrix
 from mpi4py import MPI
 
 if __name__ == "__main__":
@@ -94,4 +93,5 @@ if __name__ == "__main__":
     ai, aj, av = Aref.getValuesCSR()
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
+    assert(matrix_error < 1e-10)
     print(f"Norm of matrix error {matrix_error}")

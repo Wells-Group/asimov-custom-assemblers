@@ -11,10 +11,10 @@ from dolfinx.cpp.mesh import to_type
 from dolfinx.fem import FunctionSpace
 from dolfinx.mesh import (CellType, MeshTags, compute_boundary_facets,
                           create_mesh)
-from dolfinx_cuas import (assemble_matrix_numba, compute_reference_mass_matrix,
-                          compute_reference_stiffness_matrix,
-                          compute_reference_surface_matrix,
-                          estimate_max_polynomial_degree)
+from dolfinx_cuas import assemble_matrix_numba, estimate_max_polynomial_degree
+from dolfinx_cuas.verification import (compute_reference_mass_matrix,
+                                       compute_reference_stiffness_matrix,
+                                       compute_reference_surface_matrix)
 from mpi4py import MPI
 
 

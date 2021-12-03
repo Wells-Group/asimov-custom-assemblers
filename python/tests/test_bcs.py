@@ -12,7 +12,7 @@ import ufl
 from mpi4py import MPI
 from petsc4py import PETSc
 
-kt = dolfinx_cuas.cpp.Kernel
+
 it = fem.IntegralType
 compare_matrices = dolfinx_cuas.utils.compare_matrices
 
@@ -28,7 +28,6 @@ def test_dirichlet_bc(P):
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
-    kernel_type = kt.Stiffness
     a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
 
     # Compile UFL form
@@ -51,9 +50,9 @@ def test_dirichlet_bc(P):
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     B = fem.create_matrix(a)
-    q_rule = dolfinx_cuas.cpp.QuadratureRule(mesh.topology.cell_type, P + P,
-                                             mesh.topology.dim, basix.quadrature.string_to_type("default"))
-
+    q_rule = dolfinx_cuas.QuadratureRule(mesh.topology.cell_type, P + P,
+                                         mesh.topology.dim, basix.quadrature.string_to_type("default"))
+    kernel_type = dolfinx_cuas.Kernel.Stiffness
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
     B.zeroEntries()
     consts = np.zeros(0)
