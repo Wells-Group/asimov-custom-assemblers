@@ -259,7 +259,6 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
       = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    assert(bs == tdim);
     std::size_t facet_index = size_t(*entity_local_index);
     // Reshape coordinate dofs to two dimensional array
     // NOTE: DOLFINx assumes 3D coordinate dofs input

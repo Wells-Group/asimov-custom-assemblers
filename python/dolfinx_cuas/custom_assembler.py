@@ -57,7 +57,7 @@ def assemble_matrix(A: PETSc.Mat, V: _fem.FunctionSpace,
                                      active_cells, kernel, coeffs, consts, type)
     A.assemblyBegin(PETSc.Mat.AssemblyType.FLUSH)
     A.assemblyEnd(PETSc.Mat.AssemblyType.FLUSH)
-    _cpp_fem.insert_diagonal(A, V._cpp_object, cpp_bcs, diagonal)
+    _cpp_fem.petsc.insert_diagonal(A, V._cpp_object, cpp_bcs, diagonal)
 
 
 def assemble_vector(b: np.ndarray, V: _fem.FunctionSpace,

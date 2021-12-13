@@ -108,7 +108,7 @@ PYBIND11_MODULE(cpp, m)
         {
           auto ker = kernel.get();
           dolfinx_cuas::assemble_matrix(
-              dolfinx::la::PETScMatrix::set_block_fn(A, ADD_VALUES), V, bcs,
+              dolfinx::la::petsc::Matrix::set_block_fn(A, ADD_VALUES), V, bcs,
               xtl::span<const std::int32_t>(active_cells.data(), active_cells.size()), ker,
               xtl::span<const PetscScalar>(coeffs.data(), coeffs.size()), coeffs.shape(1),
               xtl::span(constants.data(), constants.shape(0)), type);
