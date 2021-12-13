@@ -90,11 +90,11 @@ int main(int argc, char* argv[])
       fem::create_form<PetscScalar>(form, {V, V}, {}, {{"kappa", kappa}}, {}));
 
   // Matrix to be used with custom assembler
-  la::PETScMatrix A = la::PETScMatrix(fem::create_matrix(*a), false);
+  la::petsc::Matrix A = la::petsc::Matrix(fem::petsc::create_matrix(*a), false);
   MatZeroEntries(A.mat());
 
   // Matrix to be used with custom DOLFINx/FFCx
-  la::PETScMatrix B = la::PETScMatrix(fem::create_matrix(*a), false);
+  la::petsc::Matrix B = la::petsc::Matrix(fem::petsc::create_matrix(*a), false);
   MatZeroEntries(B.mat());
 
   // Generate Kernel
@@ -111,8 +111,8 @@ int main(int argc, char* argv[])
   const std::vector<PetscScalar> consts(0);
 
   common::Timer t0("~Assemble Matrix Custom");
-  dolfinx_cuas::assemble_matrix<PetscScalar>(la::PETScMatrix::set_block_fn(A.mat(), ADD_VALUES), V,
-                                             {}, active_cells, kernel, coeffs, 0, consts,
+  dolfinx_cuas::assemble_matrix<PetscScalar>(la::petsc::Matrix::set_block_fn(A.mat(), ADD_VALUES),
+                                             V, {}, active_cells, kernel, coeffs, 0, consts,
                                              dolfinx::fem::IntegralType::cell);
   MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
     const auto coeffs = pack_coefficients(*a);
 
     common::Timer t1("~Assemble Matrix DOLINFx/FFCx");
-    dolfinx::fem::assemble_matrix(la::PETScMatrix::set_block_fn(B.mat(), ADD_VALUES), *a,
+    dolfinx::fem::assemble_matrix(la::petsc::Matrix::set_block_fn(B.mat(), ADD_VALUES), *a,
                                   tcb::make_span(constants),
                                   dolfinx::fem::make_coefficients_span(coeffs), {});
     MatAssemblyBegin(B.mat(), MAT_FINAL_ASSEMBLY);
