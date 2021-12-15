@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier:   MIT
 
-from dolfinx import fem, generation, mesh as dmesh
+from dolfinx import fem, mesh as dmesh
 import dolfinx_cuas.cpp
 import dolfinx_cuas
 import numpy as np
@@ -21,7 +21,7 @@ def test_pack_coeffs(integral_type):
         dC = ufl.ds
     elif integral_type == fem.IntegralType.interior_facet:
         dC = ufl.dS
-    mesh = generation.UnitSquareMesh(MPI.COMM_WORLD, 1, 1)
+    mesh = dmesh.create_unit_square(MPI.COMM_WORLD, 1, 1)
     V = fem.VectorFunctionSpace(mesh, ("CG", 2))
     Q = fem.VectorFunctionSpace(mesh, ("DG", 1))
     Z = fem.FunctionSpace(mesh, ("DG", 0))
@@ -57,7 +57,7 @@ def test_entity_packing(integral_type):
         dC = ufl.ds
     elif integral_type == fem.IntegralType.interior_facet:
         dC = ufl.dS
-    mesh = generation.UnitSquareMesh(MPI.COMM_WORLD, 6, 4)
+    mesh = dmesh.create_unit_square(MPI.COMM_WORLD, 6, 4)
     a = fem.Constant(mesh, 1) * dC
     form = fem.Form(a)._cpp_object
     active_entities = form.domains(integral_type, -1)

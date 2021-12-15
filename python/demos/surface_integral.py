@@ -10,7 +10,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import ufl
 from dolfinx.fem import FunctionSpace
-from dolfinx.generation import UnitCubeMesh, UnitSquareMesh
+from dolfinx.mesh import create_unit_cube, create_unit_square
 from dolfinx.mesh import CellType, MeshTags, compute_boundary_facets
 from dolfinx_cuas import assemble_matrix_numba, estimate_max_polynomial_degree
 from dolfinx_cuas.verification import compute_reference_surface_matrix
@@ -47,12 +47,12 @@ if __name__ == "__main__":
     if threed:
         ct = CellType.tetrahedron if simplex else CellType.hexahedron
         N = 25
-        mesh = UnitCubeMesh(MPI.COMM_WORLD, N, N, N, cell_type=ct)
+        mesh = create_unit_cube(MPI.COMM_WORLD, N, N, N, cell_type=ct)
 
     else:
         ct = CellType.triangle if simplex else CellType.quadrilateral
         N = 25
-        mesh = UnitSquareMesh(MPI.COMM_WORLD, 12, N, cell_type=ct)
+        mesh = create_unit_square(MPI.COMM_WORLD, 12, N, cell_type=ct)
 
     cell_str = mesh.topology.cell_type.name
     el = ufl.VectorElement("CG", cell_str, degree) if vector else ufl.FiniteElement("CG", cell_str, degree)

@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier:   MIT
 
-from dolfinx import generation, fem
+from dolfinx import fem
+from dolfinx.mesh import create_unit_cube
 import basix
 import dolfinx_cuas
 import dolfinx_cuas.cpp
@@ -20,7 +21,7 @@ compare_matrices = dolfinx_cuas.utils.compare_matrices
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_dirichlet_bc(P):
     N = 4
-    mesh = generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = create_unit_cube(MPI.COMM_WORLD, N, N, N)
     # Define variational form
     V = fem.FunctionSpace(mesh, ("CG", P))
     bs = V.dofmap.index_map_bs

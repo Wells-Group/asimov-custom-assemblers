@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier:   MIT
 
-from dolfinx.generation import UnitSquareMesh, UnitCubeMesh
+from dolfinx.mesh import create_unit_square, create_unit_cube
 from dolfinx.fem import Form, FunctionSpace, create_vector, assemble_vector, IntegralType
 from dolfinx.mesh import MeshTags, locate_entities_boundary
 import basix
@@ -22,7 +22,7 @@ compare_matrices = dolfinx_cuas.utils.compare_matrices
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_kernels(dim, kernel_type, P):
     N = 30 if dim == 2 else 10
-    mesh = UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = create_unit_square(MPI.COMM_WORLD, N, N) if dim == 2 else create_unit_cube(MPI.COMM_WORLD, N, N, N)
 
     # Define variational form
     V = FunctionSpace(mesh, ("CG", P))
@@ -64,7 +64,7 @@ def test_vector_kernels(dim, kernel_type, P):
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_surface_kernel(dim, kernel_type, P):
     N = 30 if dim == 2 else 10
-    mesh = UnitSquareMesh(MPI.COMM_WORLD, N, N) if dim == 2 else UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = create_unit_square(MPI.COMM_WORLD, N, N) if dim == 2 else create_unit_cube(MPI.COMM_WORLD, N, N, N)
 
     # Find facets on boundary to integrate over
     facets = locate_entities_boundary(mesh, mesh.topology.dim - 1,

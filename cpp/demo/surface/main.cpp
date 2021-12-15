@@ -26,8 +26,8 @@ int main(int argc, char* argv[])
 
   const int N = 5;
   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {N, N, N},
-                                  mesh::CellType::tetrahedron, mesh::GhostMode::none));
+      mesh::create_box(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {N, N, N},
+                       mesh::CellType::tetrahedron, mesh::GhostMode::none));
   mesh->topology().create_entity_permutations();
   // Locate boundary facets with x=0
   auto boundary = [](auto& x) -> xt::xtensor<bool, 1> { return xt::isclose(xt::row(x, 0), 0.0); };
