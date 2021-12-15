@@ -8,7 +8,8 @@ import dolfinx_cuas.utils
 import numpy as np
 import pytest
 import ufl
-from dolfinx import fem, generation
+from dolfinx import fem
+from dolfinx import mesh as _mesh
 from mpi4py import MPI
 
 
@@ -17,7 +18,7 @@ from mpi4py import MPI
 @pytest.mark.parametrize("Q", [1, 2, 3])
 def test_volume_kernels(kernel_type, P, Q):
     N = 4
-    mesh = generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = _mesh.create_unit_cube(MPI.COMM_WORLD, N, N, N)
     # Define variational form
     V = fem.FunctionSpace(mesh, ("CG", P))
 

@@ -5,7 +5,7 @@
 import basix
 import dolfinx_cuas
 import dolfinx_cuas.cpp
-from dolfinx import mesh as dmesh, fem, generation
+from dolfinx import mesh as dmesh, fem
 import numpy as np
 import pytest
 import ufl
@@ -83,8 +83,8 @@ def test_manifold(kernel_type):
 @pytest.mark.parametrize("dim", [2, 3])
 def test_surface_kernels(dim, kernel_type):
     N = 30 if dim == 2 else 10
-    mesh = generation.UnitSquareMesh(
-        MPI.COMM_WORLD, N, N) if dim == 2 else generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = dmesh.create_unit_square(
+        MPI.COMM_WORLD, N, N) if dim == 2 else dmesh.create_unit_cube(MPI.COMM_WORLD, N, N, N)
 
     # Find facets on boundary to integrate over
     facets = dmesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
@@ -142,8 +142,8 @@ def test_surface_kernels(dim, kernel_type):
 @pytest.mark.parametrize("dim", [2, 3])
 def test_normal_kernels(dim, kernel_type):
     N = 30 if dim == 2 else 10
-    mesh = generation.UnitSquareMesh(
-        MPI.COMM_WORLD, N, N) if dim == 2 else generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = dmesh.create_unit_square(
+        MPI.COMM_WORLD, N, N) if dim == 2 else dmesh.create_unit_cube(MPI.COMM_WORLD, N, N, N)
 
     facets = dmesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
                                             lambda x: np.full(x.shape[1], True, dtype=bool))
@@ -201,7 +201,7 @@ def test_normal_kernels(dim, kernel_type):
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_volume_kernels(kernel_type, P):
     N = 4
-    mesh = generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = dmesh.create_unit_cube(MPI.COMM_WORLD, N, N, N)
     # Define variational form
     V = fem.FunctionSpace(mesh, ("CG", P))
     bs = V.dofmap.index_map_bs
@@ -251,7 +251,7 @@ def test_volume_kernels(kernel_type, P):
 @pytest.mark.parametrize("P", [1, 2, 3, 4, 5])
 def test_vector_cell_kernel(kernel_type, P):
     N = 5
-    mesh = generation.UnitCubeMesh(MPI.COMM_WORLD, N, N, N)
+    mesh = dmesh.create_unit_cube(MPI.COMM_WORLD, N, N, N)
     V = fem.VectorFunctionSpace(mesh, ("CG", P))
     bs = V.dofmap.index_map_bs
     u = ufl.TrialFunction(V)
