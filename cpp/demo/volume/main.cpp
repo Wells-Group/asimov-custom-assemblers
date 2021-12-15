@@ -26,8 +26,9 @@ int main(int argc, char* argv[])
 
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "print usage message")(
-      "kernel", po::value<std::string>()->default_value("mass"), "kernel (mass or stiffness)")(
-      "degree", po::value<int>()->default_value(1), "Degree of function space (1-5)");
+      "kernel", po::value<std::string>()->default_value("mass"),
+      "kernel (mass or stiffness)")("degree", po::value<int>()->default_value(1),
+                                    "Degree of function space (1-5)");
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
   po::notify(vm);
@@ -43,8 +44,8 @@ int main(int argc, char* argv[])
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
 
   std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
-      generation::BoxMesh::create(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {10, 10, 10},
-                                  mesh::CellType::tetrahedron, mesh::GhostMode::none));
+      mesh::create_box(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {10, 10, 10},
+                       mesh::CellType::tetrahedron, mesh::GhostMode::none));
 
   mesh->topology().create_entity_permutations();
 
