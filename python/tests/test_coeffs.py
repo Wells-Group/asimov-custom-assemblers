@@ -58,7 +58,7 @@ def test_entity_packing(integral_type):
     elif integral_type == fem.IntegralType.interior_facet:
         dC = ufl.dS
     mesh = dmesh.create_unit_square(MPI.COMM_WORLD, 6, 4)
-    a = fem.Constant(mesh, 1) * dC
+    a = fem.Constant(mesh, np.float64(1)) * dC
     form = fem.Form(a)._cpp_object
     active_entities = form.domains(integral_type, -1)
 
