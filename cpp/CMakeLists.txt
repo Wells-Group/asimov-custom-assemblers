@@ -49,7 +49,7 @@ feature_summary(WHAT ALL)
 
 add_library(dolfinx_cuas INTERFACE)
 
-
+target_link_libraries(dolfinx_cuas INTERFACE Basix::basix)
 target_include_directories(dolfinx_cuas INTERFACE ${DOLFINX_CUAS_SOURCE_DIR})
 
 # Installation of header-only DOLFINX_CUAS Library
