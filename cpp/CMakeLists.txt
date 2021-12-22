@@ -49,9 +49,29 @@ feature_summary(WHAT ALL)
 
 add_library(dolfinx_cuas INTERFACE)
 
-# Basix
-target_link_libraries(dolfinx_cuas INTERFACE Basix::basix)
+
+target_include_directories(dolfinx_cuas INTERFACE ${DOLFINX_CUAS_SOURCE_DIR})
 
 # Installation of header-only DOLFINX_CUAS Library
 include(GNUInstallDirs)
 install(FILES kernels.hpp kernelwrapper.h  math.hpp matrix_assembly.hpp vector_assembly.hpp utils.hpp surface_kernels.hpp kernels_non_const_coefficient.hpp vector_kernels.hpp QuadratureRule.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
+
+# Create package config for CMAKE
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(${DOLFINX_CUAS_SOURCE_DIR}/DOLFINX_CUASConfig.cmake.in
+${CMAKE_BINARY_DIR}/dolfinx_cuas/DOLFINX_CUASConfig.cmake
+INSTALL_DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/dolfinx_cuas)
+
+write_basic_package_version_file(${CMAKE_BINARY_DIR}/dolfinx_cuas/DOLFINX_CUASConfigVersion.cmake
+VERSION 0.3.1.0 COMPATIBILITY SameMajorVersion)
+
+# Install CMake helper files
+install(
+  FILES
+  ${CMAKE_BINARY_DIR}/dolfinx_cuas/DOLFINX_CUASConfig.cmake
+  ${CMAKE_BINARY_DIR}/dolfinx_cuas/DOLFINX_CUASConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/dolfinx_cuas
+  COMPONENT Development)
+
+#------------------------------------------------------------------------------
