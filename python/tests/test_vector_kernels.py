@@ -2,15 +2,16 @@
 #
 # SPDX-License-Identifier:   MIT
 
-from dolfinx.mesh import create_unit_square, create_unit_cube
-from dolfinx.fem import Form, FunctionSpace, create_vector, assemble_vector, IntegralType
-from dolfinx.mesh import MeshTags, locate_entities_boundary
 import basix
 import dolfinx_cuas
 import dolfinx_cuas.cpp
 import numpy as np
 import pytest
 import ufl
+from dolfinx.fem import (FunctionSpace, IntegralType, assemble_vector,
+                         create_vector, form)
+from dolfinx.mesh import (MeshTags, create_unit_cube, create_unit_square,
+                          locate_entities_boundary)
 from mpi4py import MPI
 from petsc4py import PETSc
 
@@ -34,7 +35,7 @@ def test_vector_kernels(dim, kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    L = Form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    L = form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     b = create_vector(L)
 
     # Normal assembly
@@ -81,7 +82,7 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     kernel_type = dolfinx_cuas.Kernel.Rhs
     # Compile UFL form
     # cffi_options = []  # ["-Ofast", "-march=native"]
-    L = Form(L)  # , jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    L = form(L)  # , jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     b = create_vector(L)
 
     # Normal assembly

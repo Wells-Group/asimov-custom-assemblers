@@ -36,7 +36,7 @@ def test_pack_coeffs(integral_type):
     else:
         a = z * ufl.inner(v, z * q) * dC
 
-    form = fem.Form(a)._cpp_object
+    form = fem.form(a)
     coeffs = fem.pack_coefficients(form)
     active_entities = form.domains(integral_type, -1)
     coeffs_cuas = dolfinx_cuas.pack_coefficients(form.coefficients, active_entities)
@@ -58,8 +58,9 @@ def test_entity_packing(integral_type):
     elif integral_type == fem.IntegralType.interior_facet:
         dC = ufl.dS
     mesh = dmesh.create_unit_square(MPI.COMM_WORLD, 6, 4)
+    mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
     a = fem.Constant(mesh, np.float64(1)) * dC
-    form = fem.Form(a)._cpp_object
+    form = fem.form(a)
     active_entities = form.domains(integral_type, -1)
 
     if integral_type == fem.IntegralType.cell:
@@ -71,7 +72,7 @@ def test_entity_packing(integral_type):
     if integral_type == fem.IntegralType.exterior_facet:
         entities = np.flatnonzero(facet_marker)
     elif integral_type == fem.IntegralType.interior_facet:
-        entities = np.flatnonzero(np.invert(facet_marker))
+        entities = np.flatnonzero(np.array(facet_marker) == 0)
     new_entities = dolfinx_cuas.compute_active_entities(mesh, np.asarray(entities, dtype=np.int32),
                                                         integral_type)
     assert(np.allclose(active_entities, new_entities))

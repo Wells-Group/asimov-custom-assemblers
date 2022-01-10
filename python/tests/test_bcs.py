@@ -33,14 +33,14 @@ def test_dirichlet_bc(P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     A = fem.create_matrix(a)
 
     # Define DirichletBC
     b_dofs = fem.locate_dofs_geometrical(V, lambda x: np.isclose(x[0], 0))
     u_bc = fem.Function(V)
     u_bc.x.array[:] = 1
-    bcs = [fem.DirichletBC(u_bc, b_dofs)]
+    bcs = [fem.dirichletbc(u_bc, b_dofs)]
 
     # Normal assembly
     A.zeroEntries()
