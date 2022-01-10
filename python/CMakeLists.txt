@@ -23,6 +23,8 @@ pybind11_add_module(cpp SHARED
 
 target_link_libraries(cpp PUBLIC pybind11::module)
 target_link_libraries(cpp PUBLIC dolfinx)
+target_link_libraries(cpp PUBLIC basix)
+
 
 # Get python include-dirs
 execute_process(
