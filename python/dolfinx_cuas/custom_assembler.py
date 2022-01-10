@@ -32,32 +32,22 @@ _dolfinx_to_basix_celltype = {_dmesh.CellType.interval: basix.CellType.interval,
                               _dmesh.CellType.tetrahedron: basix.CellType.tetrahedron}
 
 
-def _cpp_dirichletbc(bc):
-    """Unwrap Dirichlet BC objects as cpp objects"""
-    if isinstance(bc, _fem.DirichletBC):
-        return bc._cpp_object
-    elif isinstance(bc, (tuple, list)):
-        return list(map(lambda sub_bc: _cpp_dirichletbc(sub_bc), bc))
-    return bc
-
-
 def assemble_matrix(A: PETSc.Mat, V: _fem.FunctionSpace,
                     active_cells: np.ndarray,
                     kernel: dolfinx_cuas.cpp.KernelWrapper,
                     coeffs: np.ndarray,
                     consts: np.ndarray,
                     type: _fem.IntegralType,
-                    bcs: typing.List[_fem.DirichletBC] = [],
+                    bcs: typing.List[_fem.DirichletBCMetaClass] = [],
                     diagonal: float = 1.0):
     """Assemble bilinear form into a matrix. The returned matrix is not
     finalised, i.e. ghost values are not accumulated.
     """
-    cpp_bcs = _cpp_dirichletbc(bcs)
-    dolfinx_cuas.cpp.assemble_matrix(A, V._cpp_object, cpp_bcs,
+    dolfinx_cuas.cpp.assemble_matrix(A, V._cpp_object, bcs,
                                      active_cells, kernel, coeffs, consts, type)
     A.assemblyBegin(PETSc.Mat.AssemblyType.FLUSH)
     A.assemblyEnd(PETSc.Mat.AssemblyType.FLUSH)
-    _cpp_fem.petsc.insert_diagonal(A, V._cpp_object, cpp_bcs, diagonal)
+    _cpp_fem.petsc.insert_diagonal(A, V._cpp_object, bcs, diagonal)
 
 
 def assemble_vector(b: np.ndarray, V: _fem.FunctionSpace,

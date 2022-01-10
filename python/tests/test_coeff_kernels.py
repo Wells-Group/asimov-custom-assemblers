@@ -47,7 +47,7 @@ def test_volume_kernels(kernel_type, P, Q):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.Form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     A = fem.create_matrix(a)
 
     # Normal assembly

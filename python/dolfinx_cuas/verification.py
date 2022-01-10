@@ -22,7 +22,7 @@ def compute_reference_mass_matrix(V: _fem.FunctionSpace, quadrature_degree: int 
     v = ufl.TestFunction(V)
     dx = ufl.dx(domain=mesh, metadata={"quadrature_degree": quadrature_degree})
     a = ufl.inner(u, v) * dx
-    a = _fem.Form(a, jit_parameters=jit_parameters)
+    a = _fem.form(a, jit_parameters=jit_parameters)
     Aref = _fem.assemble_matrix(a)
     Aref.assemble()
     return Aref
@@ -37,7 +37,7 @@ def compute_reference_stiffness_matrix(V: _fem.FunctionSpace, quadrature_degree:
     v = ufl.TestFunction(V)
     dx = ufl.dx(domain=mesh, metadata={"quadrature_degree": quadrature_degree})
     a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
-    a = _fem.Form(a, jit_parameters=jit_parameters)
+    a = _fem.form(a, jit_parameters=jit_parameters)
     Aref = _fem.assemble_matrix(a)
     Aref.assemble()
     return Aref
@@ -57,7 +57,7 @@ def compute_reference_surface_matrix(V: _fem.FunctionSpace, quadrature_degree: i
     else:
         ds = ufl.ds(domain=mesh, metadata={"quadrature_degree": quadrature_degree})
     a = ufl.inner(u, v) * ds
-    a = _fem.Form(a)
+    a = _fem.form(a)
     Aref = _fem.assemble_matrix(a)
     Aref.assemble()
     return Aref
