@@ -47,7 +47,8 @@ int main(int argc, char* argv[])
   const std::int32_t tdim = mesh->topology().dim();
 
   dolfinx_cuas::QuadratureRule q_rule(mesh->topology().cell_type(), 2 * (Q - 1), tdim - 1);
-  auto kernel = dolfinx_cuas::generate_surface_kernel(V, dolfinx_cuas::Kernel::SymGrad, q_rule);
+  auto kernel = dolfinx_cuas::generate_surface_kernel<PetscScalar>(V, dolfinx_cuas::Kernel::SymGrad,
+                                                                   q_rule);
 
   // Define variational forms
   auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);

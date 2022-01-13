@@ -12,14 +12,25 @@ jobs:
   build:
     if: "!(contains(github.event.head_commit.message, '[ci skip]') || contains(github.event.head_commit.message, '[skip ci]'))"
     runs-on: ubuntu-20.04
-    # container: dolfinx/dolfinx
-    # steps:
-    #   - uses: actions/checkout@v2
-    container: dolfinx/dev-env
+    strategy:
+      matrix:
+        petsc_mode: [real, complex]
+        petsc_int_type: [32, 64]
+        CXX: [c++, clang++]
+        CC: [cc, clang]
+        exclude:
+          - CC: cc
+            CXX: clang++
+          - CC: clang
+            CXX: c++
+
     env:
-      CC: clang
-      CXX: clang++
-      PETSC_ARCH: linux-gnu-real-32
+      CC: ${{ matrix.CC }}
+      CXX: ${{ matrix.CXX }}
+      HDF5_MPI: "ON"
+      HDF5_DIR: "/usr/lib/x86_64-linux-gnu/hdf5/mpich/"
+      PETSC_ARCH: linux-gnu-${{ matrix.petsc_mode }}-${{ matrix.petsc_int_type }}
+      PETSC_TYPE: ${{matrix.petsc_mode}}
       OMPI_ALLOW_RUN_AS_ROOT: 1
       OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
       OMPI_MCA_rmaps_base_oversubscribe: 1
@@ -27,7 +38,7 @@ jobs:
       OMPI_MCA_btl_vader_single_copy_mechanism: none
       OMPI_MCA_mpi_yield_when_idle: 1
       OMPI_MCA_hwloc_base_binding_policy: none
-
+      CXX_FLAGS: "-Wall -Werror -g -pedantic -Ofast -march=native"
     steps:
       - uses: actions/checkout@v2
 
