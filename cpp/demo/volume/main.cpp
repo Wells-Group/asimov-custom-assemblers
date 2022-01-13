@@ -52,9 +52,10 @@ int main(int argc, char* argv[])
   auto kappa = std::make_shared<fem::Constant<PetscScalar>>(1.0);
 
   // Define variational forms
-  ufc_form form;
+  ufcx_form form;
   std::shared_ptr<fem::FunctionSpace> V;
   dolfinx_cuas::Kernel kernel_type;
+
   int q_degree = 0;
   if (problem_type == "mass")
   {
@@ -101,8 +102,8 @@ int main(int argc, char* argv[])
   // Generate Kernel
   dolfinx_cuas::QuadratureRule q_rule(mesh->topology().cell_type(), q_degree,
                                       mesh->topology().dim(), basix::quadrature::type::Default);
-  auto kernel
-      = dolfinx_cuas::generate_kernel(kernel_type, degree, V->dofmap()->index_map_bs(), q_rule);
+  auto kernel = dolfinx_cuas::generate_kernel<PetscScalar>(kernel_type, degree,
+                                                           V->dofmap()->index_map_bs(), q_rule);
 
   // Define active cells
   const std::int32_t tdim = mesh->topology().dim();
@@ -121,9 +122,8 @@ int main(int argc, char* argv[])
 
   {
     // Prepare constants and coefficients
-    const std::vector<PetscScalar> constants = pack_constants(*a);
+    const auto constants = pack_constants(*a);
     const auto coeffs = pack_coefficients(*a);
-
     common::Timer t1("~Assemble Matrix DOLINFx/FFCx");
     dolfinx::fem::assemble_matrix(la::petsc::Matrix::set_block_fn(B.mat(), ADD_VALUES), *a,
                                   tcb::make_span(constants),
