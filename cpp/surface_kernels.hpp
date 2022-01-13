@@ -18,9 +18,10 @@
 namespace dolfinx_cuas
 {
 
-kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
-                                  dolfinx_cuas::Kernel type,
-                                  dolfinx_cuas::QuadratureRule& quadrature_rule)
+template <typename T>
+kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
+                                     dolfinx_cuas::Kernel type,
+                                     dolfinx_cuas::QuadratureRule& quadrature_rule)
 {
 
   auto mesh = V->mesh();
@@ -83,8 +84,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
   auto facet_normals = basix::cell::facet_outward_normals(basix_element.cell_type());
 
   // Define kernels
-  kernel_fn mass = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                       const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  kernel_fn<T> mass = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
+                          const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
 
@@ -133,8 +134,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     }
   };
 
-  kernel_fn mass_nonaffine
-      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+  kernel_fn<T> mass_nonaffine
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
@@ -191,8 +192,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     }
   };
   // FIXME: Template over gdim and tdim?
-  kernel_fn stiffness
-      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+  kernel_fn<T> stiffness
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
@@ -255,8 +256,8 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
     }
   };
 
-  kernel_fn sym_grad
-      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+  kernel_fn<T> sym_grad
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
@@ -332,8 +333,9 @@ kernel_fn generate_surface_kernel(std::shared_ptr<const dolfinx::fem::FunctionSp
       }
     }
   };
-  kernel_fn normal = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  kernel_fn<T> normal
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == tdim);
     std::size_t facet_index = size_t(*entity_local_index);

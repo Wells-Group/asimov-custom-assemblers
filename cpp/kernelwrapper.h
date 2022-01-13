@@ -4,9 +4,6 @@
 //
 // SPDX-License-Identifier:    MIT
 
-using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
-                                     const int*, const std::uint8_t*)>;
-
 namespace cuas_wrappers
 {
 
@@ -14,24 +11,25 @@ namespace cuas_wrappers
 /// as pybind automatically wraps std::function of pointers to ints,
 /// which in turn cannot be transferred back to C++
 
+template <typename T>
 class KernelWrapper
 {
 public:
   /// Wrap a Kernel
-  KernelWrapper(kernel_fn kernel) : _kernel(kernel) {}
+  KernelWrapper(dolfinx_cuas::kernel_fn<T> kernel) : _kernel(kernel) {}
 
   /// Assignment operator
-  KernelWrapper& operator=(kernel_fn kernel)
+  KernelWrapper& operator=(dolfinx_cuas::kernel_fn<T> kernel)
   {
     this->_kernel = kernel;
     return *this;
   }
 
   /// Get the C++ kernel
-  kernel_fn get() { return _kernel; }
+  dolfinx_cuas::kernel_fn<T> get() { return _kernel; }
 
 private:
   // The underlying communicator
-  kernel_fn _kernel;
+  dolfinx_cuas::kernel_fn<T> _kernel;
 };
 } // namespace cuas_wrappers

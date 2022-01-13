@@ -14,8 +14,9 @@
 namespace dolfinx_cuas
 {
 
-kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
-                                 dolfinx_cuas::Kernel type, dolfinx_cuas::QuadratureRule& q_rule)
+template <typename T>
+kernel_fn<T> generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
+                                    dolfinx_cuas::Kernel type, dolfinx_cuas::QuadratureRule& q_rule)
 {
   auto mesh = V->mesh();
 
@@ -49,8 +50,8 @@ kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpa
 
   // 1 * v * dx, v TestFunction
   // =====================================================================================
-  kernel_fn rhs = [=](double* b, const double* c, const double* w, const double* coordinate_dofs,
-                      const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  kernel_fn<T> rhs = [=](T* b, const T* c, const T* w, const double* coordinate_dofs,
+                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
@@ -81,9 +82,10 @@ kernel_fn generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpa
   }
 }
 
-kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
-                                         dolfinx_cuas::Kernel type,
-                                         dolfinx_cuas::QuadratureRule& q_rule)
+template <typename T>
+kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
+                                            dolfinx_cuas::Kernel type,
+                                            dolfinx_cuas::QuadratureRule& q_rule)
 {
 
   auto mesh = V->mesh();
@@ -148,8 +150,8 @@ kernel_fn generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::Fun
   // Define kernels
   // v*ds, v TestFunction
   // =====================================================================================
-  kernel_fn rhs_surface
-      = [=](double* b, const double* c, const double* w, const double* coordinate_dofs,
+  kernel_fn<T> rhs_surface
+      = [=](T* b, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     std::size_t facet_index = size_t(*entity_local_index);
