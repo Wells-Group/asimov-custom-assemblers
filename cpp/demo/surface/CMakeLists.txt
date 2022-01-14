@@ -14,9 +14,6 @@ find_package(Basix REQUIRED)
 find_package(xtensor REQUIRED)
 
 # Add target to compile UFL files
-if (NOT DEFINED PETSC_SCALAR_COMPLEX)
-  message(FATAL_ERROR "PETSc scalar type not defined")
-endif()
 if (PETSC_SCALAR_COMPLEX EQUAL 1)
   set(SCALAR_TYPE "--scalar_type=double _Complex")
 endif()
