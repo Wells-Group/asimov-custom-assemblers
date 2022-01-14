@@ -17,8 +17,7 @@ jobs:
 
     strategy:
       matrix:
-        # Complex mode not working for header only libraries
-        petsc_mode: [real]
+        petsc_mode: [real, complex]
         petsc_int_type: [32, 64]
         CXX: [c++, clang++]
         CC: [cc, clang]

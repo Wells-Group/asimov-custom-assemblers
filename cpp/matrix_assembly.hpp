@@ -6,15 +6,13 @@
 
 #pragma once
 
+#include "kernels.hpp"
 #include "utils.hpp"
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/assembler.h>
 #include <functional>
 #include <petscmat.h>
 #include <xtl/xspan.hpp>
-
-using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
-                                     const int*, const std::uint8_t*)>;
 
 // Helper functions for assembly in DOLFINx
 namespace
@@ -34,7 +32,7 @@ void assemble_exterior_facets(
     const std::function<int(std::int32_t, const std::int32_t*, std::int32_t, const std::int32_t*,
                             const T*)>& mat_set,
     std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<std::int8_t>& bc,
-    const xtl::span<const std::int32_t>& active_facets, kernel_fn& kernel,
+    const xtl::span<const std::int32_t>& active_facets, dolfinx_cuas::kernel_fn<T>& kernel,
     const xtl::span<const T> coeffs, int cstride, const xtl::span<const T>& constants)
 {
   // Extract mesh
@@ -45,13 +43,13 @@ void assemble_exterior_facets(
   const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
   const int bs = dofmap->bs();
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
-  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
-                           std::int32_t, int)>
-      apply_dof_transformation = element->get_dof_transformation_function<double>();
-  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
-                           std::int32_t, int)>
+  const std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&, std::int32_t,
+                           int)>
+      apply_dof_transformation = element->get_dof_transformation_function<T>();
+  const std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&, std::int32_t,
+                           int)>
       apply_dof_transformation_to_transpose
-      = element->get_dof_transformation_to_transpose_function<double>();
+      = element->get_dof_transformation_to_transpose_function<T>();
 
   // NOTE: Need to reconsider this when we get to jump integrals between disconnected interfaces
   const bool needs_transformation_data = element->needs_dof_transformations();
@@ -104,8 +102,9 @@ void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, s
                                             const std::int32_t*, const T*)>& mat_set,
                     std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                     const std::vector<std::int8_t>& bc,
-                    const xtl::span<const std::int32_t>& active_cells, kernel_fn& kernel,
-                    const xtl::span<const T> coeffs, int cstride,
+                    const xtl::span<const std::int32_t>& active_cells,
+                    dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
+                    int cstride,
 
                     const xtl::span<const T>& constants)
 {
@@ -117,13 +116,13 @@ void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, s
   const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
   const int bs = dofmap->bs();
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
-  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
-                           std::int32_t, int)>
-      apply_dof_transformation = element->get_dof_transformation_function<double>();
-  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
-                           std::int32_t, int)>
+  const std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&, std::int32_t,
+                           int)>
+      apply_dof_transformation = element->get_dof_transformation_function<T>();
+  const std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&, std::int32_t,
+                           int)>
       apply_dof_transformation_to_transpose
-      = element->get_dof_transformation_to_transpose_function<double>();
+      = element->get_dof_transformation_to_transpose_function<T>();
 
   // NOTE: Need to reconsider this when we get to jump integrals between disconnected interfaces
   const bool needs_transformation_data = element->needs_dof_transformations();
@@ -162,9 +161,10 @@ void assemble_matrix(const std::function<int(std::int32_t, const std::int32_t*, 
                                              const std::int32_t*, const T*)>& mat_set,
                      std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                      const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<T>>>& bcs,
-                     const xtl::span<const std::int32_t>& active_entities, kernel_fn& kernel,
-                     const xtl::span<const T> coeffs, int cstride,
-                     const xtl::span<const T>& constants, dolfinx::fem::IntegralType type)
+                     const xtl::span<const std::int32_t>& active_entities,
+                     dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
+                     int cstride, const xtl::span<const T>& constants,
+                     dolfinx::fem::IntegralType type)
 {
 
   // Build dof marker (assuming same test and trial space)

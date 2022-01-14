@@ -8,6 +8,7 @@ import dolfinx_cuas
 import numpy as np
 import ufl
 from mpi4py import MPI
+from petsc4py import PETSc
 import pytest
 
 
@@ -59,7 +60,7 @@ def test_entity_packing(integral_type):
         dC = ufl.dS
     mesh = dmesh.create_unit_square(MPI.COMM_WORLD, 6, 4)
     mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
-    a = fem.Constant(mesh, np.float64(1)) * dC
+    a = fem.Constant(mesh, PETSc.ScalarType(1)) * dC
     form = fem.form(a)
     active_entities = form.domains(integral_type, -1)
 

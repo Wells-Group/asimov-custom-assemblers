@@ -6,14 +6,12 @@
 
 #pragma once
 
+#include "kernels.hpp"
 #include "utils.hpp"
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/assembler.h>
 #include <functional>
 #include <xtl/xspan.hpp>
-
-using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
-                                     const int*, const std::uint8_t*)>;
 
 // Helper functions for assembly in DOLFINx
 namespace
@@ -27,11 +25,11 @@ namespace
 /// @param[in] coeffs coefficients used in the variational form
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
-void assemble_exterior_facets(xtl::span<PetscScalar> b,
-                              std::shared_ptr<dolfinx::fem::FunctionSpace> V,
-                              const xtl::span<const std::int32_t>& active_facets, kernel_fn& kernel,
-                              const xtl::span<const PetscScalar> coeffs, int cstride,
-                              const xtl::span<const PetscScalar>& constants)
+template <typename T>
+void assemble_exterior_facets(xtl::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                              const xtl::span<const std::int32_t>& active_facets,
+                              dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
+                              int cstride, const xtl::span<const T>& constants)
 {
   // Extract mesh
   std::shared_ptr<const dolfinx::mesh::Mesh> mesh = V->mesh();
@@ -41,9 +39,9 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
   const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
   const int bs = dofmap->bs();
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
-  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
-                           std::int32_t, int)>
-      apply_dof_transformation = element->get_dof_transformation_function<double>();
+  const std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&, std::int32_t,
+                           int)>
+      apply_dof_transformation = element->get_dof_transformation_function<T>();
 
   // NOTE: Need to reconsider this when we get to jump integrals between disconnected interfaces
   const bool needs_transformation_data = element->needs_dof_transformations();
@@ -76,9 +74,9 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
   }
 
   // Assemble using dolfinx
-  dolfinx::fem::impl::assemble_exterior_facets<PetscScalar>(apply_dof_transformation, b, *mesh,
-                                                            facets, dofs, bs, kernel, constants,
-                                                            coeffs, cstride, cell_info);
+  dolfinx::fem::impl::assemble_exterior_facets<T>(apply_dof_transformation, b, *mesh, facets, dofs,
+                                                  bs, kernel, constants, coeffs, cstride,
+                                                  cell_info);
 }
 
 /// Assemble vector over cells
@@ -90,10 +88,11 @@ void assemble_exterior_facets(xtl::span<PetscScalar> b,
 /// @param[in] coeffs coefficients used in the variational form
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
-void assemble_cells(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
-                    const xtl::span<const std::int32_t>& active_cells, kernel_fn& kernel,
-                    const xtl::span<const PetscScalar> coeffs, int cstride,
-                    const xtl::span<const PetscScalar>& constants)
+template <typename T>
+void assemble_cells(xtl::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                    const xtl::span<const std::int32_t>& active_cells,
+                    dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
+                    int cstride, const xtl::span<const T>& constants)
 {
   // Extract mesh
   std::shared_ptr<const dolfinx::mesh::Mesh> mesh = V->mesh();
@@ -103,9 +102,9 @@ void assemble_cells(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::Func
   const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
   const int bs = dofmap->bs();
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
-  const std::function<void(const xtl::span<double>&, const xtl::span<const std::uint32_t>&,
-                           std::int32_t, int)>
-      apply_dof_transformation = element->get_dof_transformation_function<double>();
+  const std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&, std::int32_t,
+                           int)>
+      apply_dof_transformation = element->get_dof_transformation_function<T>();
 
   // NOTE: Need to reconsider this when we get to jump integrals between disconnected interfaces
   const bool needs_transformation_data = element->needs_dof_transformations();
@@ -118,9 +117,8 @@ void assemble_cells(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::Func
     cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
   }
 
-  dolfinx::fem::impl::assemble_cells<PetscScalar>(apply_dof_transformation, b, mesh->geometry(),
-                                                  active_cells, dofs, bs, kernel, constants, coeffs,
-                                                  cstride, cell_info);
+  dolfinx::fem::impl::assemble_cells<T>(apply_dof_transformation, b, mesh->geometry(), active_cells,
+                                        dofs, bs, kernel, constants, coeffs, cstride, cell_info);
 }
 } // namespace
 
@@ -136,10 +134,12 @@ namespace dolfinx_cuas
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 /// @param[in] type the integral type
-void assemble_vector(xtl::span<PetscScalar> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
-                     const xtl::span<const std::int32_t>& active_entities, kernel_fn& kernel,
-                     const xtl::span<const PetscScalar> coeffs, int cstride,
-                     const xtl::span<const PetscScalar>& constants, dolfinx::fem::IntegralType type)
+template <typename T>
+void assemble_vector(xtl::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                     const xtl::span<const std::int32_t>& active_entities,
+                     dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
+                     int cstride, const xtl::span<const T>& constants,
+                     dolfinx::fem::IntegralType type)
 {
 
   // Assemble integral

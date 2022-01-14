@@ -38,7 +38,8 @@ PYBIND11_MODULE(cpp, m)
 #endif
 
   // Kernel wrapper class
-  py::class_<cuas_wrappers::KernelWrapper, std::shared_ptr<cuas_wrappers::KernelWrapper>>(
+  py::class_<cuas_wrappers::KernelWrapper<PetscScalar>,
+             std::shared_ptr<cuas_wrappers::KernelWrapper<PetscScalar>>>(
       m, "KernelWrapper", "Wrapper for C++ integration kernels");
 
   // Quadrature rule class
@@ -67,18 +68,20 @@ PYBIND11_MODULE(cpp, m)
            dolfinx_cuas::QuadratureRule& quadrature_rule)
         {
           return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_surface_kernel(V, type, quadrature_rule));
+              dolfinx_cuas::generate_surface_kernel<PetscScalar>(V, type, quadrature_rule));
         });
   m.def("generate_kernel",
-        [](dolfinx_cuas::Kernel type, int p, int bs, dolfinx_cuas::QuadratureRule& q_rule) {
-          return cuas_wrappers::KernelWrapper(dolfinx_cuas::generate_kernel(type, p, bs, q_rule));
+        [](dolfinx_cuas::Kernel type, int p, int bs, dolfinx_cuas::QuadratureRule& q_rule)
+        {
+          return cuas_wrappers::KernelWrapper(
+              dolfinx_cuas::generate_kernel<PetscScalar>(type, p, bs, q_rule));
         });
   m.def("generate_vector_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
            dolfinx_cuas::QuadratureRule& quadrature_rule)
         {
-          return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_vector_kernel(V, type, quadrature_rule));
+          return cuas_wrappers::KernelWrapper<PetscScalar>(
+              dolfinx_cuas::generate_vector_kernel<PetscScalar>(V, type, quadrature_rule));
         });
 
   m.def("generate_coeff_kernel",
@@ -86,22 +89,22 @@ PYBIND11_MODULE(cpp, m)
            std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int p,
            dolfinx_cuas::QuadratureRule& q_rule)
         {
-          return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_coeff_kernel(type, coeffs, p, q_rule));
+          return cuas_wrappers::KernelWrapper<PetscScalar>(
+              dolfinx_cuas::generate_coeff_kernel<PetscScalar>(type, coeffs, p, q_rule));
         });
   m.def("generate_surface_vector_kernel",
         [](std::shared_ptr<const dolfinx::fem::FunctionSpace> V, dolfinx_cuas::Kernel type,
            dolfinx_cuas::QuadratureRule& quadrature_rule)
         {
-          return cuas_wrappers::KernelWrapper(
-              dolfinx_cuas::generate_surface_vector_kernel(V, type, quadrature_rule));
+          return cuas_wrappers::KernelWrapper<PetscScalar>(
+              dolfinx_cuas::generate_surface_vector_kernel<PetscScalar>(V, type, quadrature_rule));
         });
 
   m.def("assemble_matrix",
         [](Mat A, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
            const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<PetscScalar>>>& bcs,
            const py::array_t<std::int32_t, py::array::c_style>& active_cells,
-           cuas_wrappers::KernelWrapper& kernel,
+           cuas_wrappers::KernelWrapper<PetscScalar>& kernel,
            const py::array_t<PetscScalar, py::array::c_style>& coeffs,
            const py::array_t<PetscScalar, py::array::c_style>& constants,
            dolfinx::fem::IntegralType type)
@@ -117,13 +120,13 @@ PYBIND11_MODULE(cpp, m)
         [](py::array_t<PetscScalar, py::array::c_style>& b,
            std::shared_ptr<dolfinx::fem::FunctionSpace> V,
            const py::array_t<std::int32_t, py::array::c_style>& active_cells,
-           cuas_wrappers::KernelWrapper& kernel,
+           cuas_wrappers::KernelWrapper<PetscScalar>& kernel,
            const py::array_t<PetscScalar, py::array::c_style>& coeffs,
            const py::array_t<PetscScalar, py::array::c_style>& constants,
            dolfinx::fem::IntegralType type)
         {
           auto ker = kernel.get();
-          dolfinx_cuas::assemble_vector(
+          dolfinx_cuas::assemble_vector<PetscScalar>(
               xtl::span(b.mutable_data(), b.shape(0)), V,
               xtl::span<const std::int32_t>(active_cells.data(), active_cells.size()), ker,
               xtl::span<const PetscScalar>(coeffs.data(), coeffs.size()), coeffs.shape(1),

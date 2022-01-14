@@ -13,12 +13,16 @@ find_package(DOLFINX REQUIRED)
 find_package(Basix REQUIRED)
 find_package(xtensor REQUIRED)
 
+# Add target to compile UFL files
+if (PETSC_SCALAR_COMPLEX EQUAL 1)
+  set(SCALAR_TYPE "--scalar_type=double _Complex")
+endif()
+
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/problem.c
-  COMMAND ffcx ${CMAKE_CURRENT_SOURCE_DIR}/problem.ufl -o ${CMAKE_CURRENT_SOURCE_DIR}
+  COMMAND ffcx ${SCALAR_TYPE} ${CMAKE_CURRENT_SOURCE_DIR}/problem.ufl -o ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS problem.ufl
 )
-
 add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/problem.c)
 
 

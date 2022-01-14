@@ -30,7 +30,7 @@ def test_vector_kernels(dim, kernel_type, P):
 
     v = ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
-    L = v * dx
+    L = ufl.conj(v) * dx
     kernel_type = dolfinx_cuas.Kernel.Rhs
 
     # Compile UFL form
@@ -78,7 +78,7 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     V = FunctionSpace(mesh, ("CG", P))
     v = ufl.TestFunction(V)
     ds = ufl.Measure("ds", domain=mesh, subdomain_data=ft)
-    L = v * ds(1)
+    L = ufl.conj(v) * ds(1)
     kernel_type = dolfinx_cuas.Kernel.Rhs
     # Compile UFL form
     # cffi_options = []  # ["-Ofast", "-march=native"]

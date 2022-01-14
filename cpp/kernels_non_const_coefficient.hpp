@@ -14,19 +14,16 @@
 
 #include "math.hpp"
 
-using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
-                                     const int*, const std::uint8_t*)>;
-
 namespace
 {
 /// Create integration kernel for Pth order Lagrange elements
 /// @param[in] type The kernel type (Mass or Stiffness)
 /// @return The integration kernel
-template <int P>
-kernel_fn generate_coefficient_kernel(
-    dolfinx_cuas::Kernel type,
-    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs,
-    dolfinx_cuas::QuadratureRule& q_rule)
+template <int P, typename T>
+dolfinx_cuas::kernel_fn<T>
+generate_coefficient_kernel(dolfinx_cuas::Kernel type,
+                            std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coeffs,
+                            dolfinx_cuas::QuadratureRule& q_rule)
 {
   // Problem specific parameters
   basix::element::family family = basix::element::family::P;
@@ -76,8 +73,8 @@ kernel_fn generate_coefficient_kernel(
 
   // Mass Matrix using quadrature formulation
   // =====================================================================================
-  kernel_fn mass_coeff
-      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+  dolfinx_cuas::kernel_fn<T> mass_coeff
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Get geometrical data
@@ -92,7 +89,7 @@ kernel_fn generate_coefficient_kernel(
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
-      double w0 = 0;
+      T w0 = 0;
       //  For each coefficient (assumed scalar valued), compute
       //  sum_{i=0}^{num_functions}sum_{j=0}^{num_dofs} c^j phi^j(x_q)
       for (int i = 0; i < num_coeffs; i++)
@@ -103,7 +100,7 @@ kernel_fn generate_coefficient_kernel(
       w0 *= weights[q] * detJ;
       for (int i = 0; i < ndofs_cell; i++)
       {
-        double w1 = w0 * phi.unchecked(q, i);
+        T w1 = w0 * phi.unchecked(q, i);
         for (int j = 0; j < ndofs_cell; j++)
           A[i * ndofs_cell + j] += w1 * phi.unchecked(q, j);
       }
@@ -126,10 +123,11 @@ namespace dolfinx_cuas
 /// @param[in] type The kernel type (Mass or Stiffness)
 /// @param[in] P Degree of the element
 /// @return The integration kernel
-kernel_fn generate_coeff_kernel(
-    dolfinx_cuas::Kernel type,
-    std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> coeffs, int P,
-    dolfinx_cuas::QuadratureRule& q_rule)
+template <typename T>
+dolfinx_cuas::kernel_fn<T>
+generate_coeff_kernel(dolfinx_cuas::Kernel type,
+                      std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coeffs, int P,
+                      dolfinx_cuas::QuadratureRule& q_rule)
 {
   switch (P)
   {

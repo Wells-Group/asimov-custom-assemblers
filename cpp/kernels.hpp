@@ -13,9 +13,6 @@
 #include <basix/quadrature.h>
 #include <string>
 
-using kernel_fn = std::function<void(double*, const double*, const double*, const double*,
-                                     const int*, const std::uint8_t*)>;
-
 namespace dolfinx_cuas
 {
 enum Kernel
@@ -29,7 +26,11 @@ enum Kernel
   Normal,
   Rhs
 };
-}
+template <typename T>
+using kernel_fn
+    = std::function<void(T*, const T*, const T*, const double*, const int*, const std::uint8_t*)>;
+
+} // namespace dolfinx_cuas
 
 namespace
 {
@@ -37,9 +38,9 @@ namespace
 /// @param[in] type The kernel type (Mass or Stiffness)
 /// @param[in] quadrature_rule The quadrature rule
 /// @return The integration kernel
-template <int P, int bs>
-kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
-                              dolfinx_cuas::QuadratureRule& quadrature_rule)
+template <int P, int bs, typename T>
+dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
+                                               dolfinx_cuas::QuadratureRule& quadrature_rule)
 {
   // Problem specific parameters
   basix::element::family family = basix::element::family::P;
@@ -80,8 +81,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
 
   std::array<std::size_t, 2> shape = {d, gdim};
   std::array<std::size_t, 2> shape_d = {ndofs_cell, gdim};
-  kernel_fn stiffness
-      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+  dolfinx_cuas::kernel_fn<T> stiffness
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Get geometrical data
@@ -139,8 +140,9 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
 
   // Mass Matrix using quadrature formulation
   // =====================================================================================
-  kernel_fn mass = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                       const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  dolfinx_cuas::kernel_fn<T> mass
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Get geometrical data
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
@@ -182,8 +184,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
       for (int j = 0; j < ndofs_cell; j++)
         A0(i, j) += weights[q] * phi(q, i) * phi(q, j);
 
-  kernel_fn masstensor
-      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+  dolfinx_cuas::kernel_fn<T> masstensor
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Get geometrical data
@@ -203,8 +205,9 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
 
   // Tr(eps(u))I:eps(v) dx
   //========================================================================================
-  kernel_fn tr_eps = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
-                         const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+  dolfinx_cuas::kernel_fn<T> tr_eps
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
+            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == 3);
     // Get geometrical data
@@ -256,8 +259,8 @@ kernel_fn generate_tet_kernel(dolfinx_cuas::Kernel type,
 
   // sym(grad(eps(u))):eps(v) dx
   //========================================================================================
-  kernel_fn sym_grad_eps
-      = [=](double* A, const double* c, const double* w, const double* coordinate_dofs,
+  dolfinx_cuas::kernel_fn<T> sym_grad_eps
+      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == 3);
@@ -344,8 +347,9 @@ namespace dolfinx_cuas
 /// @param[in] P Degree of the element
 /// @param[in] bs The block size
 /// @return The integration kernel
-kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs,
-                          dolfinx_cuas::QuadratureRule& quadrature_rule)
+template <typename T>
+dolfinx_cuas::kernel_fn<T> generate_kernel(dolfinx_cuas::Kernel type, int P, int bs,
+                                           dolfinx_cuas::QuadratureRule& quadrature_rule)
 {
   switch (P)
   {
@@ -353,11 +357,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs,
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<1, 1>(type, quadrature_rule);
+      return generate_tet_kernel<1, 1, T>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<1, 2>(type, quadrature_rule);
+      return generate_tet_kernel<1, 2, T>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<1, 3>(type, quadrature_rule);
+      return generate_tet_kernel<1, 3, T>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -365,11 +369,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs,
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<2, 1>(type, quadrature_rule);
+      return generate_tet_kernel<2, 1, T>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<2, 2>(type, quadrature_rule);
+      return generate_tet_kernel<2, 2, T>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<2, 3>(type, quadrature_rule);
+      return generate_tet_kernel<2, 3, T>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -377,11 +381,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs,
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<3, 1>(type, quadrature_rule);
+      return generate_tet_kernel<3, 1, T>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<3, 2>(type, quadrature_rule);
+      return generate_tet_kernel<3, 2, T>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<3, 3>(type, quadrature_rule);
+      return generate_tet_kernel<3, 3, T>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -389,11 +393,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs,
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<4, 1>(type, quadrature_rule);
+      return generate_tet_kernel<4, 1, T>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<4, 2>(type, quadrature_rule);
+      return generate_tet_kernel<4, 2, T>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<4, 3>(type, quadrature_rule);
+      return generate_tet_kernel<4, 3, T>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
@@ -401,11 +405,11 @@ kernel_fn generate_kernel(dolfinx_cuas::Kernel type, int P, int bs,
     switch (bs)
     {
     case 1:
-      return generate_tet_kernel<5, 1>(type, quadrature_rule);
+      return generate_tet_kernel<5, 1, T>(type, quadrature_rule);
     case 2:
-      return generate_tet_kernel<5, 2>(type, quadrature_rule);
+      return generate_tet_kernel<5, 2, T>(type, quadrature_rule);
     case 3:
-      return generate_tet_kernel<5, 3>(type, quadrature_rule);
+      return generate_tet_kernel<5, 3, T>(type, quadrature_rule);
     default:
       throw std::runtime_error("Can only have block size from 1 to 3.");
     }
