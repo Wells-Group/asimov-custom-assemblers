@@ -26,9 +26,8 @@ int main(int argc, char* argv[])
 
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "print usage message")(
-      "kernel", po::value<std::string>()->default_value("mass"),
-      "kernel (mass or stiffness)")("degree", po::value<int>()->default_value(1),
-                                    "Degree of function space (1-5)");
+      "kernel", po::value<std::string>()->default_value("mass"), "kernel (mass or stiffness)")(
+      "degree", po::value<int>()->default_value(1), "Degree of function space (1-5)");
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
   po::notify(vm);
@@ -123,7 +122,8 @@ int main(int argc, char* argv[])
   {
     // Prepare constants and coefficients
     const auto constants = pack_constants(*a);
-    const auto coeffs = pack_coefficients(*a);
+    auto coeffs = fem::allocate_coefficient_storage(*a);
+    pack_coefficients(*a, coeffs);
     common::Timer t1("~Assemble Matrix DOLINFx/FFCx");
     dolfinx::fem::assemble_matrix(la::petsc::Matrix::set_block_fn(B.mat(), ADD_VALUES), *a,
                                   tcb::make_span(constants),
