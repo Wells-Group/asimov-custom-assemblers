@@ -90,6 +90,7 @@ def test_surface_kernels(dim, kernel_type):
     facets = dmesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
                                             lambda x: np.logical_or(np.isclose(x[0], 0.0),
                                                                     np.isclose(x[0], 1.0)))
+    facets = np.sort(facets)
     values = np.ones(len(facets), dtype=np.int32)
     ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
 
@@ -147,6 +148,7 @@ def test_normal_kernels(dim, kernel_type):
 
     facets = dmesh.locate_entities_boundary(mesh, mesh.topology.dim - 1,
                                             lambda x: np.full(x.shape[1], True, dtype=bool))
+    facets = np.sort(facets)
     values = np.ones(len(facets), dtype=np.int32)
     # Find facets on boundary to integrate over2)
     ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)

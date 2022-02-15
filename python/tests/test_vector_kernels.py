@@ -71,6 +71,7 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     facets = locate_entities_boundary(mesh, mesh.topology.dim - 1,
                                       lambda x: np.logical_or(np.isclose(x[0], 0.0),
                                                               np.isclose(x[0], 1.0)))
+    facets = np.sort(facets)
     values = np.ones(len(facets), dtype=np.int32)
     ft = MeshTags(mesh, mesh.topology.dim - 1, facets, values)
 
