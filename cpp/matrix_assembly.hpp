@@ -28,12 +28,14 @@ namespace
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 template <typename T>
-void assemble_exterior_facets(
-    const std::function<int(std::int32_t, const std::int32_t*, std::int32_t, const std::int32_t*,
-                            const T*)>& mat_set,
-    std::shared_ptr<dolfinx::fem::FunctionSpace> V, const std::vector<std::int8_t>& bc,
-    const xtl::span<const std::int32_t>& active_facets, dolfinx_cuas::kernel_fn<T>& kernel,
-    const xtl::span<const T> coeffs, int cstride, const xtl::span<const T>& constants)
+void assemble_exterior_facets(const std::function<int(const xtl::span<const std::int32_t>&,
+                                                      const xtl::span<const std::int32_t>&,
+                                                      const xtl::span<const T>&)>& mat_set,
+                              std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                              const std::vector<std::int8_t>& bc,
+                              const xtl::span<const std::int32_t>& active_facets,
+                              dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
+                              int cstride, const xtl::span<const T>& constants)
 {
   // Extract mesh
   std::shared_ptr<const dolfinx::mesh::Mesh> mesh = V->mesh();
@@ -98,8 +100,9 @@ void assemble_exterior_facets(
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 template <typename T>
-void assemble_cells(const std::function<int(std::int32_t, const std::int32_t*, std::int32_t,
-                                            const std::int32_t*, const T*)>& mat_set,
+void assemble_cells(const std::function<int(const xtl::span<const std::int32_t>&,
+                                            const xtl::span<const std::int32_t>&,
+                                            const xtl::span<const T>&)>& mat_set,
                     std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                     const std::vector<std::int8_t>& bc,
                     const xtl::span<const std::int32_t>& active_cells,
@@ -157,8 +160,9 @@ namespace dolfinx_cuas
 /// @param[in] constants used in the variational form
 /// @param[in] type the integral type
 template <typename T>
-void assemble_matrix(const std::function<int(std::int32_t, const std::int32_t*, std::int32_t,
-                                             const std::int32_t*, const T*)>& mat_set,
+void assemble_matrix(const std::function<int(const xtl::span<const std::int32_t>&,
+                                             const xtl::span<const std::int32_t>&,
+                                             const xtl::span<const T>&)>& mat_set,
                      std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                      const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<T>>>& bcs,
                      const xtl::span<const std::int32_t>& active_entities,
