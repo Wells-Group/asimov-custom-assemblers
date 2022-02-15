@@ -1,4 +1,4 @@
-// Copyright (C) 2021 Igor A. Baratta, Sarah Roggendorf, Jørgen S. Dokken
+// Copyright (C) 2021-2022 Igor A. Baratta, Sarah Roggendorf, Jørgen S. Dokken
 //
 // This file is part of DOLFINx_CUAS
 //
@@ -8,6 +8,7 @@
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <dolfinx.h>
+#include <dolfinx/common/sort.h>
 #include <dolfinx/fem/petsc.h>
 #include <dolfinx/io/XDMFFile.h>
 #include <dolfinx/mesh/utils.h>
@@ -33,6 +34,8 @@ int main(int argc, char* argv[])
   auto boundary = [](auto& x) -> xt::xtensor<bool, 1> { return xt::isclose(xt::row(x, 0), 0.0); };
   std::vector<std::int32_t> boundary_facets
       = dolfinx::mesh::locate_entities_boundary(*mesh, 2, boundary);
+  dolfinx::radix_sort(xtl::span(boundary_facets));
+
   std::vector<std::int32_t> boundary_values(boundary_facets.size());
   std::fill(boundary_values.begin(), boundary_values.end(), 1);
   auto mt = std::make_shared<dolfinx::mesh::MeshTags<std::int32_t>>(mesh, 2, boundary_facets,
