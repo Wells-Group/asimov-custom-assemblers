@@ -94,7 +94,7 @@ class NonlinearProblemCUAS:
         A.assemble()
 
 
-class NewtonSolver(cpp.nls.NewtonSolver):
+class NewtonSolver(cpp.nls.petsc.NewtonSolver):
     def __init__(self, comm: mpi4py.MPI.Intracomm, problem: NonlinearProblemCUAS):
         """
         Create a Newton solver for a given MPI communicator and non-linear problem.
