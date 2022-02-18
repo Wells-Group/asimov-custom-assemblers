@@ -12,8 +12,6 @@
 #include <dolfinx/fem/Function.h>
 #include <string>
 
-#include "math.hpp"
-
 namespace
 {
 /// Create integration kernel for Pth order Lagrange elements
@@ -83,8 +81,8 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
     xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, coord, J);
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, coord, J);
+    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J));
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)

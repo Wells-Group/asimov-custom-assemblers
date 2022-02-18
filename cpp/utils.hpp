@@ -97,7 +97,7 @@ std::pair<std::vector<T>, int> allocate_coefficient_storage(
   // Compute number of active entities
   std::size_t num_entities;
   std::visit(
-      [&](auto&& entities)
+      [&num_entities](auto&& entities)
       {
         using U = std::decay_t<decltype(entities)>;
         if constexpr (std::is_same_v<U, tcb::span<const std::int32_t>>)
