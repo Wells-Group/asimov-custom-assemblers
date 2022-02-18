@@ -63,7 +63,7 @@ if __name__ == "__main__":
 
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)
-    jit_parameters = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
+    jit_params = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
     mesh.topology.create_entities(mesh.topology.dim - 1)
     mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
     bndry_facets = np.asarray(np.where(np.array(compute_boundary_facets(mesh.topology)) == 1)[0],
@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     for i in range(runs):
         start = time.time()
-        Aref = compute_reference_surface_matrix(V, quadrature_degree, jit_parameters=jit_parameters)
+        Aref = compute_reference_surface_matrix(V, quadrature_degree, jit_params=jit_params)
         end = time.time()
         print(f"{i}: DOLFINx {end-start:.2e}")
         if i > 0:

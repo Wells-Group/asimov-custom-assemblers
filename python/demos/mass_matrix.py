@@ -24,8 +24,8 @@ if __name__ == "__main__":
     parser.add_argument("--degree", default=1, type=int, dest="degree",
                         help="Degree of Lagrange finite element space")
     _simplex = parser.add_mutually_exclusive_group(required=False)
-    _simplex.add_argument('--simplex', dest='simplex', action='store_true',
-                          help="Use simplex mesh", default=False)
+    _simplex.aRdd_argument('--simplex', dest='simplex', action='store_true',
+                           help="Use simplex mesh", default=False)
     _2D = parser.add_mutually_exclusive_group(required=False)
     _2D.add_argument('--3D', dest='threed', action='store_true', help="Use 3D mesh", default=False)
     _verbose = parser.add_mutually_exclusive_group(required=False)
@@ -63,10 +63,10 @@ if __name__ == "__main__":
 
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)
-    jit_parameters = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
+    jit_params = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
     for i in range(runs):
         start = time.time()
-        Aref = compute_reference_mass_matrix(V, quadrature_degree, jit_parameters=jit_parameters)
+        Aref = compute_reference_mass_matrix(V, quadrature_degree, jit_params=jit_params)
         end = time.time()
         print(f"{i}: DOLFINx {end-start:.2e}")
         if i > 0:
