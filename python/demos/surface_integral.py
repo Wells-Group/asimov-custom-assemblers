@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     for i in range(runs):
         start = time.time()
-        Aref = compute_reference_surface_matrix(V, quadrature_degree, jit_parameters=jit_parameters)
+        Aref = compute_reference_surface_matrix(V, quadrature_degree, jit_params=jit_parameters)
         end = time.time()
         print(f"{i}: DOLFINx {end-start:.2e}")
         if i > 0:

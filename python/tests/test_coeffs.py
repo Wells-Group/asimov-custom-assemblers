@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier:   MIT
 
-from dolfinx import fem, mesh as dmesh
+from dolfinx import fem, mesh as dmesh, cpp as dcpp
 import dolfinx_cuas.cpp
 import dolfinx_cuas
 import numpy as np
@@ -38,7 +38,7 @@ def test_pack_coeffs(integral_type):
         a = z * ufl.inner(v, z * q) * dC
 
     form = fem.form(a)
-    coeffs = fem.pack_coefficients(form)
+    coeffs = dcpp.fem.pack_coefficients(form)
     active_entities = form.domains(integral_type, -1)
     coeffs_cuas = dolfinx_cuas.pack_coefficients(form.coefficients, active_entities)
     assert np.allclose(coeffs[(integral_type, -1)], coeffs_cuas)

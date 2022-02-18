@@ -66,7 +66,7 @@ if __name__ == "__main__":
     jit_parameters = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
     for i in range(runs):
         start = time.time()
-        Aref = compute_reference_mass_matrix(V, quadrature_degree, jit_parameters=jit_parameters)
+        Aref = compute_reference_mass_matrix(V, quadrature_degree, jit_params=jit_parameters)
         end = time.time()
         print(f"{i}: DOLFINx {end-start:.2e}")
         if i > 0:

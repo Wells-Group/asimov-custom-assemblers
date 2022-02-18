@@ -62,8 +62,8 @@ kernel_fn<T> generate_vector_kernel(std::shared_ptr<const dolfinx::fem::Function
 
     // Compute Jacobian, its inverse and the determinant
     auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J));
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
+    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J));
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
@@ -172,13 +172,13 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
     // Compute Jacobian and determinant at first quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
 
     // Compute det(J_C J_f) as it is the mapping to the reference facet
     const xt::xtensor<double, 2>& J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
     xt::xtensor<double, 2> J_tot = xt::zeros<double>({J.shape(0), J_f.shape(1)});
     dolfinx::math::dot(J, J_f, J_tot);
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
+    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot));
 
     // Get number of dofs per cell
     const std::vector<double>& weights = q_weights[facet_index];

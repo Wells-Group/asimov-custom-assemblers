@@ -8,8 +8,8 @@ import dolfinx_cuas.cpp
 import numpy as np
 import pytest
 import ufl
-from dolfinx.fem import (FunctionSpace, IntegralType, assemble_vector,
-                         create_vector, form)
+from dolfinx.fem import FunctionSpace, IntegralType, form
+from dolfinx.fem.petsc import assemble_vector, create_vector
 from dolfinx.mesh import (MeshTags, create_unit_cube, create_unit_square,
                           locate_entities_boundary)
 from mpi4py import MPI
@@ -35,7 +35,7 @@ def test_vector_kernels(dim, kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    L = form(L, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    L = form(L, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     b = create_vector(L)
 
     # Normal assembly
@@ -83,7 +83,7 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     kernel_type = dolfinx_cuas.Kernel.Rhs
     # Compile UFL form
     # cffi_options = []  # ["-Ofast", "-march=native"]
-    L = form(L)  # , jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    L = form(L)  # , jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     b = create_vector(L)
 
     # Normal assembly

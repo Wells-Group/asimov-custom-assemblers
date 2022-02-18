@@ -54,7 +54,7 @@ target_include_directories(dolfinx_cuas INTERFACE ${DOLFINX_CUAS_SOURCE_DIR})
 
 # Installation of header-only DOLFINX_CUAS Library
 include(GNUInstallDirs)
-install(FILES kernels.hpp kernelwrapper.h  math.hpp matrix_assembly.hpp vector_assembly.hpp utils.hpp surface_kernels.hpp kernels_non_const_coefficient.hpp vector_kernels.hpp QuadratureRule.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
+install(FILES kernels.hpp kernelwrapper.h matrix_assembly.hpp vector_assembly.hpp utils.hpp surface_kernels.hpp kernels_non_const_coefficient.hpp vector_kernels.hpp QuadratureRule.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dolfinx_cuas COMPONENT Development)
 
 # Create package config for CMAKE
 include(CMakePackageConfigHelpers)
