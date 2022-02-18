@@ -25,7 +25,7 @@ if __name__ == "__main__":
                         help="Degree of Lagrange finite element space")
     _simplex = parser.add_mutually_exclusive_group(required=False)
     _simplex.add_argument('--simplex', dest='simplex', action='store_true',
-                           help="Use simplex mesh", default=False)
+                          help="Use simplex mesh", default=False)
     _2D = parser.add_mutually_exclusive_group(required=False)
     _2D.add_argument('--3D', dest='threed', action='store_true', help="Use 3D mesh", default=False)
     _verbose = parser.add_mutually_exclusive_group(required=False)
