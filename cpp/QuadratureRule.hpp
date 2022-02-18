@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include "math.hpp"
 #include <basix/finite-element.h>
 #include <basix/quadrature.h>
 #include <dolfinx/mesh/cell_types.h>

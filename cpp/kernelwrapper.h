@@ -3,6 +3,7 @@
 // This file is part of DOLFINx_CUAS
 //
 // SPDX-License-Identifier:    MIT
+#include "kernels.hpp"
 
 namespace cuas_wrappers
 {

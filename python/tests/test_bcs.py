@@ -33,8 +33,8 @@ def test_dirichlet_bc(P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = fem.create_matrix(a)
+    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.petsc.create_matrix(a)
 
     # Define DirichletBC
     b_dofs = fem.locate_dofs_geometrical(V, lambda x: np.isclose(x[0], 0))
@@ -44,13 +44,13 @@ def test_dirichlet_bc(P):
 
     # Normal assembly
     A.zeroEntries()
-    fem.assemble_matrix(A, a, bcs=bcs)
+    fem.petsc.assemble_matrix(A, a, bcs=bcs)
     A.assemble()
 
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
-    B = fem.create_matrix(a)
+    B = fem.petsc.create_matrix(a)
     q_rule = dolfinx_cuas.QuadratureRule(mesh.topology.cell_type, P + P,
                                          mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel_type = dolfinx_cuas.Kernel.Stiffness

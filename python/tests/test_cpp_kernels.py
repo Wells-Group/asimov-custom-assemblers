@@ -52,19 +52,19 @@ def test_manifold(kernel_type):
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = fem.create_matrix(a)
+    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.petsc.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    fem.assemble_matrix(A, a)
+    fem.petsc.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
-    B = fem.create_matrix(a)
+    B = fem.petsc.create_matrix(a)
     fdim = mesh.topology.dim - 1
     q_rule = dolfinx_cuas.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, fdim, basix.quadrature.string_to_type("default"))
@@ -112,12 +112,12 @@ def test_surface_kernels(dim, kernel_type):
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = fem.create_matrix(a)
+    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.petsc.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    fem.assemble_matrix(A, a)
+    fem.petsc.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
@@ -125,7 +125,7 @@ def test_surface_kernels(dim, kernel_type):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
-    B = fem.create_matrix(a)
+    B = fem.petsc.create_matrix(a)
     q_rule = dolfinx_cuas.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, mesh.topology.dim - 1, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_surface_kernel(V._cpp_object, kernel_type, q_rule)
@@ -169,12 +169,12 @@ def test_normal_kernels(dim, kernel_type):
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = fem.create_matrix(a)
+    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.petsc.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    fem.assemble_matrix(A, a)
+    fem.petsc.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
@@ -182,7 +182,7 @@ def test_normal_kernels(dim, kernel_type):
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
 
-    B = fem.create_matrix(a)
+    B = fem.petsc.create_matrix(a)
 
     # FIXME: Does not work for prism meshes
     fdim = mesh.topology.dim - 1
@@ -222,18 +222,18 @@ def test_volume_kernels(kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = fem.create_matrix(a)
+    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.petsc.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    fem.assemble_matrix(A, a)
+    fem.petsc.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
-    B = fem.create_matrix(a)
+    B = fem.petsc.create_matrix(a)
     q_rule = dolfinx_cuas.QuadratureRule(mesh.topology.cell_type, q_degree,
                                          mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
@@ -280,12 +280,12 @@ def test_vector_cell_kernel(kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = fem.create_matrix(a)
+    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.petsc.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    fem.assemble_matrix(A, a)
+    fem.petsc.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
@@ -293,7 +293,7 @@ def test_vector_cell_kernel(kernel_type, P):
     active_cells = np.arange(num_local_cells, dtype=np.int32)
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)
-    B = fem.create_matrix(a)
+    B = fem.petsc.create_matrix(a)
     q_rule = dolfinx_cuas.QuadratureRule(mesh.topology.cell_type, q_degree,
                                          mesh.topology.dim, basix.quadrature.string_to_type("default"))
     kernel = dolfinx_cuas.cpp.generate_kernel(kernel_type, P, bs, q_rule)
@@ -350,16 +350,16 @@ def test_surface_non_affine(P, vector, dim):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = fem.create_matrix(a)
+    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.petsc.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    fem.assemble_matrix(A, a)
+    fem.petsc.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
-    B = fem.create_matrix(a)
+    B = fem.petsc.create_matrix(a)
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     consts = np.zeros(0)
     coeffs = np.zeros((num_local_cells, 0), dtype=PETSc.ScalarType)

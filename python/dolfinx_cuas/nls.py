@@ -19,7 +19,7 @@ class NonlinearProblemCUAS:
     def __init__(self, F: typing.Callable[[PETSc.Vec, PETSc.Vec], None],
                  J: typing.Callable[[PETSc.Vec, PETSc.Mat], None],
                  create_b: typing.Callable[[], PETSc.Vec], create_A: typing.Callable[[], PETSc.Mat],
-                 bcs: typing.List[fem.DirichletBCMetaClass] = [], form_compiler_parameters={}, jit_parameters={}):
+                 bcs: typing.List[fem.DirichletBCMetaClass] = [], form_compiler_params={}, jit_params={}):
         """Initialize class that sets up structures for solving the non-linear problem using Newton's method,
         dF/du(u) du = -F(u)
 

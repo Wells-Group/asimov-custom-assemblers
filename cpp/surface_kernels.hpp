@@ -101,13 +101,14 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
                    xt::all()); // FIXME: Assumed constant, i.e. only works for simplices
     // Compute Jacobian and determinant at each quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
     const xt::xtensor<double, 2>& J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
 
     xt::xtensor<double, 2> J_tot = xt::zeros<double>({J.shape(0), J_f.shape(1)});
     dolfinx::math::dot(J, J_f, J_tot);
 
-    const double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
+    const double detJ
+        = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot));
     // Get number of dofs per cell
     const std::vector<double>& weights = q_weights[facet_index];
     const xt::xtensor<double, 2>& phi_f = phi[facet_index];
@@ -164,13 +165,13 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
       // on the facet
       const xt::xtensor<double, 2>& dphi_c_q = xt::view(dphi_fc, xt::all(), q, xt::all());
       J.fill(0);
-      dolfinx_cuas::math::compute_jacobian(dphi_c_q, c_view, J);
+      dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_q, c_view, J);
 
       // Compute det(J_C J_f) as it is the mapping to the reference facet
       J_tot.fill(0);
 
       dolfinx::math::dot(J, J_f, J_tot);
-      double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
+      double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot));
 
       // Scale at each quadrature point
       const double w0 = weights[q] * detJ;
@@ -212,14 +213,14 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     // Compute Jacobian and inverse of cell mapping at each quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
-    dolfinx_cuas::math::compute_inv(J, K);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
 
     // Compute det(J_C J_f) as it is the mapping to the reference facet
     auto J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
     xt::xtensor<double, 2> J_tot = xt::zeros<double>({J.shape(0), J_f.shape(1)});
     dolfinx::math::dot(J, J_f, J_tot);
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
+    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot));
 
     // Temporary variable for grad(phi) on physical cell
     xt::xtensor<double, 2> dphi_phys({gdim, num_local_dofs});
@@ -277,14 +278,14 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     // Compute Jacobian and inverse of cell mapping at each quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
-    dolfinx_cuas::math::compute_inv(J, K);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
 
     // Compute det(J_C J_f) as it is the mapping to the reference facet
     xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
     xt::xtensor<double, 2> J_tot = xt::zeros<double>({J.shape(0), J_f.shape(1)});
     dolfinx::math::dot(J, J_f, J_tot);
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
+    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot));
 
     // Temporary variable for grad(phi) on physical cell
     xt::xtensor<double, 2> dphi_phys({gdim, num_local_dofs});
@@ -355,8 +356,8 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     // Compute Jacobian and inverse of cell mapping at each quadrature point
     xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
     xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
-    dolfinx_cuas::math::compute_jacobian(dphi0_c, c_view, J);
-    dolfinx_cuas::math::compute_inv(J, K);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
 
     // Compute normal of physical facet using a normalized covariant Piola transform
     // n_phys = J^{-T} n_ref / ||J^{-T} n_ref||
@@ -375,7 +376,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     xt::xtensor<double, 2> J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
     xt::xtensor<double, 2> J_tot = xt::zeros<double>({J.shape(0), J_f.shape(1)});
     dolfinx::math::dot(J, J_f, J_tot);
-    double detJ = std::fabs(dolfinx_cuas::math::compute_determinant(J_tot));
+    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot));
 
     // Get tables for facet
     const std::vector<double>& weights = q_weights[facet_index];

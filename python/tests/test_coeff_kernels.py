@@ -47,18 +47,18 @@ def test_volume_kernels(kernel_type, P, Q):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_parameters={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
-    A = fem.create_matrix(a)
+    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    A = fem.petsc.create_matrix(a)
 
     # Normal assembly
     A.zeroEntries()
-    fem.assemble_matrix(A, a)
+    fem.petsc.assemble_matrix(A, a)
     A.assemble()
 
     # Custom assembly
     num_local_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     active_cells = np.arange(num_local_cells, dtype=np.int32)
-    B = fem.create_matrix(a)
+    B = fem.petsc.create_matrix(a)
     quadrature_degree = 2 * P + Q
     q_rule = dolfinx_cuas.QuadratureRule(
         mesh.topology.cell_type, quadrature_degree, mesh.topology.dim, basix.quadrature.string_to_type("default"))
