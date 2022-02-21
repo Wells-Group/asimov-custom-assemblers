@@ -1,3 +1,6 @@
+from ufl import (FiniteElement, FunctionSpace, Mesh, TestFunction,
+                 TrialFunction, VectorElement, dx, grad, inner, tetrahedron)
+
 # Load namespace
 ns = vars()
 forms = []
@@ -12,7 +15,7 @@ for p in range(1, 6):
     v = TestFunction(V)
     a_mass_name = 'a_mass' + str(p)
     a_stiffness_name = 'a_stiffness' + str(p)
-    
+
     # Insert into namespace so that the forms will be named a1, a2, a3 etc.
     ns[a_mass_name] = inner(u, v) * dx
     ns[a_stiffness_name] = inner(grad(u), grad(v)) * dx
