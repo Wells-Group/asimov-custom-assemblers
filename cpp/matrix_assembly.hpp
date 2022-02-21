@@ -20,6 +20,8 @@ namespace
 
 /// Assemble matrix over exterior facets
 /// Provides easier interface to dolfinx::fem::impl::assemble_exterior_facets
+/// @tparam T The scalar type
+/// @tparam U The signature of the set local entries in matrix function
 /// @param[in] mat_set the function for setting the values in the matrix
 /// @param[in] V the function space
 /// @param[in] active_facets list of indices (local to process) of facets to be integrated over
@@ -27,11 +29,8 @@ namespace
 /// @param[in] coeffs coefficients used in the variational form
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
-template <typename T>
-void assemble_exterior_facets(const std::function<int(const xtl::span<const std::int32_t>&,
-                                                      const xtl::span<const std::int32_t>&,
-                                                      const xtl::span<const T>&)>& mat_set,
-                              std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+template <typename T, typename U>
+void assemble_exterior_facets(U mat_set, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                               const std::vector<std::int8_t>& bc,
                               const xtl::span<const std::int32_t>& active_facets,
                               dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
@@ -84,14 +83,16 @@ void assemble_exterior_facets(const std::function<int(const xtl::span<const std:
   }
 
   // Assemble using dolfinx
-  dolfinx::fem::impl::assemble_exterior_facets<T>(mat_set, *mesh, facets, apply_dof_transformation,
-                                                  dofs, bs, apply_dof_transformation_to_transpose,
-                                                  dofs, bs, bc, bc, kernel, coeffs, cstride,
-                                                  constants, cell_info);
+  dolfinx::fem::impl::assemble_exterior_facets(mat_set, *mesh, facets, apply_dof_transformation,
+                                               dofs, bs, apply_dof_transformation_to_transpose,
+                                               dofs, bs, bc, bc, kernel, coeffs, cstride, constants,
+                                               cell_info);
 }
 
 /// Assemble vector over cells
 /// Provides easier interface to dolfinx::fem::impl::assemble_cells
+/// @tparam T The scalar type
+/// @tparam U The signature of the set local entries in matrix function
 /// @param[in] mat_set the function for setting the values in the matrix
 /// @param[in] V the function space
 /// @param[in] active_cells list of indices (local to process) of cells to be integrated over
@@ -99,11 +100,8 @@ void assemble_exterior_facets(const std::function<int(const xtl::span<const std:
 /// @param[in] coeffs coefficients used in the variational form
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
-template <typename T>
-void assemble_cells(const std::function<int(const xtl::span<const std::int32_t>&,
-                                            const xtl::span<const std::int32_t>&,
-                                            const xtl::span<const T>&)>& mat_set,
-                    std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+template <typename T, typename U>
+void assemble_cells(U mat_set, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                     const std::vector<std::int8_t>& bc,
                     const xtl::span<const std::int32_t>& active_cells,
                     dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
@@ -139,10 +137,10 @@ void assemble_cells(const std::function<int(const xtl::span<const std::int32_t>&
   }
 
   // Assemble using dolfinx
-  dolfinx::fem::impl::assemble_cells<T>(mat_set, mesh->geometry(), active_cells,
-                                        apply_dof_transformation, dofs, bs,
-                                        apply_dof_transformation_to_transpose, dofs, bs, bc, bc,
-                                        kernel, coeffs, cstride, constants, cell_info);
+  dolfinx::fem::impl::assemble_cells(mat_set, mesh->geometry(), active_cells,
+                                     apply_dof_transformation, dofs, bs,
+                                     apply_dof_transformation_to_transpose, dofs, bs, bc, bc,
+                                     kernel, coeffs, cstride, constants, cell_info);
 }
 } // namespace
 
@@ -150,6 +148,8 @@ namespace dolfinx_cuas
 {
 
 /// Assemble matrix for given kernel function
+/// @tparam T The scalar type
+/// @tparam U The signature of the set local entries in matrix function
 /// @param[in] mat_set the function for setting the values in the matrix
 /// @param[in] V the function space
 /// @param[in] bcs List of Dirichlet boundary conditions
@@ -159,11 +159,8 @@ namespace dolfinx_cuas
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 /// @param[in] type the integral type
-template <typename T>
-void assemble_matrix(const std::function<int(const xtl::span<const std::int32_t>&,
-                                             const xtl::span<const std::int32_t>&,
-                                             const xtl::span<const T>&)>& mat_set,
-                     std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+template <typename T, typename U>
+void assemble_matrix(U mat_set, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
                      const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<T>>>& bcs,
                      const xtl::span<const std::int32_t>& active_entities,
                      dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
