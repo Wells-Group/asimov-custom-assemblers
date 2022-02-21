@@ -1,3 +1,7 @@
+from ufl import (Coefficient, Constant, FunctionSpace, Mesh, TestFunction,
+                 TrialFunction, VectorElement, ds, grad, inner, sym,
+                 tetrahedron)
+
 cell_type = tetrahedron
 degree = 1
 
@@ -10,6 +14,10 @@ u = TrialFunction(V)
 v = TestFunction(V)
 f = Coefficient(V)
 kappa = Constant(mesh)
+
+
 def epsilon(v):
     return sym(grad(v))
-a = kappa * inner(epsilon(u),epsilon(v)) * ds(1)
+
+
+a = kappa * inner(epsilon(u), epsilon(v)) * ds(1)
