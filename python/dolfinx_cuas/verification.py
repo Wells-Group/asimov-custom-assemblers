@@ -43,8 +43,8 @@ def compute_reference_stiffness_matrix(V: _fem.FunctionSpace, quadrature_degree:
     return Aref
 
 
-def compute_reference_surface_matrix(V: _fem.FunctionSpace, quadrature_degree: int = -1, mt: _mesh.MeshTags = None,
-                                     index: int = None, jit_params={}):
+def compute_reference_surface_matrix(V: _fem.FunctionSpace, quadrature_degree: int = -1,
+                                     mt: _mesh.MeshTagsMetaClass = None, index: int = None, jit_params={}):
     """
     Compute mass matrix with given quadrature degree
     """

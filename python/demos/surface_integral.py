@@ -10,8 +10,8 @@ import scipy.sparse
 import scipy.sparse.linalg
 import ufl
 from dolfinx.fem import FunctionSpace
-from dolfinx.mesh import create_unit_cube, create_unit_square
-from dolfinx.mesh import CellType, MeshTags, compute_boundary_facets
+from dolfinx.mesh import (CellType, compute_boundary_facets, create_unit_cube,
+                          create_unit_square, meshtags)
 from dolfinx_cuas import assemble_matrix_numba, estimate_max_polynomial_degree
 from dolfinx_cuas.verification import compute_reference_surface_matrix
 from mpi4py import MPI
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     bndry_facets = np.asarray(np.where(np.array(compute_boundary_facets(mesh.topology)) == 1)[0],
                               dtype=np.int32)
     indices = np.ones(bndry_facets.size, dtype=np.int32)
-    mt = MeshTags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
+    mt = meshtags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
 
     for i in range(runs):
         start = time.time()

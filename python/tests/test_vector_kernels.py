@@ -10,8 +10,8 @@ import pytest
 import ufl
 from dolfinx.fem import FunctionSpace, IntegralType, form
 from dolfinx.fem.petsc import assemble_vector, create_vector
-from dolfinx.mesh import (MeshTags, create_unit_cube, create_unit_square,
-                          locate_entities_boundary)
+from dolfinx.mesh import (create_unit_cube, create_unit_square,
+                          locate_entities_boundary, meshtags)
 from mpi4py import MPI
 from petsc4py import PETSc
 
@@ -73,7 +73,7 @@ def test_vector_surface_kernel(dim, kernel_type, P):
                                                               np.isclose(x[0], 1.0)))
     facets = np.sort(facets)
     values = np.ones(len(facets), dtype=np.int32)
-    ft = MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = meshtags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
     V = FunctionSpace(mesh, ("CG", P))

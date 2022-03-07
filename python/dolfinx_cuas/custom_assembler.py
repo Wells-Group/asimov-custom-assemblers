@@ -61,7 +61,7 @@ def assemble_vector(b: np.ndarray, V: _fem.FunctionSpace,
 
 
 def assemble_matrix_numba(V: _fem.FunctionSpace, quadrature_degree: int, int_type: str = "mass",
-                          mt: _dmesh.MeshTags = None, index: int = None):
+                          mt: _dmesh.MeshTagsMetaClass = None, index: int = None):
     """
     Assemble a matrix using custom assembler.
     Parameters
