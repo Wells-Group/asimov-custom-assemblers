@@ -31,7 +31,7 @@ def test_manifold(kernel_type):
     mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
     facets = np.arange(mesh.topology.index_map(mesh.topology.dim - 1).size_local, dtype=np.int32)
     values = np.ones(len(facets), dtype=np.int32)
-    ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = dmesh.meshtags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
     V = fem.VectorFunctionSpace(mesh, ("CG", 1))
@@ -92,7 +92,7 @@ def test_surface_kernels(dim, kernel_type):
                                                                     np.isclose(x[0], 1.0)))
     facets = np.sort(facets)
     values = np.ones(len(facets), dtype=np.int32)
-    ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = dmesh.meshtags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
     V = fem.VectorFunctionSpace(mesh, ("CG", 1))
@@ -151,7 +151,7 @@ def test_normal_kernels(dim, kernel_type):
     facets = np.sort(facets)
     values = np.ones(len(facets), dtype=np.int32)
     # Find facets on boundary to integrate over2)
-    ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = dmesh.meshtags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
     V = fem.VectorFunctionSpace(mesh, ("CG", 1))
@@ -339,7 +339,7 @@ def test_surface_non_affine(P, vector, dim):
                                             lambda x: np.isclose(x[0], 0.0))
 
     values = np.ones(len(facets), dtype=np.int32)
-    ft = dmesh.MeshTags(mesh, mesh.topology.dim - 1, facets, values)
+    ft = dmesh.meshtags(mesh, mesh.topology.dim - 1, facets, values)
 
     # Define variational form
     u = ufl.TrialFunction(V)

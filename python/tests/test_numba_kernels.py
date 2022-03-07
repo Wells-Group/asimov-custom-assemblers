@@ -9,8 +9,8 @@ import ufl
 import ufl.algorithms
 from dolfinx.cpp.mesh import to_type
 from dolfinx.fem import FunctionSpace
-from dolfinx.mesh import (CellType, MeshTags, compute_boundary_facets,
-                          create_mesh)
+from dolfinx.mesh import (CellType, compute_boundary_facets, create_mesh,
+                          meshtags)
 from dolfinx_cuas import assemble_matrix_numba, estimate_max_polynomial_degree
 from dolfinx_cuas.verification import (compute_reference_mass_matrix,
                                        compute_reference_stiffness_matrix,
@@ -66,7 +66,7 @@ def test_cell_kernels(element, ct, degree, integral_type):
         bndry_facets = np.asarray(np.where(np.array(compute_boundary_facets(mesh.topology)) == 1)[0],
                                   dtype=np.int32)
         indices = np.ones(bndry_facets.size, dtype=np.int32)
-        mt = MeshTags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
+        mt = meshtags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
         index = indices[0]
 
     quadrature_degree = estimate_max_polynomial_degree(a_)

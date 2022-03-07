@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier:    MIT
 
-import dolfinx.mesh as _mesh
 import dolfinx.cpp.mesh as _cpp_mesh
+import dolfinx.mesh as _mesh
 import numba
 import numpy as np
-from petsc4py import PETSc
 import scipy.sparse
 import ufl
+from petsc4py import PETSc
 
 """
 Utilities for assembly
@@ -33,7 +33,7 @@ def compare_matrices(A: PETSc.Mat, B: PETSc.Mat, atol: float = 1e-12):
     assert diff.max() <= atol
 
 
-def pack_facet_info(mesh: _mesh.Mesh, mt: _mesh.MeshTags, index: int):
+def pack_facet_info(mesh: _mesh.Mesh, mt: _mesh.MeshTagsMetaClass, index: int):
     """
     Given a mesh, meshtag and an index, compute the triplet
     (facet index (local to process), cell index(local to process), facet index (local to cell) )
