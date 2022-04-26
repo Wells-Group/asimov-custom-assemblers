@@ -98,11 +98,11 @@ public:
   }
   /// Return a list of quadrature points for each entity in the cell (using local entity index as in
   /// DOLFINx/Basix)
-  const std::vector<xt::xarray<double>>& points_ref() { return _points; }
+  const std::vector<xt::xarray<double>>& points_ref() const { return _points; }
 
   /// Return a list of quadrature weights for each entity in the cell (using local entity index as
   /// in DOLFINx/Basix)
-  const std::vector<std::vector<double>>& weights_ref() { return _weights; }
+  const std::vector<std::vector<double>>& weights_ref() const { return _weights; }
 
   /// Return a list of quadrature points for each entity in the cell (using local entity index as in
   /// DOLFINx/Basix)
@@ -113,11 +113,11 @@ public:
   std::vector<std::vector<double>> weights() { return _weights; }
 
   /// Return dimension of entity in the quadrature rule
-  int dim() { return _dim; }
+  int dim() const { return _dim; }
 
   /// Return the cell type for the ith quadrature rule
   /// @param[in] Local entity number
-  dolfinx::mesh::CellType cell_type(int i)
+  dolfinx::mesh::CellType cell_type(int i) const
   {
     basix::cell::type b_ct = dolfinx::mesh::cell_type_to_basix_type(_cell_type);
     assert(i < basix::cell::num_sub_entities(b_ct, _dim));
