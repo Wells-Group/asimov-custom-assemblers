@@ -41,8 +41,8 @@ option(CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and install
 add_feature_info(CMAKE_INSTALL_RPATH_USE_LINK_PATH CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and installed rpath.")
 
 # Find packages
-find_package(DOLFINX 0.4.1.0 REQUIRED)
-find_package(Basix 0.4.1.0 REQUIRED)
+find_package(DOLFINX 0.4.2.0 REQUIRED)
+find_package(Basix 0.4.2.0 REQUIRED)
 find_package(xtensor REQUIRED)
 
 feature_summary(WHAT ALL)
