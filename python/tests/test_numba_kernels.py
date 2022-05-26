@@ -9,7 +9,7 @@ import ufl
 import ufl.algorithms
 from dolfinx.cpp.mesh import to_type
 from dolfinx.fem import FunctionSpace
-from dolfinx.mesh import (CellType, compute_boundary_facets, create_mesh,
+from dolfinx.mesh import (CellType, create_mesh, exterior_facet_indices,
                           meshtags)
 from dolfinx_cuas import assemble_matrix_numba, estimate_max_polynomial_degree
 from dolfinx_cuas.verification import (compute_reference_mass_matrix,
@@ -63,8 +63,7 @@ def test_cell_kernels(element, ct, degree, integral_type):
         reference_code = compute_reference_surface_matrix
         mesh.topology.create_entities(mesh.topology.dim - 1)
         mesh.topology.create_connectivity(mesh.topology.dim - 1, mesh.topology.dim)
-        bndry_facets = np.asarray(np.where(np.array(compute_boundary_facets(mesh.topology)) == 1)[0],
-                                  dtype=np.int32)
+        bndry_facets = exterior_facet_indices(mesh.topology)
         indices = np.ones(bndry_facets.size, dtype=np.int32)
         mt = meshtags(mesh, mesh.topology.dim - 1, bndry_facets, indices)
         index = indices[0]
