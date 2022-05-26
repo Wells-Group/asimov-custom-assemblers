@@ -2,14 +2,16 @@
 #
 # SPDX-License-Identifier:   MIT
 
-from dolfinx import fem, mesh as dmesh, cpp as dcpp
-import dolfinx_cuas.cpp
 import dolfinx_cuas
+import dolfinx_cuas.cpp
 import numpy as np
+import pytest
 import ufl
+from dolfinx import cpp as dcpp
+from dolfinx import fem
+from dolfinx import mesh as dmesh
 from mpi4py import MPI
 from petsc4py import PETSc
-import pytest
 
 
 @pytest.mark.parametrize("integral_type",
@@ -68,12 +70,12 @@ def test_entity_packing(integral_type):
         entities = np.arange(mesh.topology.index_map(mesh.topology.dim).size_local,
                              dtype=np.int32)
     else:
-        facet_marker = dmesh.compute_boundary_facets(mesh.topology)
+        entities = dmesh.exterior_facet_indices(mesh.topology)
 
-    if integral_type == fem.IntegralType.exterior_facet:
-        entities = np.flatnonzero(facet_marker)
-    elif integral_type == fem.IntegralType.interior_facet:
-        entities = np.flatnonzero(np.array(facet_marker) == 0)
+    if integral_type == fem.IntegralType.interior_facet:
+        facets = np.zeros(mesh.topology.index_map(mesh.topology.dim - 1).size_local, dtype=np.int32)
+        facets[entities] = 1
+        entities = np.flatnonzero(facets == 0)
     new_entities = dolfinx_cuas.compute_active_entities(mesh, np.asarray(entities, dtype=np.int32),
                                                         integral_type)
     assert(np.allclose(active_entities, new_entities))
