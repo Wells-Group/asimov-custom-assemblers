@@ -60,17 +60,16 @@ void assemble_exterior_facets(xtl::span<T> b, std::shared_ptr<dolfinx::fem::Func
   assert(f_to_c);
   auto c_to_f = mesh->topology().connectivity(tdim, tdim - 1);
   assert(c_to_f);
-  std::vector<std::pair<std::int32_t, int>> facets;
-  facets.reserve(active_facets.size());
-  for (auto facet : active_facets)
+  std::vector<std::int32_t> facets(2 * active_facets.size());
+  for (std::size_t f = 0; f < active_facets.size(); ++f)
   {
-    auto cells = f_to_c->links(facet);
+    auto cells = f_to_c->links(active_facets[f]);
     assert(cells.size() == 1);
     auto cell_facets = c_to_f->links(cells[0]);
-    const auto* it = std::find(cell_facets.data(), cell_facets.data() + cell_facets.size(), facet);
-    assert(it != (cell_facets.data() + cell_facets.size()));
-    const int local_facet = std::distance(cell_facets.data(), it);
-    facets.push_back({cells[0], local_facet});
+    const auto* it = std::find(cell_facets.begin(), cell_facets.end(), active_facets[f]);
+    assert(it != cell_facets.end());
+    facets[2 * f] = cells[0];
+    facets[2 * f + 1] = std::distance(cell_facets.data(), it);
   }
 
   // Assemble using dolfinx
