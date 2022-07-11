@@ -38,7 +38,9 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element
       = basix::create_element(family, cell, P, basix::element::lagrange_variant::gll_warped);
-  xt::xtensor<double, 4> basis = element.tabulate(1, points);
+  std::array<std::size_t, 4> basis_shape = element.tabulate_shape(1, points.shape(0));
+  xt::xtensor<double, 4> basis(basis_shape);
+  element.tabulate(1, points, basis);
   xt::xtensor<double, 2> phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
 
   // Create Finite elements for coefficient functions and tabulate shape functions
@@ -62,7 +64,9 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
   // Get coordinate element from dolfinx
   basix::FiniteElement coordinate_element
       = basix::create_element(family, cell, 1, basix::element::lagrange_variant::gll_warped);
-  xt::xtensor<double, 4> coordinate_basis = coordinate_element.tabulate(1, points);
+  std::array<std::size_t, 4> tab_shape = coordinate_element.tabulate_shape(1, points.shape(0));
+  xt::xtensor<double, 4> coordinate_basis(tab_shape);
+  coordinate_element.tabulate(1, points, coordinate_basis);
 
   xt::xtensor<double, 2> dphi0_c
       = xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
