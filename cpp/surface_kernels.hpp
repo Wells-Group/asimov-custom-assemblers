@@ -36,7 +36,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
   const int num_coordinate_dofs = basix_element.dim();
 
   // Create quadrature points on reference facet
-  const std::vector<xt::xarray<double>>& q_points = quadrature_rule.points_ref();
+  const std::vector<xt::xtensor<double, 2>>& q_points = quadrature_rule.points_ref();
   const std::vector<std::vector<double>>& q_weights = quadrature_rule.weights_ref();
 
   const std::uint32_t num_facets = q_weights.size();
@@ -57,7 +57,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
   // quadrature points
   for (int i = 0; i < num_facets; ++i)
   {
-    const xt::xarray<double>& q_facet = q_points[i];
+    const xt::xtensor<double, 2>& q_facet = q_points[i];
     const int num_quadrature_points = q_facet.shape(0);
     xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_points, num_local_dofs, bs});
 
@@ -376,7 +376,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     // Compute normal of physical facet using a normalized covariant Piola transform
     // n_phys = J^{-T} n_ref / ||J^{-T} n_ref||
     // See for instance DOI: 10.1137/08073901X
-    xt::xarray<double> n_phys = xt::zeros<double>({gdim});
+    xt::xtensor<double, 2> n_phys = xt::zeros<double>({gdim});
 
     std::vector<double> facet_normal(n_shape[1]);
     for (std::size_t i = 0; i < n_shape[1]; ++i)

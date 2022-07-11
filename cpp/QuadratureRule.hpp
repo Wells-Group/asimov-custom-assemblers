@@ -43,7 +43,6 @@ public:
     // If cell dimension no pushing forward
     if (tdim == dim)
     {
-      std::cout << "this case \n";
       std::array<std::vector<double>, 2> quadrature
           = basix::quadrature::make_quadrature(type, b_ct, degree);
       // NOTE: Conversion could be easier if return-type had been nicer from Basix
@@ -51,22 +50,11 @@ public:
       // accordingly
       std::size_t num_pts = quadrature[1].size();
       std::size_t pt_shape = quadrature[0].size() / quadrature[1].size();
-      std::cout << "num_pts " << num_pts << "\n";
-      std::cout << "shape " << pt_shape << "\n";
-      xt::xarray<double> points;
-      if (pt_shape == 1)
-      {
-        points = xt::empty<double>({num_pts});
-        for (std::size_t i = 0; i < num_pts; i++)
-          points[i] = quadrature[0][i];
-      }
-      else
-      {
-        points = xt::empty<double>({num_pts, pt_shape});
-        for (std::size_t i = 0; i < num_pts; i++)
-          for (std::size_t j = 0; j < pt_shape; j++)
-            points[i, j] = quadrature[0][i * pt_shape + j];
-      }
+      xt::xtensor<double, 2> points({num_pts, pt_shape});
+      for (std::size_t i = 0; i < num_pts; i++)
+        for (std::size_t j = 0; j < pt_shape; j++)
+          points(i, j) = quadrature[0][i * pt_shape + j];
+
       for (std::int32_t i = 0; i < num_entities; i++)
       {
         _points.push_back(points);
@@ -75,7 +63,6 @@ public:
     }
     else
     {
-      std::cout << "other case \n";
       // Create reference topology and geometry
       auto entity_topology = basix::cell::topology(b_ct)[dim];
 
@@ -95,7 +82,7 @@ public:
             = basix::quadrature::make_quadrature(et, degree);
         const std::size_t num_pts = quadrature[1].size();
         const std::size_t pt_shape = quadrature[0].size() / quadrature[1].size();
-        xt::xarray<double> points = xt::empty<double>({num_pts, pt_shape});
+        xt::xtensor<double, 2> points = xt::empty<double>({num_pts, pt_shape});
         for (std::size_t k = 0; k < num_pts; k++)
           for (std::size_t j = 0; j < pt_shape; j++)
             points[k, j] = quadrature[0][k * pt_shape + j];
@@ -113,7 +100,7 @@ public:
 
         // Push forward quadrature point from reference entity to reference entity on cell
         _weights.push_back(quadrature[1]);
-        xt::xarray<double> entity_qp
+        xt::xtensor<double, 2> entity_qp
             = xt::zeros<double>({num_pts, static_cast<std::size_t>(coords.shape(1))});
         dolfinx::math::dot(phi_s, coords, entity_qp);
         _points.push_back(entity_qp);
@@ -122,7 +109,7 @@ public:
   }
   /// Return a list of quadrature points for each entity in the cell (using local entity index as in
   /// DOLFINx/Basix)
-  const std::vector<xt::xarray<double>>& points_ref() const { return _points; }
+  const std::vector<xt::xtensor<double, 2>>& points_ref() const { return _points; }
 
   /// Return a list of quadrature weights for each entity in the cell (using local entity index as
   /// in DOLFINx/Basix)
@@ -130,7 +117,7 @@ public:
 
   /// Return a list of quadrature points for each entity in the cell (using local entity index as in
   /// DOLFINx/Basix)
-  std::vector<xt::xarray<double>> points() { return _points; }
+  std::vector<xt::xtensor<double, 2>> points() { return _points; }
 
   /// Return a list of quadrature weights for each entity in the cell (using local entity index as
   /// in DOLFINx/Basix)
@@ -157,8 +144,8 @@ private:
   int _degree;
   basix::quadrature::type _type;
   int _dim;
-  std::vector<xt::xarray<double>> _points;   // Quadrature points for each entity on the cell
-  std::vector<std::vector<double>> _weights; // Quadrature weights for each entity on the cell
+  std::vector<xt::xtensor<double, 2>> _points; // Quadrature points for each entity on the cell
+  std::vector<std::vector<double>> _weights;   // Quadrature weights for each entity on the cell
 };
 
 } // namespace dolfinx_cuas
