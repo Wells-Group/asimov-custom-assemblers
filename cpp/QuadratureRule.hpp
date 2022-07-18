@@ -51,10 +51,7 @@ public:
       std::size_t num_pts = quadrature[1].size();
       std::size_t pt_shape = quadrature[0].size() / quadrature[1].size();
       xt::xtensor<double, 2> points({num_pts, pt_shape});
-      for (std::size_t i = 0; i < num_pts; i++)
-        for (std::size_t j = 0; j < pt_shape; j++)
-          points(i, j) = quadrature[0][i * pt_shape + j];
-
+      std::copy(quadrature[0].cbegin(), quadrature[0].cend(), points.begin());
       for (std::int32_t i = 0; i < num_entities; i++)
       {
         _points.push_back(points);
@@ -82,23 +79,19 @@ public:
             = basix::quadrature::make_quadrature(et, degree);
         const std::size_t num_pts = quadrature[1].size();
         const std::size_t pt_shape = quadrature[0].size() / quadrature[1].size();
-        xt::xtensor<double, 2> points = xt::empty<double>({num_pts, pt_shape});
-        for (std::size_t k = 0; k < num_pts; k++)
-          for (std::size_t j = 0; j < pt_shape; j++)
-            points[k, j] = quadrature[0][k * pt_shape + j];
+
         std::array<std::size_t, 4> shape = entity_element.tabulate_shape(0, num_pts);
         xt::xtensor<double, 4> c_tab(shape);
-        std::array<std::size_t, 2> pts_shape = {points.shape(0), points.shape(1)};
-        entity_element.tabulate(0, basix::impl::cmdspan2_t(points.data(), pts_shape),
+        std::array<std::size_t, 2> pts_shape = {num_pts, pt_shape};
+        entity_element.tabulate(0, basix::impl::cmdspan2_t(quadrature[0].data(), pts_shape),
                                 basix::impl::mdspan4_t(c_tab.data(), shape));
         xt::xtensor<double, 2> phi_s = xt::view(c_tab, 0, xt::all(), xt::all(), 0);
 
         std::pair<std::vector<double>, std::array<std::size_t, 2>> sub_geom
             = basix::cell::sub_entity_geometry(b_ct, dim, i);
         xt::xtensor<double, 2> coords(sub_geom.second);
-        for (std::size_t j = 0; j < coords.shape(0); j++)
-          for (std::size_t k = 0; k < coords.shape(1); k++)
-            coords(j, k) = sub_geom.first[j * coords.shape(1) + k];
+
+        std::copy(sub_geom.first.cbegin(), sub_geom.first.cend(), coords.begin());
 
         // Push forward quadrature point from reference entity to reference entity on cell
         _weights.push_back(quadrature[1]);

@@ -132,7 +132,7 @@ std::pair<std::vector<T>, int> allocate_coefficient_storage(
     cstride = coeffs_offsets.back();
   }
 
-  return {std::vector<T>(num_entities * cstride), cstride};
+  return {std::move(std::vector<T>(num_entities * cstride)), cstride};
 }
 
 /// Pack coefficients for a list of functions over a set of active entities
@@ -147,7 +147,7 @@ std::pair<std::vector<T>, int> allocate_coefficient_storage(
 /// @returns A tuple (coeffs, stride) where coeffs is a 1D array containing the coefficients
 /// packed for all the active entities, and stride is how many coeffs there are per entity.
 template <typename T>
-std::pair<std::span<T>, int>
+std::pair<std::vector<T>, int>
 pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coeffs,
                   std::span<const std::int32_t> active_entities,
                   dolfinx::fem::IntegralType integral_type)

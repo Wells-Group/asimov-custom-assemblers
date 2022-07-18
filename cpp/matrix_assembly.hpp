@@ -75,11 +75,10 @@ void assemble_exterior_facets(U mat_set, std::shared_ptr<dolfinx::fem::FunctionS
     auto cells = f_to_c->links(active_facets[f]);
     assert(cells.size() == 1);
     auto cell_facets = c_to_f->links(cells[0]);
-    const auto* it
-        = std::find(cell_facets.data(), cell_facets.data() + cell_facets.size(), active_facets[f]);
+    auto it = std::find(cell_facets.begin(), cell_facets.end(), active_facets[f]);
     assert(it != cell_facets.end());
     facets[2 * f] = cells[0];
-    facets[2 * f + 1] = std::distance(cell_facets.data(), it);
+    facets[2 * f + 1] = std::distance(cell_facets.begin(), it);
   }
 
   // Assemble using dolfinx

@@ -155,6 +155,9 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
   // quadrature point
   auto [ref_jac, jac_shape] = basix::cell::facet_jacobians(basix_element.cell_type());
 
+  xt::xtensor<double, 3> ref_jacobians(jac_shape);
+  std::copy(ref_jac.cbegin(), ref_jac.cend(), ref_jacobians.begin());
+
   // Define kernels
   // v*ds, v TestFunction
   // =====================================================================================
@@ -183,10 +186,7 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
     dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
 
     // Compute det(J_C J_f) as it is the mapping to the reference facet
-    xt::xtensor<double, 2> J_f = xt::zeros<double>({jac_shape[1], jac_shape[2]});
-    for (std::size_t i = 0; i < jac_shape[1]; ++i)
-      for (std::size_t j = 0; j < jac_shape[2]; ++j)
-        J_f(i, j) = ref_jac[facet_index * jac_shape[1] * jac_shape[2] + i * jac_shape[1] + j];
+    const xt::xtensor<double, 2>& J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
     xt::xtensor<double, 2> J_tot = xt::zeros<double>({J.shape(0), J_f.shape(1)});
     dolfinx::math::dot(J, J_f, J_tot);
     double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot));
