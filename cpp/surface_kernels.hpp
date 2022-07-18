@@ -71,8 +71,10 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
 
     // Tabulate coordinate element of reference cell
     std::array<std::size_t, 4> tab_shape = basix_element.tabulate_shape(1, q_facet.shape(0));
+    std::array<std::size_t, 2> pts_shape = {q_facet.shape(0), q_facet.shape(1)};
     xt::xtensor<double, 4> c_tab(tab_shape);
-    basix_element.tabulate(1, q_facet, c_tab);
+    basix_element.tabulate(1, basix::impl::cmdspan2_t(q_facet.data(), pts_shape),
+                           basix::impl::mdspan4_t(c_tab.data(), tab_shape));
     xt::xtensor<double, 3> dphi_ci
         = xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
     dphi_c.push_back(dphi_ci);

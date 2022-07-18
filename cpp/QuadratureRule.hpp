@@ -88,7 +88,9 @@ public:
             points[k, j] = quadrature[0][k * pt_shape + j];
         std::array<std::size_t, 4> shape = entity_element.tabulate_shape(0, num_pts);
         xt::xtensor<double, 4> c_tab(shape);
-        entity_element.tabulate(0, points, c_tab);
+        std::array<std::size_t, 2> pts_shape = {points.shape(0), points.shape(1)};
+        entity_element.tabulate(0, basix::impl::cmdspan2_t(points.data(), pts_shape),
+                                basix::impl::mdspan4_t(c_tab.data(), shape));
         xt::xtensor<double, 2> phi_s = xt::view(c_tab, 0, xt::all(), xt::all(), 0);
 
         std::pair<std::vector<double>, std::array<std::size_t, 2>> sub_geom
