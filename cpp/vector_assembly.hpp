@@ -26,10 +26,10 @@ namespace
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 template <typename T>
-void assemble_exterior_facets(xtl::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
-                              const xtl::span<const std::int32_t>& active_facets,
-                              dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
-                              int cstride, const xtl::span<const T>& constants)
+void assemble_exterior_facets(std::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                              const std::span<const std::int32_t>& active_facets,
+                              dolfinx_cuas::kernel_fn<T>& kernel, const std::span<const T> coeffs,
+                              int cstride, const std::span<const T>& constants)
 {
   // Extract mesh
   std::shared_ptr<const dolfinx::mesh::Mesh> mesh = V->mesh();
@@ -39,7 +39,7 @@ void assemble_exterior_facets(xtl::span<T> b, std::shared_ptr<dolfinx::fem::Func
   const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
   const int bs = dofmap->bs();
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
-  const std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&, std::int32_t,
+  const std::function<void(const std::span<T>&, const std::span<const std::uint32_t>&, std::int32_t,
                            int)>
       apply_dof_transformation = element->get_dof_transformation_function<T>();
 
@@ -47,11 +47,11 @@ void assemble_exterior_facets(xtl::span<T> b, std::shared_ptr<dolfinx::fem::Func
   const bool needs_transformation_data = element->needs_dof_transformations();
 
   // Get permutation data
-  xtl::span<const std::uint32_t> cell_info;
+  std::span<const std::uint32_t> cell_info;
   if (needs_transformation_data)
   {
     mesh->topology_mutable().create_entity_permutations();
-    cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
+    cell_info = std::span(mesh->topology().get_cell_permutation_info());
   }
 
   // Create facet tuple: cell_index (local to process) and facet_index (local to cell)
@@ -66,10 +66,10 @@ void assemble_exterior_facets(xtl::span<T> b, std::shared_ptr<dolfinx::fem::Func
     auto cells = f_to_c->links(active_facets[f]);
     assert(cells.size() == 1);
     auto cell_facets = c_to_f->links(cells[0]);
-    const auto* it = std::find(cell_facets.begin(), cell_facets.end(), active_facets[f]);
+    auto it = std::find(cell_facets.begin(), cell_facets.end(), active_facets[f]);
     assert(it != cell_facets.end());
     facets[2 * f] = cells[0];
-    facets[2 * f + 1] = std::distance(cell_facets.data(), it);
+    facets[2 * f + 1] = std::distance(cell_facets.begin(), it);
   }
 
   // Assemble using dolfinx
@@ -88,10 +88,10 @@ void assemble_exterior_facets(xtl::span<T> b, std::shared_ptr<dolfinx::fem::Func
 /// @param[in] cstride Number of coefficients per cell
 /// @param[in] constants used in the variational form
 template <typename T>
-void assemble_cells(xtl::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
-                    const xtl::span<const std::int32_t>& active_cells,
-                    dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
-                    int cstride, const xtl::span<const T>& constants)
+void assemble_cells(std::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                    const std::span<const std::int32_t>& active_cells,
+                    dolfinx_cuas::kernel_fn<T>& kernel, const std::span<const T> coeffs,
+                    int cstride, const std::span<const T>& constants)
 {
   // Extract mesh
   std::shared_ptr<const dolfinx::mesh::Mesh> mesh = V->mesh();
@@ -101,7 +101,7 @@ void assemble_cells(xtl::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace>
   const dolfinx::graph::AdjacencyList<std::int32_t>& dofs = dofmap->list();
   const int bs = dofmap->bs();
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
-  const std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&, std::int32_t,
+  const std::function<void(const std::span<T>&, const std::span<const std::uint32_t>&, std::int32_t,
                            int)>
       apply_dof_transformation = element->get_dof_transformation_function<T>();
 
@@ -109,11 +109,11 @@ void assemble_cells(xtl::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace>
   const bool needs_transformation_data = element->needs_dof_transformations();
 
   // Get permutation data
-  xtl::span<const std::uint32_t> cell_info;
+  std::span<const std::uint32_t> cell_info;
   if (needs_transformation_data)
   {
     mesh->topology_mutable().create_entity_permutations();
-    cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
+    cell_info = std::span(mesh->topology().get_cell_permutation_info());
   }
 
   dolfinx::fem::impl::assemble_cells<T>(apply_dof_transformation, b, mesh->geometry(), active_cells,
@@ -134,10 +134,10 @@ namespace dolfinx_cuas
 /// @param[in] constants used in the variational form
 /// @param[in] type the integral type
 template <typename T>
-void assemble_vector(xtl::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
-                     const xtl::span<const std::int32_t>& active_entities,
-                     dolfinx_cuas::kernel_fn<T>& kernel, const xtl::span<const T> coeffs,
-                     int cstride, const xtl::span<const T>& constants,
+void assemble_vector(std::span<T> b, std::shared_ptr<dolfinx::fem::FunctionSpace> V,
+                     const std::span<const std::int32_t>& active_entities,
+                     dolfinx_cuas::kernel_fn<T>& kernel, const std::span<const T> coeffs,
+                     int cstride, const std::span<const T>& constants,
                      dolfinx::fem::IntegralType type)
 {
 

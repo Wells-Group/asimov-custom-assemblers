@@ -112,9 +112,9 @@ PYBIND11_MODULE(cpp, m)
           auto ker = kernel.get();
           dolfinx_cuas::assemble_matrix(
               dolfinx::la::petsc::Matrix::set_block_fn(A, ADD_VALUES), V, bcs,
-              xtl::span<const std::int32_t>(active_cells.data(), active_cells.size()), ker,
-              xtl::span<const PetscScalar>(coeffs.data(), coeffs.size()), coeffs.shape(1),
-              xtl::span(constants.data(), constants.shape(0)), type);
+              std::span<const std::int32_t>(active_cells.data(), active_cells.size()), ker,
+              std::span<const PetscScalar>(coeffs.data(), coeffs.size()), coeffs.shape(1),
+              std::span(constants.data(), constants.shape(0)), type);
         });
   m.def("assemble_vector",
         [](py::array_t<PetscScalar, py::array::c_style>& b,
@@ -127,16 +127,16 @@ PYBIND11_MODULE(cpp, m)
         {
           auto ker = kernel.get();
           dolfinx_cuas::assemble_vector<PetscScalar>(
-              xtl::span(b.mutable_data(), b.shape(0)), V,
-              xtl::span<const std::int32_t>(active_cells.data(), active_cells.size()), ker,
-              xtl::span<const PetscScalar>(coeffs.data(), coeffs.size()), coeffs.shape(1),
-              xtl::span(constants.data(), constants.shape(0)), type);
+              std::span(b.mutable_data(), b.shape(0)), V,
+              std::span<const std::int32_t>(active_cells.data(), active_cells.size()), ker,
+              std::span<const PetscScalar>(coeffs.data(), coeffs.size()), coeffs.shape(1),
+              std::span(constants.data(), constants.shape(0)), type);
         });
   m.def("pack_coefficients",
         [](std::vector<std::shared_ptr<const dolfinx::fem::Function<PetscScalar>>> functions,
            py::array_t<std::int32_t, py::array::c_style>& entities)
         {
-          auto entity_span = xtl::span<const std::int32_t>(entities.data(), entities.size());
+          auto entity_span = std::span<const std::int32_t>(entities.data(), entities.size());
 
           if (entities.ndim() == 1)
           {
@@ -170,7 +170,7 @@ PYBIND11_MODULE(cpp, m)
            py::array_t<std::int32_t, py::array::c_style>& entities,
            dolfinx::fem::IntegralType integral)
         {
-          auto entity_span = xtl::span<const std::int32_t>(entities.data(), entities.size());
+          auto entity_span = std::span<const std::int32_t>(entities.data(), entities.size());
           std::vector<std::int32_t> active_entities
               = dolfinx_cuas::compute_active_entities(mesh, entity_span, integral);
           switch (integral)

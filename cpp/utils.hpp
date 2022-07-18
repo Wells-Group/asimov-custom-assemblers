@@ -96,7 +96,7 @@ bool allclose(Mat A, Mat B)
 template <typename T>
 std::pair<std::vector<T>, int> allocate_coefficient_storage(
     std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coefficients,
-    xtl::span<const std::int32_t> active_entities, dolfinx::fem::IntegralType integral_type)
+    std::span<const std::int32_t> active_entities, dolfinx::fem::IntegralType integral_type)
 {
 
   std::size_t num_entities = 0;
@@ -132,7 +132,7 @@ std::pair<std::vector<T>, int> allocate_coefficient_storage(
     cstride = coeffs_offsets.back();
   }
 
-  return {std::vector<T>(num_entities * cstride), cstride};
+  return {std::move(std::vector<T>(num_entities * cstride)), cstride};
 }
 
 /// Pack coefficients for a list of functions over a set of active entities
@@ -149,7 +149,7 @@ std::pair<std::vector<T>, int> allocate_coefficient_storage(
 template <typename T>
 std::pair<std::vector<T>, int>
 pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coeffs,
-                  xtl::span<const std::int32_t> active_entities,
+                  std::span<const std::int32_t> active_entities,
                   dolfinx::fem::IntegralType integral_type)
 {
 
@@ -175,7 +175,7 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
   const std::int32_t num_cells = mesh->topology().index_map(tdim)->size_local()
                                  + mesh->topology().index_map(tdim)->num_ghosts();
 
-  xtl::span<const std::uint32_t> cell_info = dolfinx::fem::impl::get_cell_orientation_info(coeffs);
+  std::span<const std::uint32_t> cell_info = dolfinx::fem::impl::get_cell_orientation_info(coeffs);
 
   switch (integral_type)
   {
@@ -185,8 +185,9 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
     // Iterate over coefficients
     for (std::size_t coeff = 0; coeff < coeffs.size(); ++coeff)
     {
-      dolfinx::fem::impl::pack_coefficient_entity(xtl::span(c), cstride, *coeffs[coeff], cell_info,
-                                                  active_entities, 1, fetch_cell, offsets[coeff]);
+      dolfinx::fem::impl::pack_coefficient_entity(std::span<T>(c), cstride, *coeffs[coeff],
+                                                  cell_info, active_entities, 1, fetch_cell,
+                                                  offsets[coeff]);
     }
     break;
   }
@@ -199,8 +200,9 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
     // Iterate over coefficients
     for (std::size_t coeff = 0; coeff < coeffs.size(); ++coeff)
     {
-      dolfinx::fem::impl::pack_coefficient_entity(xtl::span(c), cstride, *coeffs[coeff], cell_info,
-                                                  active_entities, 2, fetch_cell, offsets[coeff]);
+      dolfinx::fem::impl::pack_coefficient_entity(std::span<T>(c), cstride, *coeffs[coeff],
+                                                  cell_info, active_entities, 2, fetch_cell,
+                                                  offsets[coeff]);
     }
 
     break;
@@ -215,11 +217,11 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
     for (std::size_t coeff = 0; coeff < coeffs.size(); ++coeff)
     {
       // Pack coefficient ['+']
-      dolfinx::fem::impl::pack_coefficient_entity(xtl::span(c), 2 * cstride, *coeffs[coeff],
+      dolfinx::fem::impl::pack_coefficient_entity(std::span<T>(c), 2 * cstride, *coeffs[coeff],
                                                   cell_info, active_entities, 4, fetch_cell0,
                                                   2 * offsets[coeff]);
       // Pack coefficient ['-']
-      dolfinx::fem::impl::pack_coefficient_entity(xtl::span(c), 2 * cstride, *coeffs[coeff],
+      dolfinx::fem::impl::pack_coefficient_entity(std::span<T>(c), 2 * cstride, *coeffs[coeff],
                                                   cell_info, active_entities, 4, fetch_cell1,
                                                   offsets[coeff] + offsets[coeff + 1]);
     }
@@ -229,7 +231,7 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
     throw std::runtime_error("Could not pack coefficient. Integral type not supported.");
   }
 
-  return {std::move(c), cstride};
+  return {c, cstride};
 }
 
 /// Compute the active entities in DOLFINx format for a given integral type over a set of entities
@@ -240,7 +242,7 @@ pack_coefficients(std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> 
 /// @param[in] entities List of mesh entities
 /// @param[in] integral The type of integral
 std::vector<std::int32_t> compute_active_entities(std::shared_ptr<const dolfinx::mesh::Mesh> mesh,
-                                                  xtl::span<const std::int32_t> entities,
+                                                  std::span<const std::int32_t> entities,
                                                   dolfinx::fem::IntegralType integral)
 {
 

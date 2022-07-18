@@ -36,7 +36,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
   const int num_coordinate_dofs = basix_element.dim();
 
   // Create quadrature points on reference facet
-  const std::vector<xt::xarray<double>>& q_points = quadrature_rule.points_ref();
+  const std::vector<xt::xtensor<double, 2>>& q_points = quadrature_rule.points_ref();
   const std::vector<std::vector<double>>& q_weights = quadrature_rule.weights_ref();
 
   const std::uint32_t num_facets = q_weights.size();
@@ -57,9 +57,9 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
   // quadrature points
   for (int i = 0; i < num_facets; ++i)
   {
-    const xt::xarray<double>& q_facet = q_points[i];
+    const xt::xtensor<double, 2>& q_facet = q_points[i];
     const int num_quadrature_points = q_facet.shape(0);
-    xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_points, num_local_dofs, bs});
+    xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_points, num_local_dofs, 1});
 
     // Tabulate at quadrature points on facet
     element->tabulate(cell_tab, q_facet, 1);
@@ -70,7 +70,11 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     dphi.push_back(dphi_i);
 
     // Tabulate coordinate element of reference cell
-    auto c_tab = basix_element.tabulate(1, q_facet);
+    std::array<std::size_t, 4> tab_shape = basix_element.tabulate_shape(1, q_facet.shape(0));
+    std::array<std::size_t, 2> pts_shape = {q_facet.shape(0), q_facet.shape(1)};
+    xt::xtensor<double, 4> c_tab(tab_shape);
+    basix_element.tabulate(1, basix::impl::cmdspan2_t(q_facet.data(), pts_shape),
+                           basix::impl::mdspan4_t(c_tab.data(), tab_shape));
     xt::xtensor<double, 3> dphi_ci
         = xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
     dphi_c.push_back(dphi_ci);
@@ -78,10 +82,14 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
 
   // As reference facet and reference cell are affine, we do not need to compute this per
   // quadrature point
-  auto ref_jacobians = basix::cell::facet_jacobians(basix_element.cell_type());
+  auto [ref_jac, jac_shape] = basix::cell::facet_jacobians(basix_element.cell_type());
+  xt::xtensor<double, 3> ref_jacobians(jac_shape);
+  std::copy(ref_jac.cbegin(), ref_jac.cend(), ref_jacobians.begin());
 
   // Get facet normals on reference cell
-  auto facet_normals = basix::cell::facet_outward_normals(basix_element.cell_type());
+  auto [_facet_normals, n_shape] = basix::cell::facet_outward_normals(basix_element.cell_type());
+  xt::xtensor<double, 2> facet_normals(n_shape);
+  std::copy(_facet_normals.cbegin(), _facet_normals.cend(), facet_normals.begin());
 
   // Define kernels
   kernel_fn<T> mass = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,

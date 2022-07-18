@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
 set(PROJECT_NAME volume)
 project(${PROJECT_NAME})
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "-Ofast -march=native ${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_C_FLAGS "-Ofast -march=native ${CMAKE_C_FLAGS} -Wall")
 

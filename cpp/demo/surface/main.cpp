@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
     auto boundary = [](auto& x) -> xt::xtensor<bool, 1> { return xt::isclose(xt::row(x, 0), 0.0); };
     std::vector<std::int32_t> boundary_facets
         = dolfinx::mesh::locate_entities_boundary(*mesh, 2, boundary);
-    dolfinx::radix_sort(xtl::span(boundary_facets));
+    dolfinx::radix_sort(std::span(boundary_facets.data(), boundary_facets.size()));
 
     std::vector<std::int32_t> boundary_values(boundary_facets.size());
     std::fill(boundary_values.begin(), boundary_values.end(), 1);
