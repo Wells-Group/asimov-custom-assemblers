@@ -18,63 +18,83 @@ template <typename T>
 kernel_fn<T> generate_vector_kernel(std::shared_ptr<const dolfinx::fem::FunctionSpace> V,
                                     dolfinx_cuas::Kernel type, dolfinx_cuas::QuadratureRule& q_rule)
 {
+  namespace stdex = std::experimental;
+  using cmdspan4_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 4>>;
+  using mdspan4_t = stdex::mdspan<double, stdex::dextents<std::size_t, 4>>;
+  using mdspan2_t = stdex::mdspan<double, stdex::dextents<std::size_t, 2>>;
+  using cmdspan2_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 2>>;
+  using mdspan3_t = stdex::mdspan<double, stdex::dextents<std::size_t, 3>>;
+  using cmdspan3_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 3>>;
+
   auto mesh = V->mesh();
+  assert(mesh);
 
   // Get mesh info
   const int gdim = mesh->geometry().dim(); // geometrical dimension
   const int tdim = mesh->topology().dim(); // topological dimension
-
-  const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
-  const int num_coordinate_dofs = basix_element.dim();
+  const dolfinx::fem::CoordinateElement cmap = mesh->geometry().cmap();
+  const int num_coordinate_dofs = cmap.dim();
 
   // Get quadrature rule for cell
   const dolfinx::mesh::CellType ct = mesh->topology().cell_type();
-  const xt::xtensor<double, 2>& points = q_rule.points_ref()[0];
-  const std::vector<double>& weights = q_rule.weights_ref()[0];
+
+  const xt::xtensor<double, 2>& points = q_rule.points_ref().front();
+  const std::vector<double>& weights = q_rule.weights_ref().front();
+  const std::size_t num_quadrature_points = points.shape(0);
 
   // Create Finite element for test and trial functions and tabulate shape functions
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
   int bs = element->block_size();
   std::uint32_t ndofs_cell = element->space_dimension() / bs;
-  xt::xtensor<double, 4> basis({1, weights.size(), ndofs_cell, bs});
-  element->tabulate(basis, points, 0);
-  xt::xtensor<double, 2> phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
 
-  // Get coordinate element from dolfinx
-  std::array<std::size_t, 4> tab_shape = basix_element.tabulate_shape(1, points.shape(0));
-  std::array<std::size_t, 2> pts_shape = {points.shape(0), points.shape(1)};
-  xt::xtensor<double, 4> coordinate_basis(tab_shape);
-  basix_element.tabulate(1, basix::impl::cmdspan2_t(points.data(), pts_shape),
-                         basix::impl::mdspan4_t(coordinate_basis.data(), tab_shape));
+  // Tabulate basis of test/trial functions
+  const std::array<std::size_t, 4> e_shape
+      = element->basix_element().tabulate_shape(0, num_quadrature_points);
+  assert(e_shape.back() == 1);
+  std::vector<double> basis(std::reduce(e_shape.begin(), e_shape.end(), 1, std::multiplies()));
+  element->tabulate(basis, std::span(points.data(), points.size()), points.shape(), 0);
 
-  const xt::xtensor<double, 2>& dphi0_c
-      = xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
+  // Tabulate basis of coordinate element
+  std::array<std::size_t, 4> c_shape = cmap.tabulate_shape(1, points.shape(0));
+  std::vector<double> coordinate_basis(
+      std::reduce(c_shape.begin(), c_shape.end(), 1, std::multiplies()));
+  cmap.tabulate(1, std::span(points.data(), points.size()), points.shape(), coordinate_basis);
 
-  assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
+  const bool is_affine = cmap.is_affine();
 
   // 1 * v * dx, v TestFunction
   // =====================================================================================
   kernel_fn<T> rhs = [=](T* b, const T* c, const T* w, const double* coordinate_dofs,
                          const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    // Get geometrical data
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
-    // FIXME: These array should be views (when compute_jacobian doesn't use xtensor)
-    const xt::xtensor<double, 2>& coord
-        = xt::adapt(coordinate_dofs, 3 * num_coordinate_dofs, xt::no_ownership(), shape);
+    // Reshape and truncate 3D coordinate dofs
+    cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
+    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
-    // Compute Jacobian, its inverse and the determinant
-    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
-    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
-    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J));
+    assert(is_affine);
+
+    // Compute Jacobian and determinant
+    std::vector<double> Jb(gdim * tdim);
+    std::vector<double> Kb(tdim * gdim);
+    mdspan2_t J(Jb.data(), gdim, tdim);
+    mdspan2_t K(Kb.data(), tdim, gdim);
+    std::vector<double> detJ_scratch(2 * gdim * tdim);
+    cmdspan4_t phi_c_full(coordinate_basis.data(), c_shape);
+    auto dphi_c_0 = stdex::submdspan(phi_c_full, std::pair(1, tdim + 1), 0, stdex::full_extent, 0);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_0, c_view, J);
+    const double detJ
+        = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
+
+    // Get basis function views
+    cmdspan4_t full_basis(basis.data(), e_shape);
+    cmdspan2_t phi = stdex::submdspan(full_basis, 0, stdex::full_extent, stdex::full_extent, 0);
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       double w0 = weights[q] * detJ;
       for (int i = 0; i < ndofs_cell; i++)
-        b[i] += w0 * phi.unchecked(q, i);
+        b[i] += w0 * phi(q, i);
     }
   };
   switch (type)
@@ -92,21 +112,26 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
                                             dolfinx_cuas::QuadratureRule& q_rule)
 {
 
-  auto mesh = V->mesh();
+  namespace stdex = std::experimental;
+  using cmdspan4_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 4>>;
+  using mdspan4_t = stdex::mdspan<double, stdex::dextents<std::size_t, 4>>;
+  using mdspan2_t = stdex::mdspan<double, stdex::dextents<std::size_t, 2>>;
+  using cmdspan2_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 2>>;
+  using mdspan3_t = stdex::mdspan<double, stdex::dextents<std::size_t, 3>>;
+  using cmdspan3_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 3>>;
 
+  auto mesh = V->mesh();
+  assert(mesh);
   // Get mesh info
   const int gdim = mesh->geometry().dim(); // geometrical dimension
   const int tdim = mesh->topology().dim(); // topological dimension
   const int fdim = tdim - 1;               // topological dimension of facet
 
   // Create coordinate elements for cell
-  const basix::FiniteElement basix_element = mesh_to_basix_element(mesh, tdim);
-  const int num_coordinate_dofs = basix_element.dim();
+  const dolfinx::fem::CoordinateElement cmap = mesh->geometry().cmap();
+  const int num_coordinate_dofs = cmap.dim();
 
-  // Get quadrature rule
-  const dolfinx::mesh::CellType ft
-      = dolfinx::mesh::cell_entity_type(mesh->topology().cell_type(), fdim, 0);
-  // FIXME: For prisms this should be a vector of arrays and vectors
+  // Create quadrature points on reference facet
   const std::vector<xt::xtensor<double, 2>>& q_points = q_rule.points_ref();
   const std::vector<std::vector<double>>& q_weights = q_rule.weights_ref();
 
@@ -117,12 +142,8 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
   std::shared_ptr<const dolfinx::fem::FiniteElement> element = V->element();
   int bs = element->block_size();
   std::uint32_t num_local_dofs = element->space_dimension() / bs;
-  std::vector<xt::xtensor<double, 2>> phi;
-  phi.reserve(num_facets);
-  std::vector<xt::xtensor<double, 3>> dphi;
-  phi.reserve(num_facets);
-  std::vector<xt ::xtensor<double, 3>> dphi_c;
-  dphi_c.reserve(num_facets);
+  std::vector<std::pair<std::vector<double>, std::array<std::size_t, 4>>> basis_values;
+  std::vector<std::pair<std::vector<double>, std::array<std::size_t, 4>>> coordinate_basis_values;
 
   // Tabulate basis functions (for test/trial function) and coordinate element at
   // quadrature points
@@ -130,33 +151,43 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
   {
     const xt::xtensor<double, 2>& q_facet = q_points[i];
     const int num_quadrature_points = q_facet.shape(0);
-    xt::xtensor<double, 4> cell_tab({tdim + 1, num_quadrature_points, num_local_dofs, bs});
+
+    const std::array<std::size_t, 4> e_shape
+        = element->basix_element().tabulate_shape(1, num_quadrature_points);
+    assert(e_shape.back() == 1);
+    basis_values.push_back(
+        {std::vector<double>(std::reduce(e_shape.begin(), e_shape.end(), 1, std::multiplies())),
+         e_shape});
 
     // Tabulate at quadrature points on facet
-    element->tabulate(cell_tab, q_facet, 1);
-    xt::xtensor<double, 2> phi_i = xt::view(cell_tab, 0, xt::all(), xt::all(), 0);
-    phi.push_back(phi_i);
-    xt::xtensor<double, 3> dphi_i
-        = xt::view(cell_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
-    dphi.push_back(dphi_i);
+    std::vector<double>& basis = basis_values.back().first;
+    element->tabulate(basis, std::span(q_facet.data(), q_facet.size()), q_facet.shape(), 1);
 
     // Tabulate coordinate element of reference cell
-    std::array<std::size_t, 4> tab_shape = basix_element.tabulate_shape(1, q_facet.shape(0));
-    std::array<std::size_t, 2> pts_shape = {q_facet.shape(0), q_facet.shape(1)};
-    xt::xtensor<double, 4> c_tab(tab_shape);
-    basix_element.tabulate(1, basix::impl::cmdspan2_t(q_facet.data(), pts_shape),
-                           basix::impl::mdspan4_t(c_tab.data(), tab_shape));
-    xt::xtensor<double, 3> dphi_ci
-        = xt::view(c_tab, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
-    dphi_c.push_back(dphi_ci);
+    std::array<std::size_t, 4> tab_shape = cmap.tabulate_shape(1, q_facet.shape(0));
+    coordinate_basis_values.push_back(
+        {std::vector<double>(std::reduce(tab_shape.begin(), tab_shape.end(), 1, std::multiplies())),
+         tab_shape});
+    std::vector<double>& cbasis = coordinate_basis_values.back().first;
+    cmap.tabulate(1, std::span(q_facet.data(), q_facet.size()), q_facet.shape(), cbasis);
   }
 
   // As reference facet and reference cell are affine, we do not need to compute this per
   // quadrature point
-  auto [ref_jac, jac_shape] = basix::cell::facet_jacobians(basix_element.cell_type());
+  basix::cell::type basix_cell
+      = dolfinx::mesh::cell_type_to_basix_type(mesh->topology().cell_type());
+  std::pair<std::vector<double>, std::array<std::size_t, 3>> jacobians
+      = basix::cell::facet_jacobians(basix_cell);
+  auto ref_jac = jacobians.first;
+  auto jac_shape = jacobians.second;
 
-  xt::xtensor<double, 3> ref_jacobians(jac_shape);
-  std::copy(ref_jac.cbegin(), ref_jac.cend(), ref_jacobians.begin());
+  // Get facet normals on reference cell
+  std::pair<std::vector<double>, std::array<std::size_t, 2>> normals
+      = basix::cell::facet_outward_normals(basix_cell);
+  auto facet_normals = normals.first;
+  auto normal_shape = normals.second;
+
+  const bool is_affine = cmap.is_affine();
 
   // Define kernels
   // v*ds, v TestFunction
@@ -167,33 +198,45 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
   {
     std::size_t facet_index = size_t(*entity_local_index);
 
-    // Reshape coordinate dofs to two dimensional array
-    // NOTE: DOLFINx has 3D input coordinate dofs
-    std::array<std::size_t, 2> shape = {num_coordinate_dofs, 3};
-    const xt::xtensor<double, 2>& coord
-        = xt::adapt(coordinate_dofs, num_coordinate_dofs * 3, xt::no_ownership(), shape);
+    // Get basis values
+    auto [basis, shape] = basis_values[facet_index];
+    auto [cbasis, cshape] = coordinate_basis_values[facet_index];
 
-    // Extract the first derivative of the coordinate element (cell) of degrees of freedom on
-    // the facet
-    const xt::xtensor<double, 2>& dphi0_c
-        = xt::view(dphi_c[facet_index], xt::all(), 0,
-                   xt::all()); // FIXME: Assumed constant, i.e. only works for simplices
+    // Reshape coordinate dofs
+    cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
+    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
-    // NOTE: Affine cell assumption
-    // Compute Jacobian and determinant at first quadrature point
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
-    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
+    //  FIXME: Assumed constant, i.e. only works for simplices
+    assert(is_affine);
 
-    // Compute det(J_C J_f) as it is the mapping to the reference facet
-    const xt::xtensor<double, 2>& J_f = xt::view(ref_jacobians, facet_index, xt::all(), xt::all());
-    xt::xtensor<double, 2> J_tot = xt::zeros<double>({J.shape(0), J_f.shape(1)});
+    // Compute Jacobian and determinant on facet
+    std::vector<double> Jb(gdim * tdim);
+    std::vector<double> Kb(tdim * gdim);
+    mdspan2_t J(Jb.data(), gdim, tdim);
+    mdspan2_t K(Kb.data(), tdim, gdim);
+    std::vector<double> detJ_scratch(2 * gdim * tdim);
+    cmdspan4_t phi_c_full(cbasis.data(), cshape);
+    auto dphi_c_0 = stdex::submdspan(phi_c_full, std::pair(1, tdim + 1), 0, stdex::full_extent, 0);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_0, c_view, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
+
+    // Extract reference Jacobian at facet
+    cmdspan3_t reference_jacobians(ref_jac.data(), jac_shape);
+    auto J_f = stdex::submdspan(reference_jacobians, facet_index, stdex::full_extent,
+                                stdex::full_extent);
+    std::vector<double> J_totb(J.extent(0) * J_f.extent(1));
+    mdspan2_t J_tot(J_totb.data(), J.extent(0), J_f.extent(1));
     dolfinx::math::dot(J, J_f, J_tot);
-    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot));
+
+    const double detJ = std::fabs(
+        dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot, detJ_scratch));
 
     // Get number of dofs per cell
     const std::vector<double>& weights = q_weights[facet_index];
-    const xt::xtensor<double, 2>& phi_f = phi[facet_index];
+
+    // Extract basis values of test/trial function
+    cmdspan4_t phi_full(basis.data(), shape);
+    auto phi_f = stdex::submdspan(phi_full, 0, stdex::full_extent, stdex::full_extent, 0);
 
     // Loop over quadrature points
     for (std::size_t q = 0; q < weights.size(); q++)
@@ -203,10 +246,8 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
 
       for (int i = 0; i < num_local_dofs; i++)
       {
-        // Compute a weighted phi_i(p_q),  i.e. phi_i(p_q) det(J) w_q
-        double w1 = w0 * phi_f(q, i);
-        // Insert over block size in matrix
-        b[i] += w1;
+        // Compute a weighted phi_i(p_q),  i.e. phi_i(p_q) det(J) w_q and insert
+        b[i] += w0 * phi_f(q, i);
       }
     }
   };

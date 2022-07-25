@@ -13,7 +13,6 @@
 #include <dolfinx/common/math.h>
 #include <dolfinx/fem/FiniteElement.h>
 #include <dolfinx/fem/FunctionSpace.h>
-
 namespace dolfinx_cuas
 {
 
@@ -110,7 +109,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
 
     // Reshape coordinate dofs
     cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
-    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{1, gdim});
+    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     //  FIXME: Assumed constant, i.e. only works for simplices
     assert(is_affine);
@@ -179,7 +178,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
 
     // Reshape coordinate dofs
     cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
-    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{1, gdim});
+    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     // Compute Jacobian and determinant on facet
     std::vector<double> Jb(gdim * tdim);
@@ -255,7 +254,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
 
     // Reshape coordinate dofs
     cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
-    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{1, gdim});
+    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     //  FIXME: Assumed constant, i.e. only works for simplices
     assert(is_affine);
@@ -333,7 +332,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
 
     // Reshape coordinate dofs
     cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
-    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{1, gdim});
+    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     //  FIXME: Assumed constant, i.e. only works for simplices
     assert(is_affine);
@@ -424,7 +423,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
 
     // Reshape coordinate dofs
     cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
-    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{1, gdim});
+    auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     //  FIXME: Assumed constant, i.e. only works for simplices
     assert(is_affine);
