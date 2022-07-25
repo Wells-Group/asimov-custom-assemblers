@@ -61,14 +61,14 @@ kernel_fn<T> generate_vector_kernel(std::shared_ptr<const dolfinx::fem::Function
   cmap.tabulate(1, std::span(points.data(), points.size()), points.shape(), coordinate_basis);
 
   const bool is_affine = cmap.is_affine();
-
+  const std::array<std::size_t, 2> cd_shape = {num_coordinate_dofs, 3};
   // 1 * v * dx, v TestFunction
   // =====================================================================================
   kernel_fn<T> rhs = [=](T* b, const T* c, const T* w, const double* coordinate_dofs,
                          const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Reshape and truncate 3D coordinate dofs
-    cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
+    cmdspan2_t coords(coordinate_dofs, cd_shape);
     auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     assert(is_affine);
@@ -188,7 +188,7 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
   auto normal_shape = normals.second;
 
   const bool is_affine = cmap.is_affine();
-
+  const std::array<std::size_t, 2> cd_shape = {num_coordinate_dofs, 3};
   // Define kernels
   // v*ds, v TestFunction
   // =====================================================================================
@@ -203,7 +203,7 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
     auto [cbasis, cshape] = coordinate_basis_values[facet_index];
 
     // Reshape coordinate dofs
-    cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
+    cmdspan2_t coords(coordinate_dofs, cd_shape);
     auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     //  FIXME: Assumed constant, i.e. only works for simplices

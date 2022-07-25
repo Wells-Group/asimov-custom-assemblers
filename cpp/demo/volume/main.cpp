@@ -40,8 +40,8 @@ int main(int argc, char* argv[])
   {
     const std::string problem_type = vm["kernel"].as<std::string>();
     const int degree = vm["degree"].as<int>();
-
     MPI_Comm mpi_comm{MPI_COMM_WORLD};
+
     std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
         mesh::create_box(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {10, 10, 10},
                          mesh::CellType::tetrahedron, mesh::GhostMode::none));
@@ -102,6 +102,7 @@ int main(int argc, char* argv[])
     // Generate Kernel
     dolfinx_cuas::QuadratureRule q_rule(mesh->topology().cell_type(), q_degree,
                                         mesh->topology().dim(), basix::quadrature::type::Default);
+
     auto kernel = dolfinx_cuas::generate_kernel<PetscScalar>(kernel_type, degree,
                                                              V->dofmap()->index_map_bs(), q_rule);
 
@@ -139,6 +140,7 @@ int main(int argc, char* argv[])
     if (!dolfinx_cuas::allclose(A.mat(), B.mat()))
       throw std::runtime_error("Matrices are not the same");
   }
+
   PetscFinalize();
   return 0;
 }

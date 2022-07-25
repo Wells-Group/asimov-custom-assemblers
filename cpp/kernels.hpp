@@ -57,8 +57,8 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  const std::vector<double>& weights = quadrature_rule.weights_ref()[0];
-  const xt::xarray<double>& points = quadrature_rule.points_ref()[0];
+  const std::vector<double>& weights = quadrature_rule.weights_ref().front();
+  const xt::xarray<double>& points = quadrature_rule.points_ref().front();
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element
@@ -81,17 +81,27 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
   // =====================================================================================
   cmdspan4_t basis(basisb.data(), basis_shape);
   std::vector<double> dphib(tdim * basis_shape[1] * basis_shape[2]);
-  mdspan3_t dphi(dphib.data(), tdim, basis_shape[1], basis_shape[2]);
+  mdspan3_t dphi(dphib.data(), basis_shape[1], basis_shape[2], tdim);
+  assert(basis.extent(0) == tdim + 1);
+  assert(basis.extent(1) == points.shape(0));
+  assert(basis.extent(2) == ndofs_cell);
+  assert(basis.extent(3) == 1);
+  assert(weights.size() == points.shape(0));
+  assert(dphi.extent(0) == points.shape(0));
+  assert(dphi.extent(1) == tdim);
+  assert(dphi.extent(2) == ndofs_cell);
   for (std::int32_t k = 0; k < tdim; k++)
     for (std::size_t q = 0; q < weights.size(); q++)
       for (std::int32_t i = 0; i < ndofs_cell; i++)
         dphi(q, i, k) = basis(k + 1, q, i, 0);
 
   constexpr std::array<std::size_t, 2> shape = {d, gdim};
-  std::array<std::size_t, 2> shape_d = {ndofs_cell, gdim};
+  constexpr std::array<std::size_t, 2> shape_d = {ndofs_cell, gdim};
+
   dolfinx_cuas::kernel_fn<T> stiffness
-      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
-            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [gdim, tdim, shape, shape_d, tab_shape, coordinate_basis, basis_shape, dphib,
+         weights](T* A, const T* c, const T* w, const double* coordinate_dofs,
+                  const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     // Create buffers for jacobian (inverse and determinant) computations
     std::vector<double> Jb(gdim * tdim);
@@ -111,8 +121,7 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
         = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
 
     // Get derivatives of element basis
-    cmdspan3_t dphi(dphib.data(), tdim, basis_shape[1], basis_shape[2]);
-
+    cmdspan3_t dphi(dphib.data(), basis_shape[1], basis_shape[2], tdim);
     // Create temporary storage for K*dphi_ref
     std::vector<double> dphi_physb(
         std::reduce(shape_d.begin(), shape_d.end(), 1, std::multiplies{}));
@@ -185,7 +194,6 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
     // Get basis function views
     cmdspan4_t full_basis(basisb.data(), basis_shape);
     cmdspan2_t phi = stdex::submdspan(full_basis, 0, stdex::full_extent, stdex::full_extent, 0);
-
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
@@ -272,7 +280,7 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
         = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
 
     // Get derivatives of element basis
-    cmdspan3_t dphi(dphib.data(), tdim, basis_shape[1], basis_shape[2]);
+    cmdspan3_t dphi(dphib.data(), basis_shape[1], basis_shape[2], tdim);
 
     // Temporary variable for grad(phi) on physical cell
     std::vector<double> dphi_physb(
@@ -336,7 +344,7 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
         = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
 
     // Get derivatives of element basis
-    cmdspan3_t dphi(dphib.data(), tdim, basis_shape[1], basis_shape[2]);
+    cmdspan3_t dphi(dphib.data(), basis_shape[1], basis_shape[2], tdim);
 
     // Temporary variable for grad(phi) on physical cell
     std::vector<double> dphi_physb(

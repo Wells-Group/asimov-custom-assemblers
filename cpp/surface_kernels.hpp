@@ -97,6 +97,8 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
   auto normal_shape = normals.second;
 
   const bool is_affine = cmap.is_affine();
+  const std::array<std::size_t, 2> cd_shape = {num_coordinate_dofs, 3};
+
   // Define kernels
   kernel_fn<T> mass = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
                           const int* entity_local_index, const std::uint8_t* quadrature_permutation)
@@ -108,7 +110,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     auto [cbasis, cshape] = coordinate_basis_values[facet_index];
 
     // Reshape coordinate dofs
-    cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
+    cmdspan2_t coords(coordinate_dofs, cd_shape);
     auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     //  FIXME: Assumed constant, i.e. only works for simplices
@@ -135,7 +137,6 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
 
     const double detJ = std::fabs(
         dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot, detJ_scratch));
-
     // Get number of dofs per cell
     const std::vector<double>& weights = q_weights[facet_index];
 
@@ -157,7 +158,6 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
         {
           // Compute phi_j(p_q) phi_i(p_q) det(J) w_q (block invariant)
           const double integrand = w1 * phi_f(q, j);
-
           // Insert over block size in matrix
           for (int k = 0; k < bs; k++)
             A[(k + i * bs) * (num_local_dofs * bs) + k + j * bs] += integrand;
@@ -177,7 +177,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     auto [cbasis, cshape] = coordinate_basis_values[facet_index];
 
     // Reshape coordinate dofs
-    cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
+    cmdspan2_t coords(coordinate_dofs, cd_shape);
     auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     // Compute Jacobian and determinant on facet
@@ -213,11 +213,11 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
           = stdex::submdspan(phi_c_full, std::pair(1, tdim + 1), q, stdex::full_extent, 0);
       std::fill(Jb.begin(), Jb.end(), 0);
       dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_q, c_view, J);
-
-      dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
       std::fill(J_totb.begin(), J_totb.end(), 0);
       dolfinx::math::dot(J, J_f, J_tot);
 
+      // NOTE: Remove once https://github.com/FEniCS/dolfinx/pull/2291 is merged
+      std::fill(detJ_scratch.begin(), detJ_scratch.end(), 0);
       const double detJ = std::fabs(
           dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot, detJ_scratch));
 
@@ -253,7 +253,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     auto [cbasis, cshape] = coordinate_basis_values[facet_index];
 
     // Reshape coordinate dofs
-    cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
+    cmdspan2_t coords(coordinate_dofs, cd_shape);
     auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     //  FIXME: Assumed constant, i.e. only works for simplices
@@ -331,7 +331,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     auto [cbasis, cshape] = coordinate_basis_values[facet_index];
 
     // Reshape coordinate dofs
-    cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
+    cmdspan2_t coords(coordinate_dofs, cd_shape);
     auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     //  FIXME: Assumed constant, i.e. only works for simplices
@@ -422,7 +422,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     auto [cbasis, cshape] = coordinate_basis_values[facet_index];
 
     // Reshape coordinate dofs
-    cmdspan2_t coords(coordinate_dofs, std::array<std::size_t, 2>{num_coordinate_dofs, gdim});
+    cmdspan2_t coords(coordinate_dofs, cd_shape);
     auto c_view = stdex::submdspan(coords, stdex::full_extent, std::pair{0, gdim});
 
     //  FIXME: Assumed constant, i.e. only works for simplices
@@ -448,6 +448,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     dolfinx::math::dot(J, J_f, J_tot);
     const double detJ = std::fabs(
         dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J_tot, detJ_scratch));
+
     // Compute normal of physical facet using a normalized covariant Piola transform
     // n_phys = J^{-T} n_ref / ||J^{-T} n_ref||
     // See for instance DOI: 10.1137/08073901X
@@ -460,7 +461,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     for (std::size_t i = 0; i < gdim; i++)
       n_norm += n_phys[i] * n_phys[i];
     n_norm = std::sqrt(n_norm);
-    std::for_each(n_phys.begin(), n_phys.end(), [n_norm](auto& n) { return n / n_norm; });
+    std::for_each(n_phys.begin(), n_phys.end(), [n_norm](auto& n) { n /= n_norm; });
 
     // Get number of dofs per cell
     const std::vector<double>& weights = q_weights[facet_index];
