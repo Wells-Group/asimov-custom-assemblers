@@ -1,4 +1,4 @@
-// Copyright (C) 2021 Jørgen S. Dokken, Igor A. Baratta, Sarah Roggendorf
+// Copyright (C) 2021-2022 Jørgen S. Dokken, Igor A. Baratta, Sarah Roggendorf
 //
 // This file is part of DOLFINx_CUAS
 //
@@ -23,6 +23,14 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
                             std::vector<std::shared_ptr<const dolfinx::fem::Function<T>>> coeffs,
                             dolfinx_cuas::QuadratureRule& q_rule)
 {
+  namespace stdex = std::experimental;
+  using cmdspan4_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 4>>;
+  using mdspan4_t = stdex::mdspan<double, stdex::dextents<std::size_t, 4>>;
+  using mdspan2_t = stdex::mdspan<double, stdex::dextents<std::size_t, 2>>;
+  using cmdspan2_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 2>>;
+  using mdspan3_t = stdex::mdspan<double, stdex::dextents<std::size_t, 3>>;
+  using cmdspan3_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 3>>;
+
   // Problem specific parameters
   basix::element::family family = basix::element::family::P;
   basix::cell::type cell = basix::cell::type::tetrahedron;
@@ -30,6 +38,7 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
   constexpr std::int32_t tdim = 3;
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
+  constexpr std::array<std::size_t, 2> coordinate_shape = {d, gdim};
 
   // Get quadrature points and quadrature weights
   const std::vector<double>& weights = q_rule.weights_ref()[0];
@@ -39,42 +48,47 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
   basix::FiniteElement element
       = basix::create_element(family, cell, P, basix::element::lagrange_variant::gll_warped);
   std::array<std::size_t, 4> basis_shape = element.tabulate_shape(1, points.shape(0));
-  xt::xtensor<double, 4> basis(basis_shape);
+  std::vector<double> basisb(
+      std::reduce(basis_shape.begin(), basis_shape.end(), 1, std::multiplies{}));
   std::array<std::size_t, 2> pts_shape = {points.shape(0), points.shape(1)};
-  element.tabulate(1, basix::impl::cmdspan2_t(points.data(), pts_shape),
-                   basix::impl::mdspan4_t(basis.data(), basis_shape));
-  xt::xtensor<double, 2> phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
+  element.tabulate(1, cmdspan2_t(points.data(), pts_shape), mdspan4_t(basisb.data(), basis_shape));
 
-  // Create Finite elements for coefficient functions and tabulate shape functions
+  // Get coordinate element from dolfinx
+  basix::FiniteElement coordinate_element = basix::create_element(
+      basix::element::family::P, cell, 1, basix::element::lagrange_variant::gll_warped);
+  std::array<std::size_t, 4> tab_shape = coordinate_element.tabulate_shape(1, points.shape(0));
+  xt::xtensor<double, 4> coordinate_basis(tab_shape);
+  coordinate_element.tabulate(1, cmdspan2_t(points.data(), pts_shape),
+                              mdspan4_t(coordinate_basis.data(), tab_shape));
+
+  assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
+
+  // Fetch finite elements for coefficient functions and tabulate shape functions
   int num_coeffs = coeffs.size();
   std::vector<int> offsets(num_coeffs + 1);
   offsets[0] = 0;
   for (int i = 1; i < num_coeffs + 1; i++)
     offsets[i] = offsets[i - 1] + coeffs[i - 1]->function_space()->element()->space_dimension();
-  xt::xtensor<double, 2> phi_coeffs({weights.size(), offsets[num_coeffs]});
+  std::vector<double> phi_coeffsb(weights.size() * offsets.back());
+  mdspan2_t phi_coeffs(phi_coeffsb.data(), weights.size(), offsets.back());
   for (int i = 0; i < num_coeffs; i++)
   {
     std::shared_ptr<const dolfinx::fem::FiniteElement> coeff_element
         = coeffs[i]->function_space()->element();
-    // NOTE: Assuming value size 1
-    xt::xtensor<double, 4> coeff_basis({1, weights.size(), coeff_element->space_dimension(), 1});
-    coeff_element->tabulate(coeff_basis, points, 0);
-    auto phi_i = xt::view(phi_coeffs, xt::all(), xt::range(offsets[i], offsets[i + 1]));
-    phi_i = xt::view(coeff_basis, 0, xt::all(), xt::all(), 0);
+    std::array<std::size_t, 4> coeff_shape
+        = coeff_element->basix_element().tabulate_shape(0, weights.size());
+    assert(coeff_shape.back() == 1);
+    std::vector<double> coeff_basis(
+        std::reduce(coeff_shape.cbegin(), coeff_shape.cend(), 1, std::multiplies()));
+    coeff_element->tabulate(coeff_basis, std::span(points.data(), points.size()),
+                            {points.shape(0), points.shape(1)}, 0);
+    cmdspan4_t cb(coeff_basis.data(), coeff_shape);
+    auto phi_i
+        = stdex::submdspan(phi_coeffs, stdex::full_extent, std::pair(offsets[i], offsets[i + 1]));
+    for (std::size_t j = 0; j < phi_i.extent(0); ++j)
+      for (std::size_t k = 0; k < phi_i.extent(1); ++k)
+        phi_i(j, k) = cb(0, j, k, 0);
   }
-
-  // Get coordinate element from dolfinx
-  basix::FiniteElement coordinate_element
-      = basix::create_element(family, cell, 1, basix::element::lagrange_variant::gll_warped);
-  std::array<std::size_t, 4> tab_shape = coordinate_element.tabulate_shape(1, points.shape(0));
-  xt::xtensor<double, 4> coordinate_basis(tab_shape);
-  coordinate_element.tabulate(1, basix::impl::cmdspan2_t(points.data(), pts_shape),
-                              basix::impl::mdspan4_t(coordinate_basis.data(), tab_shape));
-
-  xt::xtensor<double, 2> dphi0_c
-      = xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
-
-  assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
 
   // Mass Matrix using quadrature formulation
   // =====================================================================================
@@ -82,14 +96,27 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
       = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    // Get geometrical data
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    std::array<std::size_t, 2> shape = {d, gdim};
-    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+    // Create buffers for jacobian (inverse and determinant) computations
+    std::vector<double> Jb(gdim * tdim);
+    std::vector<double> Kb(tdim * gdim);
+    mdspan2_t J(Jb.data(), gdim, tdim);
+    mdspan2_t K(Kb.data(), tdim, gdim);
+    cmdspan2_t coords(coordinate_dofs, coordinate_shape);
+    std::vector<double> detJ_scratch(2 * gdim * tdim);
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, coord, J);
-    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J));
+    cmdspan4_t dphi_c_full(coordinate_basis.data(), tab_shape);
+
+    auto dphi_c_0 = stdex::submdspan(dphi_c_full, std::pair(1, tdim + 1), 0, stdex::full_extent, 0);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_0, coords, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
+    const double detJ
+        = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
+
+    // Get basis function views
+    cmdspan2_t phi_coeffs(phi_coeffsb.data(), weights.size(), offsets.back());
+    cmdspan4_t full_basis(basisb.data(), basis_shape);
+    auto phi = stdex::submdspan(full_basis, 0, stdex::full_extent, stdex::full_extent, 0);
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
@@ -105,9 +132,9 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
       w0 *= weights[q] * detJ;
       for (int i = 0; i < ndofs_cell; i++)
       {
-        T w1 = w0 * phi.unchecked(q, i);
+        T w1 = w0 * phi(q, i);
         for (int j = 0; j < ndofs_cell; j++)
-          A[i * ndofs_cell + j] += w1 * phi.unchecked(q, j);
+          A[i * ndofs_cell + j] += w1 * phi(q, j);
       }
     }
   };

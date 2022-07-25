@@ -74,10 +74,8 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
       basix::element::family::P, cell, 1, basix::element::lagrange_variant::gll_warped);
   std::array<std::size_t, 4> tab_shape = coordinate_element.tabulate_shape(1, points.shape(0));
   xt::xtensor<double, 4> coordinate_basis(tab_shape);
-  coordinate_element.tabulate(1, basix::impl::cmdspan2_t(points.data(), pts_shape),
-                              basix::impl::mdspan4_t(coordinate_basis.data(), tab_shape));
-
-  assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
+  coordinate_element.tabulate(1, cmdspan2_t(points.data(), pts_shape),
+                              mdspan4_t(coordinate_basis.data(), tab_shape));
 
   // Stiffness Matrix using quadrature formulation
   // =====================================================================================
@@ -89,7 +87,7 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
       for (std::int32_t i = 0; i < ndofs_cell; i++)
         dphi(q, i, k) = basis(k + 1, q, i, 0);
 
-  std::array<std::size_t, 2> shape = {d, gdim};
+  constexpr std::array<std::size_t, 2> shape = {d, gdim};
   std::array<std::size_t, 2> shape_d = {ndofs_cell, gdim};
   dolfinx_cuas::kernel_fn<T> stiffness
       = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
