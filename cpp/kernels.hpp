@@ -88,8 +88,8 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
   assert(basis.extent(3) == 1);
   assert(weights.size() == points.shape(0));
   assert(dphi.extent(0) == points.shape(0));
-  assert(dphi.extent(1) == tdim);
-  assert(dphi.extent(2) == ndofs_cell);
+  assert(dphi.extent(1) == ndofs_cell);
+  assert(dphi.extent(2) == tdim);
   for (std::int32_t k = 0; k < tdim; k++)
     for (std::size_t q = 0; q < weights.size(); q++)
       for (std::int32_t i = 0; i < ndofs_cell; i++)
