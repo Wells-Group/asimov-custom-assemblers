@@ -60,6 +60,12 @@ public:
     }
     else
     {
+      namespace stdex = std::experimental;
+      using cmdspan4_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 4>>;
+      using mdspan4_t = stdex::mdspan<double, stdex::dextents<std::size_t, 4>>;
+      using mdspan2_t = stdex::mdspan<double, stdex::dextents<std::size_t, 2>>;
+      using cmdspan2_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 2>>;
+
       // Create reference topology and geometry
       auto entity_topology = basix::cell::topology(b_ct)[dim];
 
@@ -97,7 +103,10 @@ public:
         _weights.push_back(quadrature[1]);
         xt::xtensor<double, 2> entity_qp
             = xt::zeros<double>({num_pts, static_cast<std::size_t>(coords.shape(1))});
-        dolfinx::math::dot(phi_s, coords, entity_qp);
+
+        dolfinx::math::dot(cmdspan2_t(phi_s.data(), shape[1], shape[2]),
+                           cmdspan2_t(coords.data(), sub_geom.second),
+                           mdspan2_t(entity_qp.data(), num_pts, coords.shape(1)));
         _points.push_back(entity_qp);
       }
     }

@@ -1,4 +1,4 @@
-// Copyright (C) 2021 Jørgen S. Dokken, Igor A. Baratta, Sarah Roggendorf
+// Copyright (C) 2021-2022 Jørgen S. Dokken, Igor A. Baratta, Sarah Roggendorf
 //
 // This file is part of DOLFINx_CUAS
 //
@@ -41,6 +41,14 @@ template <int P, int bs, typename T>
 dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
                                                dolfinx_cuas::QuadratureRule& quadrature_rule)
 {
+  namespace stdex = std::experimental;
+  using cmdspan4_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 4>>;
+  using mdspan4_t = stdex::mdspan<double, stdex::dextents<std::size_t, 4>>;
+  using mdspan2_t = stdex::mdspan<double, stdex::dextents<std::size_t, 2>>;
+  using cmdspan2_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 2>>;
+  using mdspan3_t = stdex::mdspan<double, stdex::dextents<std::size_t, 3>>;
+  using cmdspan3_t = stdex::mdspan<const double, stdex::dextents<std::size_t, 3>>;
+
   // Problem specific parameters
   basix::element::family family = basix::element::family::P;
   basix::cell::type cell = basix::cell::type::tetrahedron;
@@ -49,69 +57,85 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
   constexpr std::int32_t d = 4;
   constexpr std::int32_t ndofs_cell = (P + 1) * (P + 2) * (P + 3) / 6;
 
-  const std::vector<double>& weights = quadrature_rule.weights_ref()[0];
-  const xt::xarray<double>& points = quadrature_rule.points_ref()[0];
+  const std::vector<double>& weights = quadrature_rule.weights_ref().front();
+  const xt::xarray<double>& points = quadrature_rule.points_ref().front();
 
   // Create Finite element for test and trial functions and tabulate shape functions
   basix::FiniteElement element
       = basix::create_element(family, cell, P, basix::element::lagrange_variant::gll_warped);
   std::array<std::size_t, 4> basis_shape = element.tabulate_shape(1, points.shape(0));
-  xt::xtensor<double, 4> basis(basis_shape);
+  std::vector<double> basisb(
+      std::reduce(basis_shape.begin(), basis_shape.end(), 1, std::multiplies{}));
   std::array<std::size_t, 2> pts_shape = {points.shape(0), points.shape(1)};
-  element.tabulate(1, basix::impl::cmdspan2_t(points.data(), pts_shape),
-                   basix::impl::mdspan4_t(basis.data(), basis_shape));
-  xt::xtensor<double, 2> phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
-  xt::xtensor<double, 3> dphi = xt::view(basis, xt::range(1, tdim + 1), xt::all(), xt::all(), 0);
+  element.tabulate(1, cmdspan2_t(points.data(), pts_shape), mdspan4_t(basisb.data(), basis_shape));
 
   // Get coordinate element from dolfinx
   basix::FiniteElement coordinate_element = basix::create_element(
       basix::element::family::P, cell, 1, basix::element::lagrange_variant::gll_warped);
   std::array<std::size_t, 4> tab_shape = coordinate_element.tabulate_shape(1, points.shape(0));
   xt::xtensor<double, 4> coordinate_basis(tab_shape);
-  coordinate_element.tabulate(1, basix::impl::cmdspan2_t(points.data(), pts_shape),
-                              basix::impl::mdspan4_t(coordinate_basis.data(), tab_shape));
-
-  xt::xtensor<double, 2> dphi0_c
-      = xt::view(coordinate_basis, xt::range(1, tdim + 1), 0, xt::all(), 0);
-
-  assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
+  coordinate_element.tabulate(1, cmdspan2_t(points.data(), pts_shape),
+                              mdspan4_t(coordinate_basis.data(), tab_shape));
 
   // Stiffness Matrix using quadrature formulation
   // =====================================================================================
-
-  xt::xtensor<double, 3> _dphi({dphi.shape(1), dphi.shape(2), dphi.shape(0)});
+  cmdspan4_t basis(basisb.data(), basis_shape);
+  std::vector<double> dphib(tdim * basis_shape[1] * basis_shape[2]);
+  mdspan3_t dphi(dphib.data(), basis_shape[1], basis_shape[2], tdim);
+  assert(basis.extent(0) == tdim + 1);
+  assert(basis.extent(1) == points.shape(0));
+  assert(basis.extent(2) == ndofs_cell);
+  assert(basis.extent(3) == 1);
+  assert(weights.size() == points.shape(0));
+  assert(dphi.extent(0) == points.shape(0));
+  assert(dphi.extent(1) == ndofs_cell);
+  assert(dphi.extent(2) == tdim);
   for (std::int32_t k = 0; k < tdim; k++)
     for (std::size_t q = 0; q < weights.size(); q++)
       for (std::int32_t i = 0; i < ndofs_cell; i++)
-        _dphi(q, i, k) = dphi(k, q, i);
+        dphi(q, i, k) = basis(k + 1, q, i, 0);
 
-  std::array<std::size_t, 2> shape = {d, gdim};
-  std::array<std::size_t, 2> shape_d = {ndofs_cell, gdim};
+  constexpr std::array<std::size_t, 2> shape = {d, gdim};
+  constexpr std::array<std::size_t, 2> shape_d = {ndofs_cell, gdim};
+
   dolfinx_cuas::kernel_fn<T> stiffness
-      = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
-            const int* entity_local_index, const std::uint8_t* quadrature_permutation)
+      = [gdim, tdim, shape, shape_d, tab_shape, coordinate_basis, basis_shape, dphib,
+         weights](T* A, const T* c, const T* w, const double* coordinate_dofs,
+                  const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    // Get geometrical data
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
-    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
-    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
+    // Create buffers for jacobian (inverse and determinant) computations
+    std::vector<double> Jb(gdim * tdim);
+    std::vector<double> Kb(tdim * gdim);
+    mdspan2_t J(Jb.data(), gdim, tdim);
+    mdspan2_t K(Kb.data(), tdim, gdim);
+    cmdspan2_t coords(coordinate_dofs, shape);
+    std::vector<double> detJ_scratch(2 * gdim * tdim);
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
-    dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
-    const double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J));
+    cmdspan4_t dphi_c_full(coordinate_basis.data(), tab_shape);
 
-    xt::xtensor<double, 2> dphi_kernel(shape_d);
+    auto dphi_c_0 = stdex::submdspan(dphi_c_full, std::pair(1, tdim + 1), 0, stdex::full_extent, 0);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_0, coords, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
+    const double detJ
+        = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
+
+    // Get derivatives of element basis
+    cmdspan3_t dphi(dphib.data(), basis_shape[1], basis_shape[2], tdim);
+    // Create temporary storage for K*dphi_ref
+    std::vector<double> dphi_physb(
+        std::reduce(shape_d.begin(), shape_d.end(), 1, std::multiplies{}));
+    mdspan2_t dphi_phys(dphi_physb.data(), shape_d);
+
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       const double w0 = weights[q] * detJ;
       // precompute J^-T * dphi in temporary array d
-      std::fill(dphi_kernel.begin(), dphi_kernel.end(), 0);
+      std::fill(dphi_physb.begin(), dphi_physb.end(), 0);
       for (int i = 0; i < ndofs_cell; i++)
         for (int j = 0; j < gdim; j++)
           for (int k = 0; k < tdim; k++)
-            dphi_kernel(i, j) += K(k, j) * _dphi(q, i, k);
+            dphi_phys(i, j) += K(k, j) * dphi(q, i, k);
 
       // Special handling of scalar space
       if constexpr (bs == 1)
@@ -120,7 +144,7 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
         for (int i = 0; i < ndofs_cell; i++)
           for (int j = 0; j < ndofs_cell; j++)
             for (int k = 0; k < gdim; k++)
-              A[i * ndofs_cell + j] += w0 * dphi_kernel(i, k) * dphi_kernel(j, k);
+              A[i * ndofs_cell + j] += w0 * dphi_phys(i, k) * dphi_phys(j, k);
       }
       else
       {
@@ -132,7 +156,7 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
             // Compute block invariant contribution
             double block_invariant = 0;
             for (int k = 0; k < gdim; k++)
-              block_invariant += dphi_kernel(i, k) * dphi_kernel(j, k);
+              block_invariant += dphi_phys(i, k) * dphi_phys(j, k);
             block_invariant *= w0;
 
             // Insert into matrix
@@ -150,31 +174,41 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
       = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    // Get geometrical data
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    std::array<std::size_t, 2> shape = {d, gdim};
-    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
-    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
+    // Create buffers for jacobian (inverse and determinant) computations
+    std::vector<double> Jb(gdim * tdim);
+    std::vector<double> Kb(tdim * gdim);
+    mdspan2_t J(Jb.data(), gdim, tdim);
+    mdspan2_t K(Kb.data(), tdim, gdim);
+    cmdspan2_t coords(coordinate_dofs, shape);
+    std::vector<double> detJ_scratch(2 * gdim * tdim);
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
-    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J));
+    cmdspan4_t dphi_c_full(coordinate_basis.data(), tab_shape);
 
+    auto dphi_c_0 = stdex::submdspan(dphi_c_full, std::pair(1, tdim + 1), 0, stdex::full_extent, 0);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_0, coords, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
+    const double detJ
+        = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
+
+    // Get basis function views
+    cmdspan4_t full_basis(basisb.data(), basis_shape);
+    cmdspan2_t phi = stdex::submdspan(full_basis, 0, stdex::full_extent, stdex::full_extent, 0);
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       double w0 = weights[q] * detJ;
       for (int i = 0; i < ndofs_cell; i++)
       {
-        double w1 = w0 * phi.unchecked(q, i);
+        double w1 = w0 * phi(q, i);
         for (int j = 0; j < ndofs_cell; j++)
         {
           // Special handling of scalar space
           if constexpr (bs == 1)
-            A[i * ndofs_cell + j] += w1 * phi.unchecked(q, j);
+            A[i * ndofs_cell + j] += w1 * phi(q, j);
           else
             for (int b = 0; b < bs; b++)
-              A[(i * bs + b) * (ndofs_cell * bs) + bs * j + b] += w1 * phi.unchecked(q, j);
+              A[(i * bs + b) * (ndofs_cell * bs) + bs * j + b] += w1 * phi(q, j);
         }
       }
     }
@@ -184,7 +218,10 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
   // =====================================================================================
 
   // Pre-compute local matrix for reference element
-  xt::xtensor<double, 2> A0 = xt::zeros<double>({ndofs_cell, ndofs_cell});
+  cmdspan4_t full_basis(basisb.data(), basis_shape);
+  cmdspan2_t phi = stdex::submdspan(full_basis, 0, stdex::full_extent, stdex::full_extent, 0);
+  std::vector<double> A0b(ndofs_cell * ndofs_cell);
+  mdspan2_t A0(A0b.data(), ndofs_cell, ndofs_cell);
   for (std::size_t q = 0; q < weights.size(); q++)
     for (int i = 0; i < ndofs_cell; i++)
       for (int j = 0; j < ndofs_cell; j++)
@@ -194,19 +231,27 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
       = [=](T* A, const T* c, const T* w, const double* coordinate_dofs,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
-    // Get geometrical data
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    std::array<std::size_t, 2> shape = {d, gdim};
-    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
-    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
+    // Create buffers for jacobian (inverse and determinant) computations
+    std::vector<double> Jb(gdim * tdim);
+    std::vector<double> Kb(tdim * gdim);
+    mdspan2_t J(Jb.data(), gdim, tdim);
+    mdspan2_t K(Kb.data(), tdim, gdim);
+    cmdspan2_t coords(coordinate_dofs, shape);
+    std::vector<double> detJ_scratch(2 * gdim * tdim);
 
     // Compute Jacobian, its inverse and the determinant
-    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
-    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J));
+    cmdspan4_t dphi_c_full(coordinate_basis.data(), tab_shape);
 
+    auto dphi_c_0 = stdex::submdspan(dphi_c_full, std::pair(1, tdim + 1), 0, stdex::full_extent, 0);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_0, coords, J);
+    dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
+    const double detJ
+        = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
+
+    cmdspan2_t A0(A0b.data(), (std::size_t)ndofs_cell, (std::size_t)ndofs_cell);
     for (int i = 0; i < ndofs_cell; i++)
       for (int j = 0; j < ndofs_cell; j++)
-        A[i * ndofs_cell + j] += detJ * A0.unchecked(i, j);
+        A[i * ndofs_cell + j] += detJ * A0(i, j);
   };
 
   // Tr(eps(u))I:eps(v) dx
@@ -216,20 +261,31 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == 3);
-    // Get geometrical data
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
-    std::array<std::size_t, 2> shape = {d, gdim};
-    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+
+    // Create buffers for jacobian (inverse and determinant) computations
+    std::vector<double> Jb(gdim * tdim);
+    std::vector<double> Kb(tdim * gdim);
+    mdspan2_t J(Jb.data(), gdim, tdim);
+    mdspan2_t K(Kb.data(), tdim, gdim);
+    cmdspan2_t coords(coordinate_dofs, shape);
+    std::vector<double> detJ_scratch(2 * gdim * tdim);
 
     // Compute Jacobian, its inverse and the determinant
-    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
-    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
+    cmdspan4_t dphi_c_full(coordinate_basis.data(), tab_shape);
+
+    auto dphi_c_0 = stdex::submdspan(dphi_c_full, std::pair(1, tdim + 1), 0, stdex::full_extent, 0);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_0, coords, J);
     dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
-    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J));
+    const double detJ
+        = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
+
+    // Get derivatives of element basis
+    cmdspan3_t dphi(dphib.data(), basis_shape[1], basis_shape[2], tdim);
 
     // Temporary variable for grad(phi) on physical cell
-    xt::xtensor<double, 2> dphi_phys({bs, ndofs_cell});
+    std::vector<double> dphi_physb(
+        std::reduce(shape_d.begin(), shape_d.end(), 1, std::multiplies{}));
+    mdspan2_t dphi_phys(dphi_physb.data(), shape_d[1], shape_d[0]);
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
@@ -237,11 +293,11 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
       double w0 = weights[q] * detJ;
 
       // Precompute J^-T * dphi
-      std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
+      std::fill(dphi_physb.begin(), dphi_physb.end(), 0);
       for (int i = 0; i < ndofs_cell; i++)
         for (int j = 0; j < bs; j++)
           for (int k = 0; k < tdim; k++)
-            dphi_phys(j, i) += K(k, j) * _dphi(q, i, k);
+            dphi_phys(j, i) += K(k, j) * dphi(q, i, k);
 
       // Add contributions to local matrix
       for (int i = 0; i < ndofs_cell; i++)
@@ -270,34 +326,44 @@ dolfinx_cuas::kernel_fn<T> generate_tet_kernel(dolfinx_cuas::Kernel type,
             const int* entity_local_index, const std::uint8_t* quadrature_permutation)
   {
     assert(bs == 3);
-    // Get geometrical data
-    xt::xtensor<double, 2> J = xt::zeros<double>({gdim, tdim});
-    xt::xtensor<double, 2> K = xt::zeros<double>({tdim, gdim});
-    std::array<std::size_t, 2> shape = {d, gdim};
-    xt::xtensor<double, 2> coord = xt::adapt(coordinate_dofs, gdim * d, xt::no_ownership(), shape);
+    // Create buffers for jacobian (inverse and determinant) computations
+    std::vector<double> Jb(gdim * tdim);
+    std::vector<double> Kb(tdim * gdim);
+    mdspan2_t J(Jb.data(), gdim, tdim);
+    mdspan2_t K(Kb.data(), tdim, gdim);
+    cmdspan2_t coords(coordinate_dofs, shape);
+    std::vector<double> detJ_scratch(2 * gdim * tdim);
 
     // Compute Jacobian, its inverse and the determinant
-    auto c_view = xt::view(coord, xt::all(), xt::range(0, gdim));
-    dolfinx::fem::CoordinateElement::compute_jacobian(dphi0_c, c_view, J);
+    cmdspan4_t dphi_c_full(coordinate_basis.data(), tab_shape);
+
+    auto dphi_c_0 = stdex::submdspan(dphi_c_full, std::pair(1, tdim + 1), 0, stdex::full_extent, 0);
+    dolfinx::fem::CoordinateElement::compute_jacobian(dphi_c_0, coords, J);
     dolfinx::fem::CoordinateElement::compute_jacobian_inverse(J, K);
-    double detJ = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J));
+    const double detJ
+        = std::fabs(dolfinx::fem::CoordinateElement::compute_jacobian_determinant(J, detJ_scratch));
+
+    // Get derivatives of element basis
+    cmdspan3_t dphi(dphib.data(), basis_shape[1], basis_shape[2], tdim);
 
     // Temporary variable for grad(phi) on physical cell
-    xt::xtensor<double, 2> dphi_phys({ndofs_cell, bs});
+    std::vector<double> dphi_physb(
+        std::reduce(shape_d.begin(), shape_d.end(), 1, std::multiplies{}));
+    mdspan2_t dphi_phys(dphi_physb.data(), shape_d);
 
     // Main loop
     for (std::size_t q = 0; q < weights.size(); q++)
     {
       const double w0 = weights[q] * detJ;
       // Precompute J^-T * dphi
-      std::fill(dphi_phys.begin(), dphi_phys.end(), 0);
+      std::fill(dphi_physb.begin(), dphi_physb.end(), 0);
       for (int i = 0; i < ndofs_cell; i++)
       {
         for (int j = 0; j < bs; j++)
         {
           double acc = 0;
           for (int k = 0; k < tdim; k++)
-            acc += K(k, j) * _dphi(q, i, k);
+            acc += K(k, j) * dphi(q, i, k);
           dphi_phys(i, j) += acc;
         }
       }
