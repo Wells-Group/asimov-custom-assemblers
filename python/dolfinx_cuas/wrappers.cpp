@@ -53,7 +53,10 @@ PYBIND11_MODULE(cpp, m)
            {
              if (std::size_t(i) >= self.points_ref().size())
                throw std::runtime_error("Entity index out of range");
-             return dolfinx_wrappers::xt_as_pyarray(std::move(self.points()[i]));
+             xt::xtensor<double, 2> pts = self.points()[i];
+             std::vector<double> pt_vec(pts.begin(), pts.end());
+             std::array<std::size_t, 2> shape = {pts.shape(0), pts.shape(1)};
+             return dolfinx_wrappers::as_pyarray(std::move(pt_vec), shape);
            })
       .def("weights",
            [](dolfinx_cuas::QuadratureRule& self, int i)
