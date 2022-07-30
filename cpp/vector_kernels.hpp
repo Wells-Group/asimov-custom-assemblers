@@ -51,13 +51,13 @@ kernel_fn<T> generate_vector_kernel(std::shared_ptr<const dolfinx::fem::Function
   const std::array<std::size_t, 4> e_shape
       = element->basix_element().tabulate_shape(0, num_quadrature_points);
   assert(e_shape.back() == 1);
-  std::vector<double> basis(std::reduce(e_shape.begin(), e_shape.end(), 1, std::multiplies()));
+  std::vector<double> basis(std::reduce(e_shape.begin(), e_shape.end(), 1, std::multiplies{}));
   element->tabulate(basis, std::span(points.data(), points.size()), points.shape(), 0);
 
   // Tabulate basis of coordinate element
   std::array<std::size_t, 4> c_shape = cmap.tabulate_shape(1, points.shape(0));
   std::vector<double> coordinate_basis(
-      std::reduce(c_shape.begin(), c_shape.end(), 1, std::multiplies()));
+      std::reduce(c_shape.begin(), c_shape.end(), 1, std::multiplies{}));
   cmap.tabulate(1, std::span(points.data(), points.size()), points.shape(), coordinate_basis);
 
   const bool is_affine = cmap.is_affine();
@@ -156,7 +156,7 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
         = element->basix_element().tabulate_shape(1, num_quadrature_points);
     assert(e_shape.back() == 1);
     basis_values.push_back(
-        {std::vector<double>(std::reduce(e_shape.begin(), e_shape.end(), 1, std::multiplies())),
+        {std::vector<double>(std::reduce(e_shape.begin(), e_shape.end(), 1, std::multiplies{})),
          e_shape});
 
     // Tabulate at quadrature points on facet
@@ -166,7 +166,7 @@ kernel_fn<T> generate_surface_vector_kernel(std::shared_ptr<const dolfinx::fem::
     // Tabulate coordinate element of reference cell
     std::array<std::size_t, 4> tab_shape = cmap.tabulate_shape(1, q_facet.shape(0));
     coordinate_basis_values.push_back(
-        {std::vector<double>(std::reduce(tab_shape.begin(), tab_shape.end(), 1, std::multiplies())),
+        {std::vector<double>(std::reduce(tab_shape.begin(), tab_shape.end(), 1, std::multiplies{})),
          tab_shape});
     std::vector<double>& cbasis = coordinate_basis_values.back().first;
     cmap.tabulate(1, std::span(q_facet.data(), q_facet.size()), q_facet.shape(), cbasis);

@@ -65,7 +65,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
         = element->basix_element().tabulate_shape(1, num_quadrature_points);
     assert(e_shape.back() == 1);
     basis_values.push_back(
-        {std::vector<double>(std::reduce(e_shape.begin(), e_shape.end(), 1, std::multiplies())),
+        {std::vector<double>(std::reduce(e_shape.begin(), e_shape.end(), 1, std::multiplies{})),
          e_shape});
 
     // Tabulate at quadrature points on facet
@@ -75,7 +75,7 @@ kernel_fn<T> generate_surface_kernel(std::shared_ptr<const dolfinx::fem::Functio
     // Tabulate coordinate element of reference cell
     std::array<std::size_t, 4> tab_shape = cmap.tabulate_shape(1, q_facet.shape(0));
     coordinate_basis_values.push_back(
-        {std::vector<double>(std::reduce(tab_shape.begin(), tab_shape.end(), 1, std::multiplies())),
+        {std::vector<double>(std::reduce(tab_shape.begin(), tab_shape.end(), 1, std::multiplies{})),
          tab_shape});
     std::vector<double>& cbasis = coordinate_basis_values.back().first;
     cmap.tabulate(1, std::span(q_facet.data(), q_facet.size()), q_facet.shape(), cbasis);

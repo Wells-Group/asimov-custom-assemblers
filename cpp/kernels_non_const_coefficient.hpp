@@ -79,7 +79,7 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
         = coeff_element->basix_element().tabulate_shape(0, weights.size());
     assert(coeff_shape.back() == 1);
     std::vector<double> coeff_basis(
-        std::reduce(coeff_shape.cbegin(), coeff_shape.cend(), 1, std::multiplies()));
+        std::reduce(coeff_shape.cbegin(), coeff_shape.cend(), 1, std::multiplies{}));
     coeff_element->tabulate(coeff_basis, std::span(points.data(), points.size()),
                             {points.shape(0), points.shape(1)}, 0);
     cmdspan4_t cb(coeff_basis.data(), coeff_shape);
