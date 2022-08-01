@@ -21,7 +21,6 @@
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <xtl/xspan.hpp>
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
@@ -29,6 +28,9 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(cpp, m)
 {
+  // Load basix and dolfinx to use Pybindings
+  py::module basix = py::module::import("basix");
+
   // Create module for C++ wrappers
   m.doc() = "DOLFINX Custom Assemblers Python interface";
 #ifdef VERSION_INFO

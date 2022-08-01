@@ -61,7 +61,7 @@ generate_coefficient_kernel(dolfinx_cuas::Kernel type,
   coordinate_element.tabulate(1, cmdspan2_t(points.data(), pts_shape),
                               mdspan4_t(coordinate_basis.data(), tab_shape));
 
-  assert(ndofs_cell == static_cast<std::int32_t>(phi.shape(1)));
+  assert(ndofs_cell == static_cast<std::int32_t>(tab_shape[2]));
 
   // Fetch finite elements for coefficient functions and tabulate shape functions
   int num_coeffs = coeffs.size();
