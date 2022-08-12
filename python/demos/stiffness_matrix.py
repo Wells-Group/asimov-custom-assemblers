@@ -87,4 +87,4 @@ if __name__ == "__main__":
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
     print(f"Norm of matrix error {matrix_error}")
-    assert(matrix_error < 1e-10)
+    assert matrix_error < 1e-10

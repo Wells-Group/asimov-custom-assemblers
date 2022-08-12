@@ -78,7 +78,7 @@ def mass_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool, bloc
     elif ct == "hexahedron":
         apply_dof_trans = apply_dof_transformation_hexahedron
     else:
-        assert(False)
+        assert False
     J_q = np.zeros((num_q_points, gdim, tdim), dtype=np.float64)
     detJ_q = np.zeros((num_q_points, 1), dtype=np.float64)
     dphi_c = c_tab[1:gdim + 1, 0, :, 0].copy()
@@ -190,7 +190,7 @@ def stiffness_kernel(data: np.ndarray, ct: str, num_cells: int, is_affine: bool,
     elif ct == "hexahedron":
         apply_dof_trans = apply_dof_transformation_hexahedron
     else:
-        assert(False)
+        assert False
 
     J_q = np.zeros((q_w.size, gdim, tdim), dtype=np.float64)
     invJ = np.zeros((tdim, gdim), dtype=np.float64)
@@ -321,7 +321,7 @@ def surface_kernel(data: np.array, ct: str, is_affine: bool, block_size: int, nu
     elif ct == "hexahedron":
         apply_dof_trans = apply_dof_transformation_hexahedron
     else:
-        assert(False)
+        assert False
     J_q = np.zeros((num_q_points, gdim, tdim - 1), dtype=np.float64)
     detJ_q = np.zeros((num_q_points, 1), dtype=np.float64)
     dphi_c = np.zeros(c_tab[1:gdim + 1, 0, :, 0].shape, dtype=np.float64)

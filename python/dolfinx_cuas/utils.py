@@ -48,7 +48,7 @@ def pack_facet_info(mesh: _mesh.Mesh, mt: _mesh.MeshTagsMetaClass, index: int):
     c_to_f = mesh.topology.connectivity(tdim, fdim)
     f_to_c = mesh.topology.connectivity(fdim, tdim)
 
-    assert(mt.dim == fdim)
+    assert mt.dim == fdim
     active_facets = mt.indices[mt.values == index]
     facet_info = pack_facet_info_numba(active_facets,
                                        (c_to_f.array, c_to_f.offsets),
@@ -71,7 +71,7 @@ def pack_facet_info_numba(active_facets, c_to_f, f_to_c):
 
     for j, facet in enumerate(active_facets):
         cells = f_to_c_pos[f_to_c_offs[facet]:f_to_c_offs[facet + 1]]
-        assert(len(cells) == 1)
+        assert len(cells) == 1
         local_facets = c_to_f_pos[c_to_f_offs[cells[0]]: c_to_f_offs[cells[0] + 1]]
         # Should be wrapped in convenience numba function
         local_index = np.flatnonzero(facet == local_facets)[0]
@@ -118,7 +118,7 @@ def compute_determinant(A: np.ndarray, detJ: np.ndarray):
                 - A[2, 1] * A[1, 2] * A[0, 0] - A[2, 2] * A[1, 0] * A[0, 1]
         else:
             # print(f"Matrix has invalid size {num_rows}x{num_cols}")
-            assert(False)
+            assert False
     else:
         # det(A^T A) = det(A) det(A)
         ATA = A.T @ A
@@ -134,7 +134,7 @@ def compute_determinant(A: np.ndarray, detJ: np.ndarray):
                 - ATA[2, 1] * ATA[1, 2] * ATA[0, 0] - ATA[2, 2] * ATA[1, 0] * ATA[0, 1]
         else:
             # print(f"Matrix has invalid size {num_rows}x{num_cols}")
-            assert(False)
+            assert False
         detJ[0] = np.sqrt(detJ[0])
 
 
@@ -170,10 +170,10 @@ def square_inv(A: np.ndarray, Ainv: np.ndarray, detJ: np.ndarray):
             Ainv[2, 2] = (A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0]) / detJ[0]
         else:
             # print(f"Matrix has invalid size {num_rows}x{num_cols}")
-            assert(False)
+            assert False
     else:
         # print(f"Matrix has invalid size {num_rows}x{num_cols}")
-        assert(False)
+        assert False
 
 
 @numba.njit(cache=True)
