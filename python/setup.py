@@ -7,7 +7,7 @@ from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 
 REQUIREMENTS = []
 
@@ -72,7 +72,7 @@ setup(name='dolfinx_cuas',
       author='Jørgen S. Dokken',
 
       author_email='dokken92@gmail.com',
-      python_requires='>3.6.0',
+      python_requires='>3.7.0',
       packages=['dolfinx_cuas'],
       ext_modules=[CMakeExtension('dolfinx_cuas.cpp')],
       cmdclass=dict(build_ext=CMakeBuild),
