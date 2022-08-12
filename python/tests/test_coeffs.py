@@ -78,4 +78,4 @@ def test_entity_packing(integral_type):
         entities = np.flatnonzero(facets == 0)
     new_entities = dolfinx_cuas.compute_active_entities(mesh, np.asarray(entities, dtype=np.int32),
                                                         integral_type)
-    assert(np.allclose(active_entities, new_entities))
+    assert np.allclose(active_entities, new_entities)

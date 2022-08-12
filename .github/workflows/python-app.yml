@@ -89,7 +89,10 @@ jobs:
         run: BUILD_TYPE=Debug CXXFLAGS=${CXX_FLAGS} python3 -m pip -v install python/
 
       - name: Flake8 code
-        run: flake8 python/
+        run:  |
+          cd python
+          flake8 . --exclude=build
+          cd ..
 
       - name: Run tests
         run: |

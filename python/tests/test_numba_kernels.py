@@ -75,4 +75,4 @@ def test_cell_kernels(element, ct, degree, integral_type):
     Aref_sp = scipy.sparse.csr_matrix((av, aj, ai))
     matrix_error = scipy.sparse.linalg.norm(Aref_sp - A)
     print(f"Matrix error {matrix_error}")
-    assert(matrix_error < 1e-13)
+    assert matrix_error < 1e-13
