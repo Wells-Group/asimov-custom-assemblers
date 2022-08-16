@@ -13,7 +13,7 @@ jobs:
     if: "!(contains(github.event.head_commit.message, '[ci skip]') || contains(github.event.head_commit.message, '[skip ci]'))"
     runs-on: ubuntu-20.04
 
-    container: dolfinx/dev-env:v0.5.0
+    container: dolfinx/dev-env:nightly
 
     strategy:
       matrix:
@@ -31,7 +31,7 @@ jobs:
       CC: ${{ matrix.CC }}
       CXX: ${{ matrix.CXX }}
       HDF5_MPI: "ON"
-      HDF5_DIR: "/usr/lib/x86_64-linux-gnu/hdf5/mpich/"
+      HDF5_DIR: "/usr/local/"
       PETSC_ARCH: linux-gnu-${{ matrix.petsc_mode }}-${{ matrix.petsc_int_type }}
       OMPI_ALLOW_RUN_AS_ROOT: 1
       OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
@@ -53,7 +53,7 @@ jobs:
         with:
           path: ./basix
           repository: FEniCS/basix
-          ref: v0.5.0
+          ref: main
 
       - name: Install FEniCS Python components (dolfinx)
         run: |
@@ -61,14 +61,15 @@ jobs:
           cmake --build build-basix
           cmake --install build-basix
           python3 -m pip install ./basix/python
-          python3 -m pip install git+https://github.com/FEniCS/ufl.git@2022.2.0
-          python3 -m pip install git+https://github.com/FEniCS/ffcx.git@v0.5.0
+          python3 -m pip install git+https://github.com/FEniCS/ufl.git@main
+          python3 -m pip install git+https://github.com/FEniCS/ffcx.git@main
+   
       - name: Install dolfinx
         uses: actions/checkout@v2
         with:
           path: ./dolfinx
           repository: FEniCS/dolfinx
-          ref: v0.5.0
+          ref: main
 
       - name: Configure C++ (dolfinx)
         run: cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build-dolfinx -S ./dolfinx/cpp/

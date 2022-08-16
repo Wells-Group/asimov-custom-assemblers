@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Set project name and version number
-project(DOLFINX_CUAS VERSION 0.5.0)
+project(DOLFINX_CUAS VERSION 0.5.1)
 
 #------------------------------------------------------------------------------
 # Set CMake options, see `cmake --help-policy CMP00xx`
@@ -41,8 +41,8 @@ option(CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and install
 add_feature_info(CMAKE_INSTALL_RPATH_USE_LINK_PATH CMAKE_INSTALL_RPATH_USE_LINK_PATH "Add paths to linker search and installed rpath.")
 
 # Find packages
-find_package(DOLFINX 0.5.0.0 REQUIRED)
-find_package(Basix 0.5.0.0 REQUIRED)
+find_package(DOLFINX 0.5.1.0 REQUIRED)
+find_package(Basix 0.5.1.0 REQUIRED)
 find_package(xtensor REQUIRED)
 
 feature_summary(WHAT ALL)
@@ -64,7 +64,7 @@ ${CMAKE_BINARY_DIR}/dolfinx_cuas/DOLFINX_CUASConfig.cmake
 INSTALL_DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/dolfinx_cuas)
 
 write_basic_package_version_file(${CMAKE_BINARY_DIR}/dolfinx_cuas/DOLFINX_CUASConfigVersion.cmake
-VERSION 0.5.0.0 COMPATIBILITY SameMajorVersion)
+VERSION 0.5.1.0 COMPATIBILITY SameMajorVersion)
 
 # Install CMake helper files
 install(
