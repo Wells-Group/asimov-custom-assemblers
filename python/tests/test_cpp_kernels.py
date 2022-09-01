@@ -52,7 +52,7 @@ def test_manifold(kernel_type):
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    a = fem.form(a, jit_options={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     A = fem.petsc.create_matrix(a)
 
     # Normal assembly
@@ -112,7 +112,7 @@ def test_surface_kernels(dim, kernel_type):
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    a = fem.form(a, jit_options={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     A = fem.petsc.create_matrix(a)
 
     # Normal assembly
@@ -169,7 +169,7 @@ def test_normal_kernels(dim, kernel_type):
     quadrature_degree = dolfinx_cuas.estimate_max_polynomial_degree(a)
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    a = fem.form(a, jit_options={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     A = fem.petsc.create_matrix(a)
 
     # Normal assembly
@@ -222,7 +222,7 @@ def test_volume_kernels(kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    a = fem.form(a, jit_options={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     A = fem.petsc.create_matrix(a)
 
     # Normal assembly
@@ -280,7 +280,7 @@ def test_vector_cell_kernel(kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    a = fem.form(a, jit_options={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     A = fem.petsc.create_matrix(a)
 
     # Normal assembly
@@ -350,7 +350,7 @@ def test_surface_non_affine(P, vector, dim):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    a = fem.form(a, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    a = fem.form(a, jit_options={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     A = fem.petsc.create_matrix(a)
 
     # Normal assembly

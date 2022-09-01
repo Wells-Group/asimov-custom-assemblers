@@ -63,10 +63,10 @@ if __name__ == "__main__":
 
     dolfin_times = np.zeros(runs - 1)
     numba_times = np.zeros(runs - 1)
-    jit_params = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
+    jit_options = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_verbose": False}
     for i in range(runs):
         start = time.time()
-        Aref = compute_reference_mass_matrix(V, quadrature_degree, jit_params=jit_params)
+        Aref = compute_reference_mass_matrix(V, quadrature_degree, jit_options=jit_options)
         end = time.time()
         print(f"{i}: DOLFINx {end-start:.2e}")
         if i > 0:

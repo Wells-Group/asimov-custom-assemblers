@@ -35,7 +35,7 @@ def test_vector_kernels(dim, kernel_type, P):
 
     # Compile UFL form
     cffi_options = ["-Ofast", "-march=native"]
-    L = form(L, jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    L = form(L, jit_options={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     b = create_vector(L)
 
     # Normal assembly
@@ -83,7 +83,7 @@ def test_vector_surface_kernel(dim, kernel_type, P):
     kernel_type = dolfinx_cuas.Kernel.Rhs
     # Compile UFL form
     # cffi_options = []  # ["-Ofast", "-march=native"]
-    L = form(L)  # , jit_params={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
+    L = form(L)  # , jit_options={"cffi_extra_compile_args": cffi_options, "cffi_libraries": ["m"]})
     b = create_vector(L)
 
     # Normal assembly

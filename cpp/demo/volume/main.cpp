@@ -44,7 +44,8 @@ int main(int argc, char* argv[])
 
     std::shared_ptr<mesh::Mesh> mesh = std::make_shared<mesh::Mesh>(
         mesh::create_box(mpi_comm, {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}}, {10, 10, 10},
-                         mesh::CellType::tetrahedron, mesh::GhostMode::none));
+                         mesh::CellType::tetrahedron,  
+                         mesh::create_cell_partitioner(mesh::GhostMode::none)));
 
     mesh->topology().create_entity_permutations();
 
