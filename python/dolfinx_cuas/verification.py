@@ -13,7 +13,7 @@ Verification of assembly using DOLFINx
 __all__ = ["compute_reference_mass_matrix", "compute_reference_stiffness_matrix", "compute_reference_surface_matrix"]
 
 
-def compute_reference_mass_matrix(V: _fem.FunctionSpace, quadrature_degree: int = -1, jit_params={}):
+def compute_reference_mass_matrix(V: _fem.FunctionSpace, quadrature_degree: int = -1, jit_options={}):
     """
     Compute mass matrix with given quadrature degree
     """
@@ -22,13 +22,13 @@ def compute_reference_mass_matrix(V: _fem.FunctionSpace, quadrature_degree: int 
     v = ufl.TestFunction(V)
     dx = ufl.dx(domain=mesh, metadata={"quadrature_degree": quadrature_degree})
     a = ufl.inner(u, v) * dx
-    a = _fem.form(a, jit_params=jit_params)
+    a = _fem.form(a, jit_options=jit_options)
     Aref = _fem.petsc.assemble_matrix(a)
     Aref.assemble()
     return Aref
 
 
-def compute_reference_stiffness_matrix(V: _fem.FunctionSpace, quadrature_degree: int = -1, jit_params={}):
+def compute_reference_stiffness_matrix(V: _fem.FunctionSpace, quadrature_degree: int = -1, jit_options={}):
     """
     Compute stiffness matrix with given quadrature degree
     """
@@ -37,14 +37,14 @@ def compute_reference_stiffness_matrix(V: _fem.FunctionSpace, quadrature_degree:
     v = ufl.TestFunction(V)
     dx = ufl.dx(domain=mesh, metadata={"quadrature_degree": quadrature_degree})
     a = ufl.inner(ufl.grad(u), ufl.grad(v)) * dx
-    a = _fem.form(a, jit_params=jit_params)
+    a = _fem.form(a, jit_options=jit_options)
     Aref = _fem.petsc.assemble_matrix(a)
     Aref.assemble()
     return Aref
 
 
 def compute_reference_surface_matrix(V: _fem.FunctionSpace, quadrature_degree: int = -1,
-                                     mt: _mesh.MeshTagsMetaClass = None, index: int = None, jit_params={}):
+                                     mt: _mesh.MeshTagsMetaClass = None, index: int = None, jit_options={}):
     """
     Compute mass matrix with given quadrature degree
     """
