@@ -19,7 +19,7 @@ class NonlinearProblemCUAS:
     def __init__(self, F: typing.Callable[[PETSc.Vec, PETSc.Vec], None],
                  J: typing.Callable[[PETSc.Vec, PETSc.Mat], None],
                  create_b: typing.Callable[[], PETSc.Vec], create_A: typing.Callable[[], PETSc.Mat],
-                 bcs: typing.List[fem.DirichletBCMetaClass] = [], form_compiler_params={}, jit_options={}):
+                 bcs: typing.List[fem.DirichletBCMetaClass] = [], form_compiler_options={}, jit_options={}):
         """Initialize class that sets up structures for solving the non-linear problem using Newton's method,
         dF/du(u) du = -F(u)
 
@@ -36,7 +36,7 @@ class NonlinearProblemCUAS:
             Function that creates the matrix used for the Jacobian assembly
         bcs
             List of Dirichlet boundary conditions
-        form_compiler_params
+        form_compiler_options
             Parameters used in FFCX compilation of this form. Run `ffcx --help` at
             the commandline to see all available options. Takes priority over all
             other parameter values, except for `scalar_type` which is determined by
