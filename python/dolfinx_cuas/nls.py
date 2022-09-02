@@ -20,6 +20,7 @@ class NonlinearProblemCUAS:
                  J: typing.Callable[[PETSc.Vec, PETSc.Mat], None],
                  create_b: typing.Callable[[], PETSc.Vec], create_A: typing.Callable[[], PETSc.Mat],
                  bcs: typing.List[fem.DirichletBCMetaClass] = [], form_compiler_options={}, jit_options={}):
+
         """Initialize class that sets up structures for solving the non-linear problem using Newton's method,
         dF/du(u) du = -F(u)
 
